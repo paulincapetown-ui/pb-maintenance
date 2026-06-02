@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Maintenance Dashboard — Property Bureau</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#2c3e50;min-height:100vh}
+
+    /* ── Header ── */
+    header{background:#1a2332;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    header img{height:34px}
+    .header-actions{display:flex;gap:10px;align-items:center}
+    .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:5px;font-size:13px;font-weight:700;border:none;cursor:pointer;text-decoration:none;transition:opacity .15s}
+    .btn:hover{opacity:.85}
+    .btn-primary{background:#c9a84c;color:#1a2332}
+    .btn-outline{background:transparent;color:#fff;border:2px solid rgba(255,255,255,.4)}
+    .btn-sm{padding:6px 14px;font-size:12px}
+    .btn-danger{background:#e74c3c;color:#fff}
+    .btn-success{background:#16a34a;color:#fff}
+    .btn-blue{background:#3b82f6;color:#fff}
+    .btn-green{background:#25d366;color:#fff}
+    .btn-edit{background:#f0f2f5;color:#1a2332;border:1px solid #d1d9e0}
+
+    /* ── Stats bar ── */
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:20px 24px}
+    @media(max-width:600px){.stats{grid-template-columns:1fr 1fr}}
+    .stat-card{background:#fff;border-radius:8px;padding:16px 20px;display:flex;align-items:center;gap:14px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+    .stat-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+    .stat-icon.total{background:#e8edf5}
+    .stat-icon.progress{background:#fef3c7}
+    .stat-icon.overdue{background:#fee2e2}
+    .stat-icon.complete{background:#d1fae5}
+    .stat-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#888}
+    .stat-value{font-size:26px;font-weight:700;color:#1a2332;line-height:1}
+
+    /* ── Filter bar ── */
+    .filter-bar{background:#fff;border-bottom:1px solid #e8ecf0;padding:12px 24px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .filter-bar input[type=text]{flex:1;min-width:180px;border:1px solid #d1d9e0;border-radius:5px;padding:8px 12px;font-size:13px;font-family:inherit}
+    .filter-bar input:focus{outline:none;border-color:#1a2332}
+    .filter-bar select{border:1px solid #d1d9e0;border-radius:5px;padding:8px 12px;font-size:13px;font-family:inherit;background:#fff;cursor:pointer}
+    .filter-bar select:focus{outline:none;border-color:#1a2332}
+    .job-count{font-size:12px;color:#888;font-weight:600;margin-left:auto;white-space:nowrap}
+
+    /* ── Table ── */
+    .table-wrap{overflow-x:auto;padding:0 24px 24px}
+    table{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.06);overflow:hidden}
+    thead th{background:#f8f9fb;padding:11px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#555;border-bottom:1px solid #e8ecf0;white-space:nowrap}
+    tbody tr{border-bottom:1px solid #f0f0f0;cursor:pointer;transition:background .1s}
+    tbody tr:hover{background:#f8f9fb}
+    tbody tr.selected{background:#eef4ff}
+    tbody td{padding:11px 14px;vertical-align:middle}
+    tbody td:first-child{font-family:monospace;font-size:12px;color:#888}
+    .empty-state{text-align:center;padding:48px 24px;color:#888}
+    .empty-state .empty-icon{font-size:36px;margin-bottom:12px;opacity:.4}
+
+    /* ── Status badges ── */
+    .badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700}
+    .badge-logged{background:#dbeafe;color:#1d4ed8}
+    .badge-progress{background:#fef3c7;color:#92400e}
+    .badge-parts{background:#ede9fe;color:#5b21b6}
+    .badge-complete{background:#d1fae5;color:#065f46}
+    .badge-overdue{background:#fee2e2;color:#991b1b;margin-left:4px}
+
+    /* ── Detail pane ── */
+    .detail-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:100}
+    .detail-overlay.open{display:block}
+    .detail-pane{position:fixed;top:0;right:0;width:min(540px,100vw);height:100vh;background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,.15);z-index:101;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s ease}
+    .detail-pane.open{transform:translateX(0)}
+    .detail-header{background:#1a2332;color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+    .detail-header h3{font-size:15px;font-weight:700;flex:1;margin-right:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .detail-header .job-ref{font-size:11px;opacity:.6;margin-top:2px}
+    .detail-close{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px 8px;opacity:.7}
+    .detail-close:hover{opacity:1}
+    .detail-body{flex:1;overflow-y:auto;padding:20px}
+    .detail-section{margin-bottom:20px}
+    .detail-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #f0f0f0}
+    .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .detail-field{display:flex;flex-direction:column;gap:3px}
+    .detail-field label{font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.4px}
+    .detail-field .val{font-size:14px;color:#2c3e50}
+    .detail-field input,.detail-field select,.detail-field textarea{border:1px solid #d1d9e0;border-radius:4px;padding:7px 10px;font-size:13px;font-family:inherit;width:100%}
+    .detail-field input:focus,.detail-field select:focus,.detail-field textarea:focus{outline:none;border-color:#1a2332}
+    .detail-field textarea{min-height:70px;resize:vertical}
+    .comm-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .detail-footer{padding:14px 20px;border-top:1px solid #f0f0f0;display:flex;gap:10px;flex-wrap:wrap;flex-shrink:0}
+    .edit-actions{display:none;gap:10px}
+
+    /* ── Email history ── */
+    .email-history-list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+    .email-item{background:#f8f9fb;border-radius:6px;padding:12px;border-left:3px solid #3b82f6}
+    .email-item-header{display:flex;justify-content:space-between;margin-bottom:4px}
+    .email-item-to{font-size:13px;font-weight:700;color:#1a2332}
+    .email-item-time{font-size:11px;color:#888}
+    .email-item-subject{font-size:13px;color:#444}
+    .email-item-meta{font-size:11px;color:#888;margin-top:3px}
+    .no-emails{font-size:13px;color:#888;font-style:italic}
+
+    /* ── Modal ── */
+    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;align-items:center;justify-content:center}
+    .modal-overlay.open{display:flex}
+    .modal{background:#fff;border-radius:10px;width:min(580px,95vw);max-height:90vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+    .modal-header{background:#1a2332;color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-radius:10px 10px 0 0;flex-shrink:0}
+    .modal-header h3{font-size:15px;font-weight:700}
+    .modal-close{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;opacity:.7;padding:2px 8px}
+    .modal-close:hover{opacity:1}
+    .modal-body{flex:1;overflow-y:auto;padding:20px}
+    .modal-footer{padding:14px 20px;border-top:1px solid #f0f0f0;display:flex;gap:10px;justify-content:flex-end;flex-shrink:0}
+    .modal-field{margin-bottom:14px}
+    .modal-field label{display:block;font-size:12px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
+    .modal-field input,.modal-field textarea,.modal-field select{width:100%;border:1px solid #d1d9e0;border-radius:5px;padding:9px 12px;font-size:13.5px;font-family:inherit}
+    .modal-field input:focus,.modal-field textarea:focus{outline:none;border-color:#1a2332}
+    .modal-field textarea{min-height:160px;resize:vertical}
+    .template-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+    .chip{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid #d1d9e0;cursor:pointer;background:#fff;transition:all .1s}
+    .chip:hover{background:#1a2332;color:#fff;border-color:#1a2332}
+    .info-box{background:#f0f4ff;border:1px solid #c7d7f7;border-radius:5px;padding:10px 14px;font-size:12.5px;color:#444;margin-bottom:14px;line-height:1.5}
+    .sent-badge{display:none;background:#d1fae5;color:#065f46;border-radius:5px;padding:8px 14px;font-size:13px;font-weight:700;text-align:center}
+
+    /* ── Toast ── */
+    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:#1a2332;color:#fff;padding:10px 20px;border-radius:6px;font-size:13.5px;font-weight:600;z-index:999;transition:transform .3s ease;pointer-events:none}
+    .toast.show{transform:translateX(-50%) translateY(0)}
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header>
+  <img src="https://propertybureau.co.za/wp-content/uploads/2026/03/PropertyBureauLogo-1.svg" alt="Property Bureau" onerror="this.style.display='none'"/>
+  <div class="header-actions">
+    <button class="btn btn-outline btn-sm" onclick="loadJobs()">↻ Refresh</button>
+    <a href="form.html" class="btn btn-primary btn-sm">+ Log New Job</a>
+  </div>
+</header>
+
+<!-- ── Stats ── -->
+<div class="stats">
+  <div class="stat-card">
+    <div class="stat-icon total">📋</div>
+    <div><div class="stat-label">Total Jobs</div><div class="stat-value" id="stat-total">—</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon progress">🔧</div>
+    <div><div class="stat-label">In Progress</div><div class="stat-value" id="stat-progress">—</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon overdue">⚠️</div>
+    <div><div class="stat-label">Overdue</div><div class="stat-value" id="stat-overdue">—</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon complete">✅</div>
+    <div><div class="stat-label">Complete</div><div class="stat-value" id="stat-complete">—</div></div>
+  </div>
+</div>
+
+<!-- ── Filters ── -->
+<div class="filter-bar">
+  <input type="text" id="search-input" placeholder="Search properties, contractors…" oninput="applyFilters()"/>
+  <select id="filter-status" onchange="applyFilters()">
+    <option value="">All Statuses</option>
+    <option value="Logged">Logged</option>
+    <option value="In Progress">In Progress</option>
+    <option value="Awaiting Parts">Awaiting Parts</option>
+    <option value="Complete">Complete</option>
+    <option value="Overdue">Overdue</option>
+  </select>
+  <select id="filter-property" onchange="applyFilters()">
+    <option value="">All Properties</option>
+  </select>
+  <button class="btn btn-outline btn-sm" style="color:#555;border-color:#d1d9e0" onclick="clearFilters()">Clear</button>
+  <span class="job-count" id="visible-count"></span>
+</div>
+
+<!-- ── Table ── -->
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Job ID</th>
+        <th>Date</th>
+        <th>Property</th>
+        <th>Issue</th>
+        <th>Contractor</th>
+        <th>Est. Completion</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="jobs-tbody">
+      <tr><td colspan="7" style="text-align:center;padding:40px;color:#888">⏳ Loading jobs…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── Detail overlay + pane ── -->
+<div class="detail-overlay" id="detail-overlay" onclick="closeDetail()"></div>
+<div class="detail-pane" id="detail-pane">
+  <div class="detail-header">
+    <div>
+      <h3 id="detail-property-title">—</h3>
+      <div class="job-ref" id="detail-job-id"></div>
+    </div>
+    <button class="detail-close" onclick="closeDetail()">✕</button>
+  </div>
+  <div class="detail-body" id="detail-inner"></div>
+  <div class="detail-footer">
+    <div class="edit-actions" id="edit-actions">
+      <button class="btn btn-primary" onclick="saveEdit()">Save Changes</button>
+      <button class="btn btn-edit" onclick="cancelEdit()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Email Modal ── -->
+<div class="modal-overlay" id="email-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>✉ Compose Email</h3>
+      <button class="modal-close" onclick="closeEmailModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-field">
+        <label>Your Name (Staff) *</label>
+        <input type="text" id="email-staff-name" placeholder="Your name" oninput="saveStaffName()"/>
+      </div>
+      <div class="template-chips" id="email-chips"></div>
+      <div class="modal-field">
+        <label>To — Name</label>
+        <input type="text" id="email-to-name"/>
+      </div>
+      <div class="modal-field">
+        <label>To — Email *</label>
+        <input type="email" id="email-to-addr"/>
+      </div>
+      <div class="modal-field">
+        <label>Subject</label>
+        <input type="text" id="email-subject"/>
+      </div>
+      <div class="modal-field">
+        <label>Message</label>
+        <textarea id="email-body"></textarea>
+      </div>
+      <div class="info-box">ℹ️ Clicking <strong>Open in Email Client</strong> will open your default email app with this message pre-loaded. The email sends from your own account.<br><br><strong>Did you send it?</strong> Click <strong>Log Email</strong> after sending to record it against this job.</div>
+      <div class="sent-badge" id="email-sent-badge">✓ Email logged</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-edit" onclick="closeEmailModal()">Cancel</button>
+      <button class="btn btn-blue" id="open-mailto-btn" onclick="openMailto()">Open in Email Client</button>
+      <button class="btn btn-success" id="log-email-btn" style="display:none" onclick="logEmail()">✓ Log Email</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── WhatsApp Modal ── -->
+<div class="modal-overlay" id="whatsapp-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>💬 WhatsApp Message</h3>
+      <button class="modal-close" onclick="closeWhatsAppModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-field">
+        <label>Your Name (Staff) *</label>
+        <input type="text" id="wa-staff-name" placeholder="Your name" oninput="saveStaffNameWa()"/>
+      </div>
+      <div class="template-chips" id="wa-chips"></div>
+      <div class="modal-field">
+        <label>To — Name</label>
+        <input type="text" id="wa-to-name"/>
+      </div>
+      <div class="modal-field">
+        <label>Phone (with country code) *</label>
+        <input type="tel" id="wa-phone" placeholder="+27821234567"/>
+      </div>
+      <div class="modal-field">
+        <label>Message</label>
+        <textarea id="wa-body"></textarea>
+      </div>
+      <div class="info-box">ℹ️ Clicking <strong>Open WhatsApp</strong> will open WhatsApp Web with this message ready to send.<br><br><strong>Did you send it?</strong> Click <strong>Log Message</strong> after sending.</div>
+      <div class="sent-badge" id="wa-sent-badge">✓ WhatsApp logged</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-edit" onclick="closeWhatsAppModal()">Cancel</button>
+      <button class="btn btn-green" id="open-wa-btn" onclick="openWhatsApp()">💬 Open WhatsApp</button>
+      <button class="btn btn-success" id="log-wa-btn" style="display:none" onclick="logWhatsApp()">✓ Log Message</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────────
+const GAS_URL = 'https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5jTsiMRgkv7QPDcmeqcNEAAhFXHW_OwR0-4o0qEtoCkCGjraSA/exec';
+// ────────────────────────────────────────────────────────────────
+
+let allJobs = [], filteredJobs = [], currentJob = null, emailModalJob = null, waModalJob = null;
+
+// ── Helpers ───────────────────────────────────────────────────
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
+function fmtDate(s){ if(!s) return '—'; try{ return new Date(s+'T00:00:00').toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'}) }catch(e){ return s } }
+function fmtDateTime(s){ if(!s) return '—'; try{ return new Date(s).toLocaleString('en-ZA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) }catch(e){ return s } }
+function isOverdue(j){ if(!j.estCompletionDate||j.status==='Complete') return false; return j.estCompletionDate < new Date().toISOString().split('T')[0] }
+function statusBadge(j){
+  const over = isOverdue(j);
+  const cls = {Logged:'badge-logged','In Progress':'badge-progress','Awaiting Parts':'badge-parts',Complete:'badge-complete'}[j.status]||'badge-logged';
+  return `<span class="badge ${cls}">${esc(j.status||'Logged')}</span>${over?' <span class="badge badge-overdue">Overdue</span>':''}`;
+}
+function showToast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500) }
+
+// ── Data ──────────────────────────────────────────────────────
+async function loadJobs(){
+  const tbody = document.getElementById('jobs-tbody');
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:#888">⏳ Loading jobs…</td></tr>';
+  try{
+    const res = await fetch(GAS_URL+'?action=getJobs', { redirect:'follow' });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    allJobs = (data && data.jobs) ? data.jobs : [];
+  } catch(err){
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:#e74c3c">⚠ Could not load jobs — '+esc(err.message)+'</td></tr>';
+    return;
+  }
+  updateStats(); populatePropertyFilter(); applyFilters();
+  showToast('Jobs refreshed');
+}
+
+async function gasPost(data){
+  await fetch(GAS_URL, { method:'POST', mode:'no-cors', body:JSON.stringify(data) });
+}
+
+// ── Stats ────────────────────────────────────────────────────
+function updateStats(){
+  document.getElementById('stat-total').textContent    = allJobs.length;
+  document.getElementById('stat-progress').textContent = allJobs.filter(j=>j.status==='In Progress').length;
+  document.getElementById('stat-overdue').textContent  = allJobs.filter(j=>isOverdue(j)).length;
+  document.getElementById('stat-complete').textContent = allJobs.filter(j=>j.status==='Complete').length;
+}
+
+function populatePropertyFilter(){
+  const sel = document.getElementById('filter-property');
+  const props = [...new Set(allJobs.map(j=>j.property).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">All Properties</option>' + props.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('');
+}
+
+// ── Filters ──────────────────────────────────────────────────
+function applyFilters(){
+  const q      = document.getElementById('search-input').value.toLowerCase().trim();
+  const status = document.getElementById('filter-status').value;
+  const prop   = document.getElementById('filter-property').value;
+  filteredJobs = allJobs.filter(j=>{
+    if(status==='Overdue' && !isOverdue(j)) return false;
+    if(status && status!=='Overdue' && j.status!==status) return false;
+    if(prop && j.property!==prop) return false;
+    if(q){ const hay=[j.id,j.property,j.issueDescription,j.contractorName,j.tenantName,j.landlordName,j.status,j.notes].join(' ').toLowerCase(); if(!hay.includes(q)) return false; }
+    return true;
+  });
+  renderTable();
+  document.getElementById('visible-count').textContent = filteredJobs.length + ' job' + (filteredJobs.length===1?'':'s');
+}
+
+function clearFilters(){
+  document.getElementById('search-input').value='';
+  document.getElementById('filter-status').value='';
+  document.getElementById('filter-property').value='';
+  applyFilters();
+}
+
+// ── Table ────────────────────────────────────────────────────
+function renderTable(){
+  const tbody = document.getElementById('jobs-tbody');
+  if(!filteredJobs.length){
+    tbody.innerHTML='<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📋</div><div>No jobs match the current filters</div></div></td></tr>';
+    return;
+  }
+  const sorted = [...filteredJobs].sort((a,b)=>{
+    if(isOverdue(a)&&!isOverdue(b)) return -1;
+    if(!isOverdue(a)&&isOverdue(b)) return 1;
+    return (b.dateLogged||'').localeCompare(a.dateLogged||'');
+  });
+  tbody.innerHTML = sorted.map(j=>{
+    const over = isOverdue(j);
+    const sel  = currentJob && currentJob.id===j.id ? ' selected' : '';
+    const eta  = j.estCompletionDate ? (over?'<span style="color:#e74c3c">⚠ '+fmtDate(j.estCompletionDate)+'</span>':fmtDate(j.estCompletionDate)) : '—';
+    return `<tr onclick="openDetail('${esc(j.id||'')}')" class="${sel}">
+      <td>${esc(j.id||'—')}</td>
+      <td>${fmtDate(j.dateLogged)}</td>
+      <td>${esc(j.property||'—')}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(j.issueDescription||'—')}</td>
+      <td>${esc(j.contractorName||'—')}</td>
+      <td>${eta}</td>
+      <td>${statusBadge(j)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Detail Pane ──────────────────────────────────────────────
+function openDetail(jobId){
+  currentJob = allJobs.find(j=>j.id===jobId);
+  if(!currentJob) return;
+  document.getElementById('detail-pane').classList.add('open');
+  document.getElementById('detail-overlay').classList.add('open');
+  document.getElementById('detail-property-title').textContent = currentJob.property||'Job Details';
+  document.getElementById('detail-job-id').textContent = currentJob.id||'';
+  document.getElementById('edit-actions').style.display='none';
+  renderDetail(currentJob, false);
+  loadEmailHistory(currentJob.id);
+  renderTable();
+}
+
+function closeDetail(){
+  document.getElementById('detail-pane').classList.remove('open');
+  document.getElementById('detail-overlay').classList.remove('open');
+  currentJob = null;
+  renderTable();
+}
+
+function val(v){ return v ? esc(v) : '<span style="color:#bbb">—</span>' }
+
+function renderDetail(job, editing){
+  function row(label, v, name, type){
+    if(editing){
+      if(type==='select') return `<div class="detail-field"><label>${label}</label><select name="${name}"><option ${v==='Logged'?'selected':''}>Logged</option><option ${v==='In Progress'?'selected':''}>In Progress</option><option ${v==='Awaiting Parts'?'selected':''}>Awaiting Parts</option><option ${v==='Complete'?'selected':''}>Complete</option></select></div>`;
+      if(type==='textarea') return `<div class="detail-field"><label>${label}</label><textarea name="${name}">${esc(v||'')}</textarea></div>`;
+      return `<div class="detail-field"><label>${label}</label><input type="${type||'text'}" name="${name}" value="${esc(v||'')}"/></div>`;
+    }
+    return `<div class="detail-field"><label>${label}</label><div class="val">${val(v)}</div></div>`;
+  }
+
+  let h = '';
+
+  // Status
+  h += `<div class="detail-section"><div class="detail-section-title">Status & Dates</div><div class="detail-grid">`;
+  if(editing) h += row('Status', job.status, 'status', 'select');
+  else h += `<div class="detail-field"><label>Status</label><div class="val">${statusBadge(job)}</div></div>`;
+  h += row('Date Logged', job.dateLogged, 'dateLogged', 'date');
+  h += row('Issued to Contractor', job.dateIssuedToContractor, 'dateIssuedToContractor', 'date');
+  h += row('Est. Completion', job.estCompletionDate, 'estCompletionDate', 'date');
+  h += '</div></div>';
+
+  // Issue
+  h += `<div class="detail-section"><div class="detail-section-title">Issue</div><div class="detail-grid" style="grid-template-columns:1fr">`;
+  h += row('Property', job.property, 'property');
+  h += row('Issue Description', job.issueDescription, 'issueDescription', 'textarea');
+  h += row('Task / Correction Required', job.taskRequired, 'taskRequired', 'textarea');
+  h += '</div></div>';
+
+  // Contractor
+  h += `<div class="detail-section"><div class="detail-section-title">Contractor</div><div class="detail-grid">`;
+  h += row('Name', job.contractorName, 'contractorName');
+  h += row('Email', job.contractorEmail, 'contractorEmail', 'email');
+  h += row('Phone', job.contractorPhone, 'contractorPhone', 'tel');
+  h += '</div>';
+  if(!editing && (job.contractorEmail || job.contractorPhone)){
+    h += `<div class="comm-btns">`;
+    if(job.contractorEmail) h += `<button class="btn btn-blue btn-sm" onclick="openEmailModal('contractor')">✉ Email Contractor</button>`;
+    if(job.contractorPhone) h += `<button class="btn btn-green btn-sm" onclick="openWaModal('contractor')">💬 WhatsApp</button>`;
+    h += '</div>';
+  }
+  h += '</div>';
+
+  // Landlord
+  h += `<div class="detail-section"><div class="detail-section-title">Landlord</div><div class="detail-grid">`;
+  h += row('Name', job.landlordName, 'landlordName');
+  h += row('Email 1', job.landlordEmail, 'landlordEmail', 'email');
+  h += row('Email 2', job.landlordEmail2, 'landlordEmail2', 'email');
+  h += row('Email 3', job.landlordEmail3, 'landlordEmail3', 'email');
+  h += row('Mobile', job.landlordPhone, 'landlordPhone', 'tel');
+  h += row('Work', job.landlordPhoneWork, 'landlordPhoneWork', 'tel');
+  h += row('Alternative', job.landlordPhoneAlt, 'landlordPhoneAlt', 'tel');
+  h += '</div>';
+  if(!editing){
+    const lEmails = [job.landlordEmail,job.landlordEmail2,job.landlordEmail3].filter(Boolean);
+    const lPhones = [job.landlordPhone,job.landlordPhoneWork,job.landlordPhoneAlt].filter(Boolean);
+    if(lEmails.length || lPhones.length){
+      h += `<div class="comm-btns">`;
+      if(lEmails.length) h += `<button class="btn btn-blue btn-sm" onclick="openEmailModal('landlord')">✉ Email Landlord${lEmails.length>1?' ('+lEmails.length+')'  :''}</button>`;
+      if(lPhones.length) h += `<button class="btn btn-green btn-sm" onclick="openWaModal('landlord')">💬 WhatsApp</button>`;
+      h += '</div>';
+    }
+  }
+  h += '</div>';
+
+  // Tenant
+  h += `<div class="detail-section"><div class="detail-section-title">Tenant</div><div class="detail-grid">`;
+  h += row('Name', job.tenantName, 'tenantName');
+  h += row('Email 1', job.tenantEmail, 'tenantEmail', 'email');
+  h += row('Email 2', job.tenantEmail2, 'tenantEmail2', 'email');
+  h += row('Email 3', job.tenantEmail3, 'tenantEmail3', 'email');
+  h += row('Mobile', job.tenantPhone, 'tenantPhone', 'tel');
+  h += row('Work', job.tenantPhoneWork, 'tenantPhoneWork', 'tel');
+  h += row('Alternative', job.tenantPhoneAlt, 'tenantPhoneAlt', 'tel');
+  h += '</div>';
+  if(!editing){
+    const tEmails = [job.tenantEmail,job.tenantEmail2,job.tenantEmail3].filter(Boolean);
+    const tPhones = [job.tenantPhone,job.tenantPhoneWork,job.tenantPhoneAlt].filter(Boolean);
+    if(tEmails.length || tPhones.length){
+      h += `<div class="comm-btns">`;
+      if(tEmails.length) h += `<button class="btn btn-blue btn-sm" onclick="openEmailModal('tenant')">✉ Email Tenant${tEmails.length>1?' ('+tEmails.length+')':''}</button>`;
+      if(tPhones.length) h += `<button class="btn btn-green btn-sm" onclick="openWaModal('tenant')">💬 WhatsApp</button>`;
+      h += '</div>';
+    }
+  }
+  h += '</div>';
+
+  // Notes
+  h += `<div class="detail-section"><div class="detail-section-title">Notes</div>`;
+  h += row('Internal Notes', job.notes, 'notes', 'textarea');
+  h += '</div>';
+
+  // View-mode actions
+  if(!editing){
+    h += `<div class="comm-btns" style="margin-top:4px">
+      <button class="btn btn-edit btn-sm" onclick="startEdit()">✏ Edit Job</button>
+      <button class="btn btn-danger btn-sm" onclick="confirmDelete()">🗑 Delete</button>
+    </div>`;
+  }
+
+  // Email history
+  h += `<div class="detail-section" style="margin-top:20px">
+    <div class="detail-section-title">Email History</div>
+    <div id="email-history-area"><span style="color:#888;font-size:13px">Loading…</span></div>
+  </div>`;
+
+  document.getElementById('detail-inner').innerHTML = h;
+}
+
+function startEdit(){
+  renderDetail(currentJob, true);
+  document.getElementById('edit-actions').style.display='flex';
+}
+
+async function saveEdit(){
+  const inputs = document.getElementById('detail-inner').querySelectorAll('[name]');
+  const updates = { action:'updateJob', id:currentJob.id };
+  inputs.forEach(inp=>{ updates[inp.name]=inp.value });
+  Object.assign(currentJob, updates);
+  const idx = allJobs.findIndex(j=>j.id===currentJob.id);
+  if(idx!==-1) allJobs[idx] = Object.assign({}, currentJob);
+  document.getElementById('edit-actions').style.display='none';
+  renderDetail(currentJob, false);
+  loadEmailHistory(currentJob.id);
+  updateStats(); renderTable();
+  showToast('Job updated');
+  try{ await gasPost(updates) } catch(e){ showToast('Saved locally — sync pending') }
+}
+
+function cancelEdit(){
+  document.getElementById('edit-actions').style.display='none';
+  renderDetail(currentJob, false);
+  loadEmailHistory(currentJob.id);
+}
+
+function confirmDelete(){
+  if(!confirm('Delete job '+currentJob.id+'?\n\nThis cannot be undone. Use "Complete" status instead for finished jobs.')) return;
+  gasPost({ action:'deleteJob', id:currentJob.id });
+  allJobs = allJobs.filter(j=>j.id!==currentJob.id);
+  closeDetail();
+  updateStats(); applyFilters();
+  showToast('Job deleted');
+}
+
+async function loadEmailHistory(jobId){
+  const area = document.getElementById('email-history-area');
+  if(!area) return;
+  try{
+    const res = await fetch(GAS_URL+'?action=getEmails&jobId='+encodeURIComponent(jobId), { redirect:'follow' });
+    const data = await res.json();
+    const emails = (data && data.emails) ? data.emails : [];
+    if(!emails.length){ area.innerHTML='<div class="no-emails">No emails logged for this job yet.</div>'; return; }
+    area.innerHTML = '<div class="email-history-list">'+[...emails].reverse().map(e=>`
+      <div class="email-item">
+        <div class="email-item-header">
+          <span class="email-item-to">${esc(e.sentToName||e.sentToEmail||'—')}</span>
+          <span class="email-item-time">${fmtDateTime(e.sentAt)}</span>
+        </div>
+        <div class="email-item-subject">${esc(e.subject||'—')}</div>
+        <div class="email-item-meta">Sent by ${esc(e.sentBy||'—')} · ${esc(e.templateUsed||'')}</div>
+      </div>`).join('')+'</div>';
+  } catch(e){
+    if(area) area.innerHTML='<div class="no-emails">Could not load email history.</div>';
+  }
+}
+
+// ── Email Modal ──────────────────────────────────────────────
+const EMAIL_TEMPLATES = {
+  'contractor-assign': { label:'📋 Assign', fn:(j,s)=>({ toName:j.contractorName, toEmail:j.contractorEmail,
+    subject:`Maintenance Job ${j.id} — ${j.property}`,
+    body:`Dear ${j.contractorName||'Contractor'},\n\nWe have a maintenance job that requires your attention.\n\nProperty: ${j.property||'—'}\nIssue: ${j.issueDescription||'—'}\nWork Required: ${j.taskRequired||'—'}\nJob Reference: ${j.id}\n\nPlease confirm receipt and provide your estimated completion date.\n\nKind regards,\n${s}\nThe Property Bureau\nTel: +27 21 797 8850 | admin@propertybureau.co.za` }) },
+  'contractor-followup': { label:'🔔 Follow-up', fn:(j,s)=>({ toName:j.contractorName, toEmail:j.contractorEmail,
+    subject:`Follow-up: Job ${j.id} — ${j.property}`,
+    body:`Dear ${j.contractorName||'Contractor'},\n\nWe are following up on maintenance job ${j.id} at ${j.property||'—'}.\n\nCould you please provide a progress update and confirm your estimated completion date?\n\nKind regards,\n${s}\nThe Property Bureau\nTel: +27 21 797 8850 | admin@propertybureau.co.za` }) },
+  'tenant-update': { label:'🏠 Tenant Update', fn:(j,s)=>({ toName:j.tenantName, toEmail:j.tenantEmail,
+    subject:`Maintenance Update — ${j.property}`,
+    body:`Dear ${j.tenantName||'Tenant'},\n\nWe are updating you on the maintenance work at ${j.property||'your property'}.\n\nIssue: ${j.issueDescription||'—'}\nStatus: ${j.status||'—'}\nEst. Completion: ${j.estCompletionDate||'To be confirmed'}\n\nWe apologise for any inconvenience.\n\nKind regards,\n${s}\nThe Property Bureau\nTel: +27 21 797 8850 | admin@propertybureau.co.za` }) },
+  'landlord-update': { label:'👤 Landlord Update', fn:(j,s)=>({ toName:j.landlordName, toEmail:j.landlordEmail,
+    subject:`Maintenance Update — ${j.property}`,
+    body:`Dear ${j.landlordName||'Landlord'},\n\nPlease find an update on the maintenance work at ${j.property||'your property'}.\n\nIssue: ${j.issueDescription||'—'}\nContractor: ${j.contractorName||'To be appointed'}\nStatus: ${j.status||'—'}\nEst. Completion: ${j.estCompletionDate||'To be confirmed'}\n\nKind regards,\n${s}\nThe Property Bureau\nTel: +27 21 797 8850 | admin@propertybureau.co.za` }) },
+  'completion-tenant': { label:'✅ Complete — Tenant', fn:(j,s)=>({ toName:j.tenantName, toEmail:j.tenantEmail,
+    subject:`Maintenance Complete — ${j.property}`,
+    body:`Dear ${j.tenantName||'Tenant'},\n\nWe are pleased to confirm the maintenance work at ${j.property||'your property'} has been completed.\n\nIssue Resolved: ${j.issueDescription||'—'}\n\nPlease let us know if anything further requires attention.\n\nKind regards,\n${s}\nThe Property Bureau\nTel: +27 21 797 8850 | admin@propertybureau.co.za` }) },
+  'completion-landlord': { label:'✅ Complete — Landlord', fn:(j,s)=>({ toName:j.landlordName, toEmail:j.landlordEmail,
+    subject:`Maintenance Complete — ${j.property}`,
+    body:`Dear ${j.landlordName||'Landlord'},\n\nWe are pleased to confirm the maintenance at ${j.property||'your property'} is complete.\n\nIssue Resolved: ${j.issueDescription||'—'}\nContractor: ${j.contractorName||'—'}\nRef: ${j.id}\n\nKind regards,\n${s}\nThe Property Bureau\nTel: +27 21 797 8850 | admin@propertybureau.co.za` }) }
+};
+
+function openEmailModal(recipientType){
+  emailModalJob = currentJob;
+  document.getElementById('email-modal').classList.add('open');
+  const staff = localStorage.getItem('pb_staff')||'';
+  document.getElementById('email-staff-name').value = staff;
+
+  // Build template chips
+  document.getElementById('email-chips').innerHTML = Object.entries(EMAIL_TEMPLATES).map(([k,t])=>
+    `<span class="chip" onclick="applyEmailTemplate('${k}')">${t.label}</span>`
+  ).join('');
+
+  // Pre-fill recipient — combine all available email addresses
+  const j = emailModalJob;
+  let toName='', toEmail='';
+  let tmpl = 'contractor-assign';
+  if(recipientType==='contractor'){
+    toName  = j.contractorName||'';
+    toEmail = j.contractorEmail||'';
+  }
+  if(recipientType==='landlord'){
+    toName  = j.landlordName||'';
+    toEmail = [j.landlordEmail,j.landlordEmail2,j.landlordEmail3].filter(Boolean).join(', ');
+    tmpl='landlord-update';
+  }
+  if(recipientType==='tenant'){
+    toName  = j.tenantName||'';
+    toEmail = [j.tenantEmail,j.tenantEmail2,j.tenantEmail3].filter(Boolean).join(', ');
+    tmpl='tenant-update';
+  }
+  document.getElementById('email-to-name').value = toName;
+  document.getElementById('email-to-addr').value = toEmail;
+  applyEmailTemplate(tmpl, true);
+
+  document.getElementById('email-sent-badge').style.display='none';
+  document.getElementById('log-email-btn').style.display='none';
+  document.getElementById('open-mailto-btn').style.display='inline-flex';
+  document.getElementById('email-modal').dataset.templateUsed='';
+}
+
+function applyEmailTemplate(key, skipOverride){
+  const j = emailModalJob||currentJob;
+  const staff = document.getElementById('email-staff-name').value||'[Your Name]';
+  const t = EMAIL_TEMPLATES[key];
+  if(!t) return;
+  const data = t.fn(j, staff);
+  if(!skipOverride){
+    if(data.toName) document.getElementById('email-to-name').value = data.toName;
+    if(data.toEmail) document.getElementById('email-to-addr').value = data.toEmail;
+  }
+  document.getElementById('email-subject').value = data.subject;
+  document.getElementById('email-body').value = data.body;
+  document.getElementById('email-modal').dataset.templateUsed = t.label;
+}
+
+function saveStaffName(){ localStorage.setItem('pb_staff', document.getElementById('email-staff-name').value) }
+
+function openMailto(){
+  // Support comma-separated email addresses for multi-recipient sends
+  const rawTo = document.getElementById('email-to-addr').value.trim();
+  const subj  = document.getElementById('email-subject').value;
+  const body  = document.getElementById('email-body').value;
+  if(!rawTo){ alert('Please enter a recipient email address.'); return; }
+  // Normalise: split on comma or semicolon, trim, rejoin with comma
+  const toList = rawTo.split(/[,;]+/).map(s=>s.trim()).filter(Boolean).join(',');
+  window.location.href = `mailto:${toList}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
+  document.getElementById('log-email-btn').style.display='inline-flex';
+  document.getElementById('open-mailto-btn').style.display='none';
+}
+
+async function logEmail(){
+  const j = emailModalJob||currentJob;
+  await gasPost({
+    action:'logEmail', jobId:j.id,
+    sentToName: document.getElementById('email-to-name').value,
+    sentToEmail: document.getElementById('email-to-addr').value,
+    subject: document.getElementById('email-subject').value,
+    sentBy: document.getElementById('email-staff-name').value,
+    templateUsed: document.getElementById('email-modal').dataset.templateUsed||''
+  });
+  document.getElementById('email-sent-badge').style.display='block';
+  document.getElementById('log-email-btn').style.display='none';
+  showToast('Email logged');
+  setTimeout(()=>{ closeEmailModal(); if(currentJob) loadEmailHistory(currentJob.id) }, 1200);
+}
+
+function closeEmailModal(){ document.getElementById('email-modal').classList.remove('open') }
+
+// ── WhatsApp Modal ──────────────────────────────────────────
+const WA_TEMPLATES = {
+  'contractor-assign': { label:'📋 Assign', fn:(j,s)=>({ toName:j.contractorName, phone:j.contractorPhone,
+    body:`Hi ${j.contractorName||''}! We have a maintenance job for you.\n\n📍 *Property:* ${j.property||'—'}\n🔧 *Issue:* ${j.issueDescription||'—'}\n📋 *Job Ref:* ${j.id}\n\nPlease confirm you can take this on and let us know your availability. Thanks, ${s} | The Property Bureau` }) },
+  'contractor-followup': { label:'🔔 Follow-up', fn:(j,s)=>({ toName:j.contractorName, phone:j.contractorPhone,
+    body:`Hi ${j.contractorName||''}! Following up on job *${j.id}* at ${j.property||'—'}. Could you give us a quick update on progress and your expected completion date? Thanks, ${s} | The Property Bureau` }) },
+  'tenant-update': { label:'🏠 Tenant Update', fn:(j,s)=>({ toName:j.tenantName, phone:j.tenantPhone,
+    body:`Hi ${j.tenantName||''}! A quick update on the maintenance at *${j.property||'your property'}*.\n\n🔧 *Issue:* ${j.issueDescription||'—'}\n📊 *Status:* ${j.status||'—'}\n📅 *Est. completion:* ${j.estCompletionDate||'TBC'}\n\nWe'll keep you posted. Thanks, ${s} | The Property Bureau` }) },
+  'landlord-update': { label:'👤 Landlord Update', fn:(j,s)=>({ toName:j.landlordName, phone:j.landlordPhone,
+    body:`Hi ${j.landlordName||''}! Update on maintenance at *${j.property||'—'}*.\n\n🔧 *Issue:* ${j.issueDescription||'—'}\n👷 *Contractor:* ${j.contractorName||'TBA'}\n📊 *Status:* ${j.status||'—'}\n\nThanks, ${s} | The Property Bureau` }) },
+  'completion-tenant': { label:'✅ Complete — Tenant', fn:(j,s)=>({ toName:j.tenantName, phone:j.tenantPhone,
+    body:`Hi ${j.tenantName||''}! Great news — the maintenance at *${j.property||'your property'}* is complete ✅.\n\nPlease let us know if everything is in order. Thanks, ${s} | The Property Bureau` }) },
+  'completion-landlord': { label:'✅ Complete — Landlord', fn:(j,s)=>({ toName:j.landlordName, phone:j.landlordPhone,
+    body:`Hi ${j.landlordName||''}! The maintenance at *${j.property||'—'}* is complete ✅.\n\n📋 *Ref:* ${j.id}\n\nLet us know if anything else is needed. Thanks, ${s} | The Property Bureau` }) }
+};
+
+function openWaModal(recipientType){
+  waModalJob = currentJob;
+  document.getElementById('whatsapp-modal').classList.add('open');
+  const staff = localStorage.getItem('pb_staff')||'';
+  document.getElementById('wa-staff-name').value = staff;
+
+  document.getElementById('wa-chips').innerHTML = Object.entries(WA_TEMPLATES).map(([k,t])=>
+    `<span class="chip" onclick="applyWaTemplate('${k}')">${t.label}</span>`
+  ).join('');
+
+  const j = waModalJob;
+  let tmpl = 'contractor-assign';
+  if(recipientType==='landlord') tmpl='landlord-update';
+  if(recipientType==='tenant')   tmpl='tenant-update';
+  applyWaTemplate(tmpl);
+
+  document.getElementById('wa-sent-badge').style.display='none';
+  document.getElementById('log-wa-btn').style.display='none';
+  document.getElementById('open-wa-btn').style.display='inline-flex';
+}
+
+function applyWaTemplate(key){
+  const j = waModalJob||currentJob;
+  const staff = document.getElementById('wa-staff-name').value||'[Your Name]';
+  const t = WA_TEMPLATES[key];
+  if(!t) return;
+  const data = t.fn(j, staff);
+  if(data.toName) document.getElementById('wa-to-name').value = data.toName;
+  if(data.phone)  document.getElementById('wa-phone').value   = String(data.phone).replace(/\s/g,'');
+  document.getElementById('wa-body').value = data.body;
+}
+
+function saveStaffNameWa(){ localStorage.setItem('pb_staff', document.getElementById('wa-staff-name').value) }
+
+function openWhatsApp(){
+  let phone = document.getElementById('wa-phone').value.replace(/\D/g,'');
+  const body = document.getElementById('wa-body').value;
+  if(!phone){ alert('Please enter a phone number.'); return; }
+  if(phone.startsWith('0')) phone = '27'+phone.slice(1);
+  window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(body), '_blank');
+  document.getElementById('log-wa-btn').style.display='inline-flex';
+  document.getElementById('open-wa-btn').style.display='none';
+}
+
+async function logWhatsApp(){
+  const j = waModalJob||currentJob;
+  await gasPost({
+    action:'logEmail', jobId:j.id,
+    sentToName: document.getElementById('wa-to-name').value,
+    sentToEmail: document.getElementById('wa-phone').value,
+    subject: '(WhatsApp) '+document.getElementById('wa-body').value.slice(0,60),
+    sentBy: document.getElementById('wa-staff-name').value,
+    templateUsed: 'WhatsApp'
+  });
+  document.getElementById('wa-sent-badge').style.display='block';
+  document.getElementById('log-wa-btn').style.display='none';
+  showToast('WhatsApp logged');
+  setTimeout(()=>{ closeWhatsAppModal(); if(currentJob) loadEmailHistory(currentJob.id) }, 1200);
+}
+
+function closeWhatsAppModal(){ document.getElementById('whatsapp-modal').classList.remove('open') }
+
+// ── Init & Real-time polling ─────────────────────────────────
+loadJobs();
+
+let pollTimer = setInterval(loadJobs, 30000);
+
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') {
+    clearInterval(pollTimer);
+    loadJobs();
+    pollTimer = setInterval(loadJobs, 30000);
+  }
+});
+</script>
+</body>
+</html>{
+  let phone = document.getElementById('wa-phone').value.replace(/\D/g,'');
+  const body = document.getElementById('wa-body').value;
+  if(!phone){ alert('Please enter a phone number.'); return; }
+  if(phone.startsWith('0')) phone = '27'+phone.slice(1);
+  window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(body), '_blank');
+  document.getElementById('log-wa-btn').style.display='inline-flex';
+  document.getElementById('open-wa-btn').style.display='none';
+}
+
+async function logWhatsApp(){
+  const j = waModalJob||currentJob;
+  await gasPost({
+    action:'logEmail', jobId:j.id,
+    sentToName: document.getElementById('wa-to-name').value,
+    sentToEmail: document.getElementById('wa-phone').value,
+    subject: '(WhatsApp) '+document.getElementById('wa-body').value.slice(0,60),
+    sentBy: document.getElementById('wa-staff-name').value,
+    templateUsed: 'WhatsApp'
+  });
+  document.getElementById('wa-sent-badge').style.display='block';
+  document.getElementById('log-wa-btn').style.display='none';
+  showToast('WhatsApp logged');
+  setTimeout(()=>{ closeWhatsAppModal(); if(currentJob) loadEmailHistory(currentJob.id) }, 1200);
+}
+
+function closeWhatsAppModal(){ document.getElementById('whatsapp-modal').classList.remove('open') }
+
+// ── Init & Real-time polling ─────────────────────────────────
+loadJobs();
+
+// Poll every 30 seconds for new data
+let pollTimer = setInterval(loadJobs, 30000);
+
+// Refresh immediately when user returns to this tab
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') {
+    clearInterval(pollTimer);
+    loadJobs();
+    pollTimer = setInterval(loadJobs, 30000);
+  }
+});
+</script>
+</body>
+</html>
+{
+  let phone = document.getElementById('wa-phone').value.replace(/\D/g,'');
+  const body = document.getElementById('wa-body').value;
+  if(!phone){ alert('Please enter a phone number.'); return; }
+  if(phone.startsWith('0')) phone = '27'+phone.slice(1);
+  window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(body), '_blank');
+  document.getElementById('log-wa-btn').style.display='inline-flex';
+  document.getElementById('open-wa-btn').style.display='none';
+}
+
+async function logWhatsApp(){
+  const j = waModalJob||currentJob;
+  await gasPost({
+    action:'logEmail', jobId:j.id,
+    sentToName: document.getElementById('wa-to-name').value,
+    sentToEmail: document.getElementById('wa-phone').value,
+    subject: '(WhatsApp) '+document.getElementById('wa-body').value.slice(0,60),
+    sentBy: document.getElementById('wa-staff-name').value,
+    templateUsed: 'WhatsApp'
+  });
+  document.getElementById('wa-sent-badge').style.display='block';
+  document.getElementById('log-wa-btn').style.display='none';
+  showToast('WhatsApp logged');
+  setTimeout(()=>{ closeWhatsAppModal(); if(currentJob) loadEmailHistory(currentJob.id) }, 1200);
+}
+
+function closeWhatsAppModal(){ document.getElementById('whatsapp-modal').classList.remove('open') }
+
+// ── Init & Real-time polling ──────────────────────────────────
+loadJobs();
+
+let pollTimer = setInterval(loadJobs, 30000);
+
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') {
+    clearInterval(pollTimer);
+    loadJobs();
+    pollTimer = setInterval(loadJobs, 30000);
+  }
+});
+</script>
+</body>
+</html>
