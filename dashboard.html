@@ -298,9 +298,9 @@ let allJobs = [], filteredJobs = [], currentJob = null, emailModalJob = null, wa
 
 // ── Helpers ───────────────────────────────────────────────────
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
-function fmtDate(s){ if(!s) return '—'; try{ return new Date(s+'T00:00:00').toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'}) }catch(e){ return s } }
+function fmtDate(s){ if(!s) return '—'; try{ const d=/^\d{4}-\d{2}-\d{2}$/.test(String(s).trim())?new Date(s+'T00:00:00'):new Date(s); if(isNaN(d.getTime())) return String(s); return d.toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'}) }catch(e){ return s } }
 function fmtDateTime(s){ if(!s) return '—'; try{ return new Date(s).toLocaleString('en-ZA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) }catch(e){ return s } }
-function isOverdue(j){ if(!j.estCompletionDate||j.status==='Complete') return false; return j.estCompletionDate < new Date().toISOString().split('T')[0] }
+function isOverdue(j){ if(!j.estCompletionDate||j.status==='Complete') return false; try{ const d=new Date(j.estCompletionDate); if(isNaN(d.getTime())) return false; const today=new Date(); today.setHours(0,0,0,0); return d<today; }catch(e){ return false } }
 function statusBadge(j){
   const over = isOverdue(j);
   const cls = {Logged:'badge-logged','In Progress':'badge-progress','Awaiting Parts':'badge-parts',Complete:'badge-complete'}[j.status]||'badge-logged';
