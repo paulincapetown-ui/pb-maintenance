@@ -228,7 +228,7 @@
     <p style="font-size:12px;color:#888;margin-bottom:16px">Fields marked <span style="color:#e74c3c">*</span> are required</p>
     <div class="actions">
       <button type="submit" class="btn btn-primary" id="submit-btn">Log Job</button>
-      <button type="reset" class="btn btn-secondary">Clear</button>
+      <button type="button" class="btn btn-secondary" onclick="clearForm()">Clear</button>
     </div>
   </form>
 
@@ -247,11 +247,13 @@
 
 <script>
 // ── CONFIG ──────────────────────────────────────────────────────
-const GAS_URL = 'https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5jTsiMRgkv7QPDcmeqcNEAAhFXHW_OwR0-4o0qEtoCkCGjraSA/exec';
+const GAS_URL   = 'https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5jTsiMRgkv7QPDcmeqcNEAAhFXHW_OwR0-4o0qEtoCkCGjraSA/exec';
+const GAS_TOKEN = 'PBmaint2026';
 // ────────────────────────────────────────────────────────────────
 
-// Set today's date as default
+// Set today's date as default; set min date for est. completion
 document.getElementById('dateLogged').valueAsDate = new Date();
+document.querySelector('[name=estCompletionDate]').min = new Date().toISOString().split('T')[0];
 
 document.getElementById('job-form').addEventListener('submit', async function(e) {
   e.preventDefault();
@@ -259,7 +261,13 @@ document.getElementById('job-form').addEventListener('submit', async function(e)
   btn.textContent = 'Saving…';
   btn.disabled = true;
 
-  const data = { action: 'addJob' };
+  // ── Generate Job ID BEFORE the POST so client and server share the same ID ──
+  const _d  = new Date();
+  const _ds = _d.toISOString().split('T')[0].replace(/-/g,'');
+  const _r  = Math.floor(1000 + Math.random() * 9000);
+  const jobId = 'PB-' + _ds + '-' + _r;
+
+  const data = { action: 'addJob', id: jobId, token: GAS_TOKEN };
   new FormData(this).forEach((v, k) => { data[k] = v; });
 
   try {
@@ -269,12 +277,7 @@ document.getElementById('job-form').addEventListener('submit', async function(e)
       body: JSON.stringify(data)
     });
 
-    // Generate job ID client-side (matches server pattern)
-    const d = new Date();
-    const dateStr = d.toISOString().split('T')[0].replace(/-/g,'');
-    const rand = Math.floor(1000 + Math.random() * 9000);
-    document.getElementById('success-job-id').textContent = 'PB-' + dateStr + '-' + rand;
-
+    document.getElementById('success-job-id').textContent = jobId;
     document.getElementById('form-wrapper').querySelector('form').style.display = 'none';
     document.getElementById('success-panel').style.display = 'block';
   } catch(err) {
@@ -286,14 +289,18 @@ document.getElementById('job-form').addEventListener('submit', async function(e)
 
 document.getElementById('log-another').addEventListener('click', function(e) {
   e.preventDefault();
-  document.getElementById('job-form').reset();
-  document.getElementById('dateLogged').valueAsDate = new Date();
+  clearForm();
   document.getElementById('job-form').style.display = 'block';
   document.getElementById('success-panel').style.display = 'none';
-  // Reset extra-field toggles
+});
+
+function clearForm(){
+  document.getElementById('job-form').reset();
+  document.getElementById('dateLogged').valueAsDate = new Date();
+  document.querySelector('[name=estCompletionDate]').min = new Date().toISOString().split('T')[0];
   document.querySelectorAll('.extra-fields').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.extra-toggle').forEach(btn => btn.textContent = '+ Add more contacts');
-});
+}
 
 function toggleExtra(id, btn) {
   const el = document.getElementById(id);

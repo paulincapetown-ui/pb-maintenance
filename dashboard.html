@@ -291,16 +291,28 @@
 
 <script>
 // ── CONFIG ──────────────────────────────────────────────────────
-const GAS_URL = 'https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5jTsiMRgkv7QPDcmeqcNEAAhFXHW_OwR0-4o0qEtoCkCGjraSA/exec';
+const GAS_URL   = 'https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5jTsiMRgkv7QPDcmeqcNEAAhFXHW_OwR0-4o0qEtoCkCGjraSA/exec';
+const GAS_TOKEN = 'PBmaint2026';
 // ────────────────────────────────────────────────────────────────
 
 let allJobs = [], filteredJobs = [], currentJob = null, emailModalJob = null, waModalJob = null;
 
 // ── Helpers ───────────────────────────────────────────────────
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
-function fmtDate(s){ if(!s) return '—'; try{ const d=/^\d{4}-\d{2}-\d{2}$/.test(String(s).trim())?new Date(s+'T00:00:00'):new Date(s); if(isNaN(d.getTime())) return String(s); return d.toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'}) }catch(e){ return s } }
+function fmtDate(s){
+  if(!s) return '—';
+  const d = new Date(s);
+  if(isNaN(d)) return s;
+  return d.toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'});
+}
 function fmtDateTime(s){ if(!s) return '—'; try{ return new Date(s).toLocaleString('en-ZA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) }catch(e){ return s } }
-function isOverdue(j){ if(!j.estCompletionDate||j.status==='Complete') return false; try{ const d=new Date(j.estCompletionDate); if(isNaN(d.getTime())) return false; const today=new Date(); today.setHours(0,0,0,0); return d<today; }catch(e){ return false } }
+function isOverdue(j){
+  if(!j.estCompletionDate||j.status==='Complete') return false;
+  const d = new Date(j.estCompletionDate);
+  if(isNaN(d)) return false;
+  const today = new Date(); today.setHours(0,0,0,0);
+  return d < today;
+}
 function statusBadge(j){
   const over = isOverdue(j);
   const cls = {Logged:'badge-logged','In Progress':'badge-progress','Awaiting Parts':'badge-parts',Complete:'badge-complete'}[j.status]||'badge-logged';
@@ -313,7 +325,7 @@ async function loadJobs(){
   const tbody = document.getElementById('jobs-tbody');
   tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:#888">⏳ Loading jobs…</td></tr>';
   try{
-    const res = await fetch(GAS_URL+'?action=getJobs', { redirect:'follow' });
+    const res = await fetch(GAS_URL+'?action=getJobs&token='+GAS_TOKEN, { redirect:'follow' });
     if(!res.ok) throw new Error('HTTP '+res.status);
     const data = await res.json();
     allJobs = (data && data.jobs) ? data.jobs : [];
@@ -326,7 +338,7 @@ async function loadJobs(){
 }
 
 async function gasPost(data){
-  await fetch(GAS_URL, { method:'POST', mode:'no-cors', body:JSON.stringify(data) });
+  await fetch(GAS_URL, { method:'POST', mode:'no-cors', body:JSON.stringify(Object.assign({ token: GAS_TOKEN }, data)) });
 }
 
 // ── Stats ────────────────────────────────────────────────────
@@ -534,15 +546,22 @@ async function saveEdit(){
   const inputs = document.getElementById('detail-inner').querySelectorAll('[name]');
   const updates = { action:'updateJob', id:currentJob.id };
   inputs.forEach(inp=>{ updates[inp.name]=inp.value });
-  Object.assign(currentJob, updates);
-  const idx = allJobs.findIndex(j=>j.id===currentJob.id);
-  if(idx!==-1) allJobs[idx] = Object.assign({}, currentJob);
-  document.getElementById('edit-actions').style.display='none';
-  renderDetail(currentJob, false);
-  loadEmailHistory(currentJob.id);
-  updateStats(); renderTable();
-  showToast('Job updated');
-  try{ await gasPost(updates) } catch(e){ showToast('Saved locally — sync pending') }
+  const saveBtn = document.querySelector('#edit-actions .btn-primary');
+  if(saveBtn){ saveBtn.textContent='Saving…'; saveBtn.disabled=true; }
+  try {
+    await gasPost(updates);
+    Object.assign(currentJob, updates);
+    const idx = allJobs.findIndex(j=>j.id===currentJob.id);
+    if(idx!==-1) allJobs[idx] = Object.assign({}, currentJob);
+    document.getElementById('edit-actions').style.display='none';
+    renderDetail(currentJob, false);
+    loadEmailHistory(currentJob.id);
+    updateStats(); renderTable();
+    showToast('Job updated');
+  } catch(e) {
+    showToast('Save failed — please check your connection');
+    if(saveBtn){ saveBtn.textContent='Save Changes'; saveBtn.disabled=false; }
+  }
 }
 
 function cancelEdit(){
@@ -564,7 +583,7 @@ async function loadEmailHistory(jobId){
   const area = document.getElementById('email-history-area');
   if(!area) return;
   try{
-    const res = await fetch(GAS_URL+'?action=getEmails&jobId='+encodeURIComponent(jobId), { redirect:'follow' });
+    const res = await fetch(GAS_URL+'?action=getEmails&jobId='+encodeURIComponent(jobId)+'&token='+GAS_TOKEN, { redirect:'follow' });
     const data = await res.json();
     const emails = (data && data.emails) ? data.emails : [];
     if(!emails.length){ area.innerHTML='<div class="no-emails">No emails logged for this job yet.</div>'; return; }
@@ -592,10 +611,10 @@ const EMAIL_TEMPLATES = {
     body:`Dear ${j.contractorName||'Contractor'},\n\nWe are following up on maintenance job ${j.id} at ${j.property||'—'}.\n\nCould you please provide a progress update and confirm your estimated completion date?\n\nKind regards,\n${s}\nThe Property Bureau\nTel: +27 21 797 8850 | admin@propertybureau.co.za` }) },
   'tenant-update': { label:'🏠 Tenant Update', fn:(j,s)=>({ toName:j.tenantName, toEmail:j.tenantEmail,
     subject:`Maintenance Update — ${j.property}`,
-    body:`Dear ${j.tenantName||'Tenant'},\n\nWe are updating you on the maintenance work at ${j.property||'your property'}.\n\nIssue: ${j.issueDescription||'—'}\nStatus: ${j.status||'—'}\nEst. Completion: ${j.estCompletionDate||'To be confirmed'}\n\nWe apologise for any inconvenience.\n\nKind regards,\n${s}\nThe Property Bureau\nTel: +27 21 797 8850 | admin@propertybureau.co.za` }) },
+    body:`Dear ${j.tenantName||'Tenant'},\n\nWe are updating you on the maintenance work at ${j.property||'your property'}.\n\nIssue: ${j.issueDescription||'—'}\nStatus: ${j.status||'—'}\nEst. Completion: ${fmtDate(j.estCompletionDate)||'To be confirmed'}\n\nWe apologise for any inconvenience.\n\nKind regards,\n${s}\nThe Property Bureau\nTel: +27 21 797 8850 | admin@propertybureau.co.za` }) },
   'landlord-update': { label:'👤 Landlord Update', fn:(j,s)=>({ toName:j.landlordName, toEmail:j.landlordEmail,
     subject:`Maintenance Update — ${j.property}`,
-    body:`Dear ${j.landlordName||'Landlord'},\n\nPlease find an update on the maintenance work at ${j.property||'your property'}.\n\nIssue: ${j.issueDescription||'—'}\nContractor: ${j.contractorName||'To be appointed'}\nStatus: ${j.status||'—'}\nEst. Completion: ${j.estCompletionDate||'To be confirmed'}\n\nKind regards,\n${s}\nThe Property Bureau\nTel: +27 21 797 8850 | admin@propertybureau.co.za` }) },
+    body:`Dear ${j.landlordName||'Landlord'},\n\nPlease find an update on the maintenance work at ${j.property||'your property'}.\n\nIssue: ${j.issueDescription||'—'}\nContractor: ${j.contractorName||'To be appointed'}\nStatus: ${j.status||'—'}\nEst. Completion: ${fmtDate(j.estCompletionDate)||'To be confirmed'}\n\nKind regards,\n${s}\nThe Property Bureau\nTel: +27 21 797 8850 | admin@propertybureau.co.za` }) },
   'completion-tenant': { label:'✅ Complete — Tenant', fn:(j,s)=>({ toName:j.tenantName, toEmail:j.tenantEmail,
     subject:`Maintenance Complete — ${j.property}`,
     body:`Dear ${j.tenantName||'Tenant'},\n\nWe are pleased to confirm the maintenance work at ${j.property||'your property'} has been completed.\n\nIssue Resolved: ${j.issueDescription||'—'}\n\nPlease let us know if anything further requires attention.\n\nKind regards,\n${s}\nThe Property Bureau\nTel: +27 21 797 8850 | admin@propertybureau.co.za` }) },
@@ -689,7 +708,13 @@ async function logEmail(){
   setTimeout(()=>{ closeEmailModal(); if(currentJob) loadEmailHistory(currentJob.id) }, 1200);
 }
 
-function closeEmailModal(){ document.getElementById('email-modal').classList.remove('open') }
+function closeEmailModal(){
+  const logBtn = document.getElementById('log-email-btn');
+  if(logBtn && logBtn.style.display !== 'none'){
+    if(!confirm('You haven\'t logged this email yet.\n\nClose anyway?')) return;
+  }
+  document.getElementById('email-modal').classList.remove('open');
+}
 
 // ── WhatsApp Modal ──────────────────────────────────────────
 const WA_TEMPLATES = {
@@ -698,7 +723,7 @@ const WA_TEMPLATES = {
   'contractor-followup': { label:'🔔 Follow-up', fn:(j,s)=>({ toName:j.contractorName, phone:j.contractorPhone,
     body:`Hi ${j.contractorName||''}! Following up on job *${j.id}* at ${j.property||'—'}. Could you give us a quick update on progress and your expected completion date? Thanks, ${s} | The Property Bureau` }) },
   'tenant-update': { label:'🏠 Tenant Update', fn:(j,s)=>({ toName:j.tenantName, phone:j.tenantPhone,
-    body:`Hi ${j.tenantName||''}! A quick update on the maintenance at *${j.property||'your property'}*.\n\n🔧 *Issue:* ${j.issueDescription||'—'}\n📊 *Status:* ${j.status||'—'}\n📅 *Est. completion:* ${j.estCompletionDate||'TBC'}\n\nWe'll keep you posted. Thanks, ${s} | The Property Bureau` }) },
+    body:`Hi ${j.tenantName||''}! A quick update on the maintenance at *${j.property||'your property'}*.\n\n🔧 *Issue:* ${j.issueDescription||'—'}\n📊 *Status:* ${j.status||'—'}\n📅 *Est. completion:* ${fmtDate(j.estCompletionDate)||'TBC'}\n\nWe'll keep you posted. Thanks, ${s} | The Property Bureau` }) },
   'landlord-update': { label:'👤 Landlord Update', fn:(j,s)=>({ toName:j.landlordName, phone:j.landlordPhone,
     body:`Hi ${j.landlordName||''}! Update on maintenance at *${j.property||'—'}*.\n\n🔧 *Issue:* ${j.issueDescription||'—'}\n👷 *Contractor:* ${j.contractorName||'TBA'}\n📊 *Status:* ${j.status||'—'}\n\nThanks, ${s} | The Property Bureau` }) },
   'completion-tenant': { label:'✅ Complete — Tenant', fn:(j,s)=>({ toName:j.tenantName, phone:j.tenantPhone,
@@ -767,7 +792,13 @@ async function logWhatsApp(){
   setTimeout(()=>{ closeWhatsAppModal(); if(currentJob) loadEmailHistory(currentJob.id) }, 1200);
 }
 
-function closeWhatsAppModal(){ document.getElementById('whatsapp-modal').classList.remove('open') }
+function closeWhatsAppModal(){
+  const logBtn = document.getElementById('log-wa-btn');
+  if(logBtn && logBtn.style.display !== 'none'){
+    if(!confirm('You haven\'t logged this WhatsApp message yet.\n\nClose anyway?')) return;
+  }
+  document.getElementById('whatsapp-modal').classList.remove('open');
+}
 
 // ── Init & Real-time polling ─────────────────────────────────
 loadJobs();
