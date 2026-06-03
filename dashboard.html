@@ -12,6 +12,7 @@
     header{background:#1a2332;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
     header img{height:34px}
     .header-actions{display:flex;gap:10px;align-items:center}
+    .user-badge{color:#c9a84c;font-size:12px;font-weight:600}
     .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:5px;font-size:13px;font-weight:700;border:none;cursor:pointer;text-decoration:none;transition:opacity .15s}
     .btn:hover{opacity:.85}
     .btn-primary{background:#c9a84c;color:#1a2332}
@@ -22,6 +23,7 @@
     .btn-blue{background:#3b82f6;color:#fff}
     .btn-green{background:#25d366;color:#fff}
     .btn-edit{background:#f0f2f5;color:#1a2332;border:1px solid #d1d9e0}
+    .btn-signout{background:transparent;color:rgba(255,255,255,.45);border:1px solid rgba(255,255,255,.2);font-size:12px;padding:5px 12px}
 
     /* ── Stats bar ── */
     .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:20px 24px}
@@ -121,16 +123,91 @@
     /* ── Toast ── */
     .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:#1a2332;color:#fff;padding:10px 20px;border-radius:6px;font-size:13.5px;font-weight:600;z-index:999;transition:transform .3s ease;pointer-events:none}
     .toast.show{transform:translateX(-50%) translateY(0)}
+
+    /* ── Login Overlay ── */
+    .lo{position:fixed;inset:0;background:#1a2332;z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px}
+    .lc{background:#fff;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.35);width:min(420px,100%);padding:36px 40px}
+    @media(max-width:480px){.lc{padding:28px 22px}}
+    .l-logo{text-align:center;margin-bottom:26px}
+    .l-logo img{height:42px}
+    .l-title{font-size:22px;font-weight:700;color:#1a2332;margin-bottom:6px}
+    .l-sub{font-size:13px;color:#888;margin-bottom:22px;line-height:1.5}
+    .l-welcome{font-size:16px;font-weight:700;color:#1a2332;margin-bottom:6px}
+    .l-field{margin-bottom:14px}
+    .l-field label{display:block;font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+    .l-field input{width:100%;border:1.5px solid #d1d9e0;border-radius:5px;padding:11px 14px;font-size:14px;font-family:inherit;color:#2c3e50;transition:border-color .15s}
+    .l-field input:focus{outline:none;border-color:#1a2332}
+    .l-btn{width:100%;padding:13px;background:#1a2332;color:#fff;border:none;border-radius:5px;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px;transition:opacity .15s}
+    .l-btn:hover{opacity:.9}
+    .l-btn:disabled{opacity:.55;cursor:default}
+    .l-err{color:#e74c3c;font-size:13px;margin-top:10px;display:none;line-height:1.4}
+    .l-back{display:block;text-align:center;font-size:12px;color:#aaa;margin-top:14px;background:none;border:none;font-family:inherit;cursor:pointer;padding:0;width:100%}
+    .l-back:hover{color:#1a2332}
   </style>
 </head>
 <body>
+
+<!-- ══ LOGIN OVERLAY ══ -->
+<div class="lo" id="login-overlay">
+  <div class="lc">
+    <div class="l-logo">
+      <img src="https://propertybureau.co.za/wp-content/uploads/2026/03/PropertyBureauLogo-1.svg" alt="Property Bureau" onerror="this.style.display='none'"/>
+    </div>
+
+    <!-- Step 1: Email -->
+    <div id="ls1">
+      <div class="l-title">Sign In</div>
+      <div class="l-sub">Property Bureau Maintenance System</div>
+      <div class="l-field">
+        <label>Email Address</label>
+        <input type="email" id="l-email" placeholder="you@propertybureau.co.za" autocomplete="email"/>
+      </div>
+      <button class="l-btn" id="ls1-btn" onclick="loginStep1()">Continue →</button>
+      <div class="l-err" id="ls1-err"></div>
+    </div>
+
+    <!-- Step 2a: First-time — set password -->
+    <div id="ls2a" style="display:none">
+      <div class="l-welcome" id="ls2a-name"></div>
+      <div class="l-sub">First time logging in — create a password to continue.</div>
+      <div class="l-field">
+        <label>Create Password</label>
+        <input type="password" id="l-p1" placeholder="At least 6 characters" autocomplete="new-password"/>
+      </div>
+      <div class="l-field">
+        <label>Confirm Password</label>
+        <input type="password" id="l-p2" autocomplete="new-password"/>
+      </div>
+      <button class="l-btn" id="ls2a-btn" onclick="loginSetPassword()">Set Password &amp; Sign In</button>
+      <div class="l-err" id="ls2a-err"></div>
+      <button class="l-back" onclick="resetLogin()">← Use a different email</button>
+    </div>
+
+    <!-- Step 2b: Returning user — enter password -->
+    <div id="ls2b" style="display:none">
+      <div class="l-welcome" id="ls2b-name"></div>
+      <div class="l-sub">Enter your password to continue.</div>
+      <div class="l-field">
+        <label>Password</label>
+        <input type="password" id="l-p3" placeholder="Your password" autocomplete="current-password"/>
+      </div>
+      <button class="l-btn" id="ls2b-btn" onclick="loginWithPassword()">Sign In</button>
+      <div class="l-err" id="ls2b-err"></div>
+      <button class="l-back" onclick="resetLogin()">← Use a different email</button>
+    </div>
+
+  </div>
+</div>
+<!-- ══ END LOGIN OVERLAY ══ -->
 
 <!-- ── Header ── -->
 <header>
   <img src="https://propertybureau.co.za/wp-content/uploads/2026/03/PropertyBureauLogo-1.svg" alt="Property Bureau" onerror="this.style.display='none'"/>
   <div class="header-actions">
+    <span class="user-badge" id="user-badge"></span>
     <button class="btn btn-outline btn-sm" onclick="loadJobs()">↻ Refresh</button>
     <a href="form.html" class="btn btn-primary btn-sm">+ Log New Job</a>
+    <button class="btn btn-signout" id="signout-btn" style="display:none" onclick="doLogout()">Sign out</button>
   </div>
 </header>
 
@@ -295,6 +372,155 @@ const GAS_URL   = 'https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5j
 const GAS_TOKEN = 'PBmaint2026';
 // ────────────────────────────────────────────────────────────────
 
+// ══════════════════════════════════════════════════════════════
+// SESSION & LOGIN
+// ══════════════════════════════════════════════════════════════
+function getSession() {
+  try {
+    const s = localStorage.getItem('pb_session');
+    if (!s) return null;
+    const p = JSON.parse(s);
+    if (Date.now() > p.expiry) { localStorage.removeItem('pb_session'); return null; }
+    return p;
+  } catch(e) { return null; }
+}
+function saveSession(email, displayName, role) {
+  localStorage.setItem('pb_session', JSON.stringify({
+    email, displayName, role,
+    expiry: Date.now() + 8 * 60 * 60 * 1000
+  }));
+}
+function doLogout() {
+  localStorage.removeItem('pb_session');
+  location.reload();
+}
+
+(function initLogin() {
+  const sess = getSession();
+  if (sess) {
+    showMainContent(sess);
+  } else {
+    document.getElementById('login-overlay').style.display = 'flex';
+    setTimeout(() => document.getElementById('l-email').focus(), 80);
+  }
+})();
+
+function showMainContent(sess) {
+  document.getElementById('login-overlay').style.display = 'none';
+  const badge = document.getElementById('user-badge');
+  if (badge) badge.textContent = sess.displayName || sess.email;
+  const signoutBtn = document.getElementById('signout-btn');
+  if (signoutBtn) signoutBtn.style.display = 'inline-flex';
+  if (!localStorage.getItem('pb_staff') && sess.displayName) {
+    localStorage.setItem('pb_staff', sess.displayName);
+  }
+}
+
+let loginEmail = '', loginDisplayName = '';
+
+async function loginStep1() {
+  const email = document.getElementById('l-email').value.trim().toLowerCase();
+  const err   = document.getElementById('ls1-err');
+  const btn   = document.getElementById('ls1-btn');
+  err.style.display = 'none';
+  if (!email || !email.includes('@')) {
+    err.textContent = 'Please enter a valid email address.'; err.style.display = 'block'; return;
+  }
+  btn.textContent = 'Checking…'; btn.disabled = true;
+  try {
+    const res  = await fetch(GAS_URL + '?action=checkEmail&email=' + encodeURIComponent(email) + '&token=' + GAS_TOKEN, { redirect: 'follow' });
+    const data = await res.json();
+    btn.textContent = 'Continue →'; btn.disabled = false;
+    if (!data.exists) {
+      err.textContent = 'Email not recognised. Ask your administrator to add you to the system.';
+      err.style.display = 'block'; return;
+    }
+    if (data.active === false) {
+      err.textContent = 'Your account is deactivated. Contact your administrator.';
+      err.style.display = 'block'; return;
+    }
+    loginEmail       = email;
+    loginDisplayName = data.displayName || email;
+    document.getElementById('ls1').style.display = 'none';
+    if (!data.hasPassword) {
+      document.getElementById('ls2a-name').textContent = 'Welcome, ' + loginDisplayName + '!';
+      document.getElementById('ls2a').style.display = 'block';
+      setTimeout(() => document.getElementById('l-p1').focus(), 80);
+    } else {
+      document.getElementById('ls2b-name').textContent = 'Welcome back, ' + loginDisplayName + '!';
+      document.getElementById('ls2b').style.display = 'block';
+      setTimeout(() => document.getElementById('l-p3').focus(), 80);
+    }
+  } catch(e) {
+    btn.textContent = 'Continue →'; btn.disabled = false;
+    err.textContent = 'Connection error. Please try again.'; err.style.display = 'block';
+  }
+}
+
+async function loginSetPassword() {
+  const pass1 = document.getElementById('l-p1').value;
+  const pass2 = document.getElementById('l-p2').value;
+  const err   = document.getElementById('ls2a-err');
+  const btn   = document.getElementById('ls2a-btn');
+  err.style.display = 'none';
+  if (pass1.length < 6) { err.textContent = 'Password must be at least 6 characters.'; err.style.display = 'block'; return; }
+  if (pass1 !== pass2)  { err.textContent = 'Passwords do not match.'; err.style.display = 'block'; return; }
+  btn.textContent = 'Setting password…'; btn.disabled = true;
+  try {
+    const res  = await fetch(GAS_URL + '?action=setPassword&email=' + encodeURIComponent(loginEmail) + '&password=' + encodeURIComponent(pass1) + '&token=' + GAS_TOKEN, { redirect: 'follow' });
+    const data = await res.json();
+    btn.textContent = 'Set Password & Sign In'; btn.disabled = false;
+    if (!data.success) {
+      err.textContent = data.error || 'Failed to set password. Please try again.'; err.style.display = 'block'; return;
+    }
+    saveSession(loginEmail, loginDisplayName, data.role || 'staff');
+    showMainContent(getSession());
+  } catch(e) {
+    btn.textContent = 'Set Password & Sign In'; btn.disabled = false;
+    err.textContent = 'Connection error. Please try again.'; err.style.display = 'block';
+  }
+}
+
+async function loginWithPassword() {
+  const pass = document.getElementById('l-p3').value;
+  const err  = document.getElementById('ls2b-err');
+  const btn  = document.getElementById('ls2b-btn');
+  err.style.display = 'none';
+  if (!pass) { err.textContent = 'Please enter your password.'; err.style.display = 'block'; return; }
+  btn.textContent = 'Signing in…'; btn.disabled = true;
+  try {
+    const res  = await fetch(GAS_URL + '?action=login&email=' + encodeURIComponent(loginEmail) + '&password=' + encodeURIComponent(pass) + '&token=' + GAS_TOKEN, { redirect: 'follow' });
+    const data = await res.json();
+    btn.textContent = 'Sign In'; btn.disabled = false;
+    if (!data.success) {
+      err.textContent = 'Incorrect password. Please try again.'; err.style.display = 'block'; return;
+    }
+    saveSession(loginEmail, data.displayName || loginDisplayName, data.role || 'staff');
+    showMainContent(getSession());
+  } catch(e) {
+    btn.textContent = 'Sign In'; btn.disabled = false;
+    err.textContent = 'Connection error. Please try again.'; err.style.display = 'block';
+  }
+}
+
+function resetLogin() {
+  loginEmail = ''; loginDisplayName = '';
+  document.getElementById('ls2a').style.display = 'none';
+  document.getElementById('ls2b').style.display = 'none';
+  document.getElementById('ls1').style.display  = 'block';
+  document.getElementById('ls1-err').style.display = 'none';
+  setTimeout(() => document.getElementById('l-email').focus(), 80);
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Enter') return;
+  if (document.getElementById('login-overlay').style.display === 'none') return;
+  if (document.getElementById('ls1').style.display  !== 'none') { loginStep1(); return; }
+  if (document.getElementById('ls2a').style.display !== 'none') { loginSetPassword(); return; }
+  if (document.getElementById('ls2b').style.display !== 'none') { loginWithPassword(); return; }
+});
+// ══════════════════════════════════════════════════════════════
+
 let allJobs = [], filteredJobs = [], currentJob = null, emailModalJob = null, waModalJob = null;
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -441,8 +667,7 @@ function renderDetail(job, editing){
 
   let h = '';
 
-  // Status
-  h += `<div class="detail-section"><div class="detail-section-title">Status & Dates</div><div class="detail-grid">`;
+  h += `<div class="detail-section"><div class="detail-section-title">Status &amp; Dates</div><div class="detail-grid">`;
   if(editing) h += row('Status', job.status, 'status', 'select');
   else h += `<div class="detail-field"><label>Status</label><div class="val">${statusBadge(job)}</div></div>`;
   h += row('Date Logged', job.dateLogged, 'dateLogged', 'date');
@@ -450,14 +675,12 @@ function renderDetail(job, editing){
   h += row('Est. Completion', job.estCompletionDate, 'estCompletionDate', 'date');
   h += '</div></div>';
 
-  // Issue
   h += `<div class="detail-section"><div class="detail-section-title">Issue</div><div class="detail-grid" style="grid-template-columns:1fr">`;
   h += row('Property', job.property, 'property');
   h += row('Issue Description', job.issueDescription, 'issueDescription', 'textarea');
   h += row('Task / Correction Required', job.taskRequired, 'taskRequired', 'textarea');
   h += '</div></div>';
 
-  // Contractor
   h += `<div class="detail-section"><div class="detail-section-title">Contractor</div><div class="detail-grid">`;
   h += row('Name', job.contractorName, 'contractorName');
   h += row('Email', job.contractorEmail, 'contractorEmail', 'email');
@@ -471,7 +694,6 @@ function renderDetail(job, editing){
   }
   h += '</div>';
 
-  // Landlord
   h += `<div class="detail-section"><div class="detail-section-title">Landlord</div><div class="detail-grid">`;
   h += row('Name', job.landlordName, 'landlordName');
   h += row('Email 1', job.landlordEmail, 'landlordEmail', 'email');
@@ -493,7 +715,6 @@ function renderDetail(job, editing){
   }
   h += '</div>';
 
-  // Tenant
   h += `<div class="detail-section"><div class="detail-section-title">Tenant</div><div class="detail-grid">`;
   h += row('Name', job.tenantName, 'tenantName');
   h += row('Email 1', job.tenantEmail, 'tenantEmail', 'email');
@@ -515,12 +736,10 @@ function renderDetail(job, editing){
   }
   h += '</div>';
 
-  // Notes
   h += `<div class="detail-section"><div class="detail-section-title">Notes</div>`;
   h += row('Internal Notes', job.notes, 'notes', 'textarea');
   h += '</div>';
 
-  // View-mode actions
   if(!editing){
     h += `<div class="comm-btns" style="margin-top:4px">
       <button class="btn btn-edit btn-sm" onclick="startEdit()">✏ Edit Job</button>
@@ -528,7 +747,6 @@ function renderDetail(job, editing){
     </div>`;
   }
 
-  // Email history
   h += `<div class="detail-section" style="margin-top:20px">
     <div class="detail-section-title">Email History</div>
     <div id="email-history-area"><span style="color:#888;font-size:13px">Loading…</span></div>
@@ -629,29 +847,16 @@ function openEmailModal(recipientType){
   const staff = localStorage.getItem('pb_staff')||'';
   document.getElementById('email-staff-name').value = staff;
 
-  // Build template chips
   document.getElementById('email-chips').innerHTML = Object.entries(EMAIL_TEMPLATES).map(([k,t])=>
     `<span class="chip" onclick="applyEmailTemplate('${k}')">${t.label}</span>`
   ).join('');
 
-  // Pre-fill recipient — combine all available email addresses
   const j = emailModalJob;
   let toName='', toEmail='';
   let tmpl = 'contractor-assign';
-  if(recipientType==='contractor'){
-    toName  = j.contractorName||'';
-    toEmail = j.contractorEmail||'';
-  }
-  if(recipientType==='landlord'){
-    toName  = j.landlordName||'';
-    toEmail = [j.landlordEmail,j.landlordEmail2,j.landlordEmail3].filter(Boolean).join(', ');
-    tmpl='landlord-update';
-  }
-  if(recipientType==='tenant'){
-    toName  = j.tenantName||'';
-    toEmail = [j.tenantEmail,j.tenantEmail2,j.tenantEmail3].filter(Boolean).join(', ');
-    tmpl='tenant-update';
-  }
+  if(recipientType==='contractor'){ toName=j.contractorName||''; toEmail=j.contractorEmail||''; }
+  if(recipientType==='landlord'){ toName=j.landlordName||''; toEmail=[j.landlordEmail,j.landlordEmail2,j.landlordEmail3].filter(Boolean).join(', '); tmpl='landlord-update'; }
+  if(recipientType==='tenant'){ toName=j.tenantName||''; toEmail=[j.tenantEmail,j.tenantEmail2,j.tenantEmail3].filter(Boolean).join(', '); tmpl='tenant-update'; }
   document.getElementById('email-to-name').value = toName;
   document.getElementById('email-to-addr').value = toEmail;
   applyEmailTemplate(tmpl, true);
@@ -680,12 +885,10 @@ function applyEmailTemplate(key, skipOverride){
 function saveStaffName(){ localStorage.setItem('pb_staff', document.getElementById('email-staff-name').value) }
 
 function openMailto(){
-  // Support comma-separated email addresses for multi-recipient sends
   const rawTo = document.getElementById('email-to-addr').value.trim();
   const subj  = document.getElementById('email-subject').value;
   const body  = document.getElementById('email-body').value;
   if(!rawTo){ alert('Please enter a recipient email address.'); return; }
-  // Normalise: split on comma or semicolon, trim, rejoin with comma
   const toList = rawTo.split(/[,;]+/).map(s=>s.trim()).filter(Boolean).join(',');
   window.location.href = `mailto:${toList}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
   document.getElementById('log-email-btn').style.display='inline-flex';
