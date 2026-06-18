@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Property Bureau Platform — Hub</title>
+<style>
+  :root{
+    --navy:#1a2332; --navy-soft:#2a3850; --ink:#1a2332; --muted:#6b7280;
+    --line:#e5e7eb; --bg:#f4f5f7; --white:#fff;
+    --amber:#b45309; --amber-bg:#fef3c7; --red:#b91c1c; --red-bg:#fee2e2;
+    --green:#15803d; --green-bg:#dcfce7; --blue:#1d4ed8; --blue-bg:#dbeafe;
+    --purple:#6d28d9; --purple-bg:#ede9fe;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5}
+  .topbar{background:var(--navy);color:#fff;display:flex;align-items:center;gap:20px;padding:0 22px;height:62px}
+  .brand{display:flex;align-items:center;gap:12px;flex-shrink:0}
+  .brand .mark{width:30px;height:30px;border:2px solid #fff;border-radius:5px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+  .brand .name{font-size:15px;font-weight:600}
+  .brand .sub{font-size:11px;color:#a9b4c6}
+  .searchwrap{position:relative;flex:1;max-width:520px}
+  .searchwrap input{width:100%;padding:10px 14px 10px 36px;border:none;border-radius:8px;font-size:14px;font-family:inherit}
+  .searchwrap .ico{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:15px}
+  .results{position:absolute;top:46px;left:0;right:0;background:#fff;border:1px solid var(--line);border-radius:9px;box-shadow:0 12px 30px rgba(0,0,0,.15);overflow:hidden;z-index:30;display:none;max-height:340px;overflow-y:auto}
+  .results.show{display:block}
+  .res-item{display:flex;align-items:center;gap:11px;padding:10px 13px;cursor:pointer;border-bottom:1px solid #f1f2f4}
+  .res-item:last-child{border-bottom:none}
+  .res-item:hover{background:#f6f8fb}
+  .res-code{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700;color:var(--navy);font-size:13px;min-width:62px}
+  .res-meta{font-size:12.5px;color:#374151}.res-meta .sub{color:var(--muted);font-size:11.5px}
+  .user{display:flex;align-items:center;gap:10px;font-size:13px;color:#cdd5e1;flex-shrink:0}
+  .user .avatar{width:30px;height:30px;border-radius:50%;background:var(--navy-soft);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff}
+
+  .shell{display:flex;min-height:calc(100vh - 62px)}
+  .sidebar{width:200px;background:#fff;border-right:1px solid var(--line);padding:14px 10px;flex-shrink:0}
+  .nav-group-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:8px 12px 4px}
+  .nav-item{display:block;padding:9px 12px;border-radius:7px;color:#374151;font-weight:500;margin-bottom:2px;font-size:13.5px;text-decoration:none;cursor:pointer}
+  .nav-item:hover{background:#f1f2f4}.nav-item.active{background:var(--navy);color:#fff}
+  .main{flex:1;padding:22px 26px;overflow:auto}
+  .page-title{font-size:21px;font-weight:600;margin-bottom:4px}
+  .page-sub{font-size:13px;color:var(--muted);margin-bottom:18px}
+
+  .toolbar{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .toolbar input,.toolbar select{padding:8px 11px;border:1px solid var(--line);border-radius:7px;font-size:13px;font-family:inherit;background:#fff}
+  .toolbar input[type=text]{flex:1;min-width:200px}
+  .table-wrap{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  table{width:100%;border-collapse:collapse}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;padding:11px 14px;border-bottom:1px solid var(--line);background:#fafafa}
+  td{padding:11px 14px;border-bottom:1px solid #f1f2f4;font-size:13px}
+  tr:last-child td{border-bottom:none}
+  tr.clickable:hover{background:#f8f9fb;cursor:pointer}
+  .code{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700;color:var(--navy)}
+  .tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;display:inline-block}
+  .tag.portfolio{background:var(--navy);color:#fff}.tag.agent{background:var(--purple-bg);color:var(--purple)}
+  .tag.agent.none{background:#fff3cd;color:#92760a}
+  .muted{color:var(--muted)} .loading{padding:40px;text-align:center;color:var(--muted)}
+
+  /* profile */
+  .pp-head{background:#fff;border:1px solid var(--line);border-radius:11px;padding:18px 20px;margin-bottom:16px}
+  .pp-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .pp-code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:26px;font-weight:700;color:var(--navy)}
+  .pp-addr{font-size:15px;font-weight:500;margin-top:4px}
+  .pp-tags{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:880px){.grid{grid-template-columns:1fr}}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:11px;padding:16px 18px}
+  .panel h4{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:12px}
+  .ent{padding:11px 0;border-bottom:1px solid #f1f2f4}.ent:first-of-type{padding-top:0}.ent:last-child{border-bottom:none}
+  .ent .nm{font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px}
+  .role{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--blue);background:var(--blue-bg);padding:2px 7px;border-radius:5px}
+  .role.co{color:var(--purple);background:var(--purple-bg)}.role.ten{color:var(--green);background:var(--green-bg)}
+  .ent .ct{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.6}
+  .tcode{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700;color:var(--navy);background:#eef1f5;padding:1px 7px;border-radius:5px}
+  .act{display:flex;gap:9px;padding:9px 0;border-bottom:1px solid #f1f2f4;font-size:13px}.act:last-child{border-bottom:none}
+  .full{grid-column:1/-1} .back{cursor:pointer;color:var(--blue);font-size:13px;margin-bottom:12px;display:inline-block}
+  .note{font-size:12px;color:var(--muted);font-style:italic;margin-top:12px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><div class="mark">PB</div>
+    <div><div class="name">Property Bureau Platform</div><div class="sub">Internal operations hub</div></div></div>
+  <div class="searchwrap">
+    <span class="ico">⌕</span>
+    <input id="search" type="text" autocomplete="off" placeholder="Search a file code or name —  L002, F038, C051, Daniels…">
+    <div class="results" id="results"></div>
+  </div>
+  <div class="user"><span id="userName">—</span><div class="avatar" id="userAv">PB</div></div>
+</div>
+
+<div class="shell">
+  <nav class="sidebar">
+    <div class="nav-group-label">Daily</div>
+    <a class="nav-item" href="./dashboard.html">Urgent Actions</a>
+    <a class="nav-item active" onclick="showList()">Properties</a>
+    <a class="nav-item" href="./dashboard.html">Jobs</a>
+    <a class="nav-item" href="./dashboard.html">Inspections</a>
+    <a class="nav-item" href="./dashboard.html">Renewals</a>
+    <div class="nav-group-label">Registries</div>
+    <a class="nav-item" onclick="showList()">Landlords</a>
+    <a class="nav-item" onclick="showList()">Tenants</a>
+  </nav>
+  <main class="main" id="main"><div class="loading">Loading…</div></main>
+</div>
+
+<script>
+// ── CONFIG — set to the live deployment after redeploy (same URL as the dashboard) ──
+const GAS_URL   = "https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5jTsiMRgkv7QPDcmeqcNEAAhFXHW_OwR0-4o0qEtoCkCGjraSA/exec";
+const GAS_TOKEN = "PBmaint2026";
+
+// ── Reuse the existing login session (set by dashboard.html). No second login. ──
+function checkSession(){
+  try{
+    const s = JSON.parse(localStorage.getItem('pb_session') || 'null');
+    if(s && s.email && (!s.expires || s.expires > Date.now())) return s;
+  }catch(e){}
+  return null;
+}
+const session = checkSession();
+if(!session){ location.href = './dashboard.html?next=platform_hub.html'; }
+
+// ── Data ──
+const PORT_LABEL = {L:"Managed",H:"Unmanaged",F:"Pat",C:"Leonard & Nolan",G:"G"};
+let PROPS=[], LL={}, TEN={}, TENCY={}, JOBS=[];
+const main = document.getElementById('main');
+
+async function api(action, params){
+  const u = new URL(GAS_URL);
+  u.searchParams.set('token', GAS_TOKEN);
+  u.searchParams.set('action', action);
+  Object.keys(params||{}).forEach(k=>u.searchParams.set(k, params[k]));
+  const r = await fetch(u.toString());
+  return r.json();
+}
+
+async function init(){
+  if(session){ document.getElementById('userName').textContent = session.displayName || session.email;
+    document.getElementById('userAv').textContent = (session.displayName||session.email).slice(0,2).toUpperCase(); }
+  try{
+    const [p,l,t,ty,j] = await Promise.all([
+      api('getProperties'), api('getLandlords'), api('getTenants'), api('getTenancies'), api('getJobs')
+    ]);
+    PROPS = (p.properties||[]);
+    (l.landlords||[]).forEach(x=>LL[x.landlordId]=x);
+    (t.tenants||[]).forEach(x=>TEN[x.tenantId]=x);
+    (ty.tenancies||[]).forEach(x=>TENCY[x.tenancyCode]=x);
+    JOBS = (j.jobs||[]);
+    showList();
+  }catch(e){ main.innerHTML = '<div class="loading">Could not reach the backend. Check GAS_URL / token, then reload.</div>'; }
+}
+
+// ── Properties list ──
+function showList(filter){
+  const rows = PROPS.filter(p=>{
+    if(!filter) return true; const q=filter.toLowerCase();
+    return (p.clientCode||'').toLowerCase().includes(q) || (p.address||'').toLowerCase().includes(q) ||
+           (p.portfolioLabel||'').toLowerCase().includes(q) || (p.assignedAgent||'').toLowerCase().includes(q);
+  });
+  main.innerHTML = `
+    <div class="page-title">Properties</div>
+    <div class="page-sub">${PROPS.length} properties. Type a code in the search bar above to jump straight to one.</div>
+    <div class="toolbar"><input id="flt" type="text" placeholder="Filter by code, address, portfolio or agent…" value="${filter||''}"></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Code</th><th>Address</th><th>Portfolio</th><th>Agent</th><th>Tenancy</th></tr></thead>
+      <tbody>${rows.map(p=>`
+        <tr class="clickable" onclick="openProfile('${p.clientCode}')">
+          <td><span class="code">${p.clientCode}</span></td>
+          <td>${p.address||'<span class="muted">—</span>'}</td>
+          <td><span class="tag portfolio">${p.portfolio} ${p.portfolioLabel||''}</span></td>
+          <td>${p.assignedAgent||'<span class="muted">Unassigned</span>'}</td>
+          <td>${p.currentTenancyCode?('<span class="tcode">'+p.currentTenancyCode+'</span>'):'<span class="muted">—</span>'}</td>
+        </tr>`).join('')}</tbody>
+    </table></div>`;
+  const flt = document.getElementById('flt');
+  flt.addEventListener('input', ()=>showList(flt.value));
+  if(filter){ flt.focus(); flt.setSelectionRange(flt.value.length,flt.value.length); }
+}
+
+// ── Property profile ──
+function resolve(code){
+  const q = String(code||'').toUpperCase().trim();
+  let prop, tcy;
+  if(q.indexOf('/')>-1){ tcy=TENCY[q]; if(tcy) prop=PROPS.find(p=>p.propertyId===tcy.propertyId); }
+  else { prop=PROPS.find(p=>(p.clientCode||'').toUpperCase()===q); if(prop) tcy=TENCY[prop.currentTenancyCode]; }
+  return {prop, tcy};
+}
+function openProfile(code){
+  const {prop,tcy} = resolve(code);
+  if(!prop){ main.innerHTML='<div class="loading">No match for '+code+'.</div>'; return; }
+  const owners = String(prop.landlordIds||'').split(';').map(s=>s.trim()).filter(Boolean).map(id=>LL[id]).filter(Boolean);
+  const tenant = tcy ? TEN[tcy.tenantId] : null;
+  const a = String(prop.address||'').toLowerCase().slice(0,14);
+  const jobs = JOBS.filter(j=> (String(j.clientCode||'').toUpperCase()===(prop.clientCode||'').toUpperCase()) ||
+                               (a && String(j.property||'').toLowerCase().indexOf(a)>-1));
+  const agentTag = prop.assignedAgent
+    ? `<span class="tag agent">AGENT · ${prop.assignedAgent}</span>`
+    : `<span class="tag agent none">AGENT · Unassigned (handover pool)</span>`;
+  const llHtml = owners.length ? owners.map((l,i)=>`
+    <div class="ent"><div class="nm">${l.name} <span class="role ${i>0?'co':''}">${i>0?'Co-owner':'Owner'}</span></div>
+      <div class="ct">${[l.email,l.email2,l.email3].filter(Boolean).join(' · ')||'<span class="muted">no email on file</span>'}${
+        [l.phone,l.phoneWork,l.phoneAlt].filter(Boolean).length?'<br>'+[l.phone,l.phoneWork,l.phoneAlt].filter(Boolean).join(' · '):''}</div></div>`).join('')
+    : '<div class="muted">No landlord linked.</div>';
+  const tenHtml = tenant ? `
+    <div class="ent"><div class="nm">${tenant.name||'Current tenant'} <span class="role ten">${tcy.tenancyCode}</span></div>
+      <div class="ct">${[tenant.email,tenant.email2,tenant.email3].filter(Boolean).join(' · ')||'<span class="muted">no email on file</span>'}${
+        [tenant.phone,tenant.phoneWork,tenant.phoneAlt].filter(Boolean).length?'<br>'+[tenant.phone,tenant.phoneWork,tenant.phoneAlt].filter(Boolean).join(' · '):''}</div></div>`
+    : '<div class="muted">No current tenancy.</div>';
+  const jobsHtml = jobs.length ? jobs.map(j=>`
+    <div class="act"><span>${j.issueDescription||j.taskRequired||'Job'} <span class="muted">— ${j.status||''} ${j.estCompletionDate||''}</span></span></div>`).join('')
+    : '<div class="muted">No linked jobs.</div>';
+  main.innerHTML = `
+    <span class="back" onclick="showList()">← All properties</span>
+    <div class="pp-head"><div class="pp-top">
+      <div><div class="pp-code">${prop.clientCode}</div><div class="pp-addr">${prop.address||''}</div></div>
+      <div class="pp-tags"><span class="tag portfolio">PORTFOLIO · ${prop.portfolio} ${prop.portfolioLabel||''}</span>${agentTag}</div>
+    </div></div>
+    <div class="grid">
+      <div class="panel"><h4>Landlord(s)</h4>${llHtml}</div>
+      <div class="panel"><h4>Current tenant</h4>${tenHtml}
+        <div class="note">Only the current tenant is held. The tenancy code isolates this period — the next tenant becomes /02.</div></div>
+      <div class="panel full"><h4>Linked jobs</h4>${jobsHtml}</div>
+    </div>`;
+}
+
+// ── Search bar ──
+const search=document.getElementById('search'), results=document.getElementById('results');
+search.addEventListener('input', ()=>{
+  const q=search.value.trim().toLowerCase(); if(!q){results.classList.remove('show');return;}
+  const list=PROPS.filter(p=>(p.clientCode||'').toLowerCase().includes(q)||(p.address||'').toLowerCase().includes(q)||
+    (p.currentTenancyCode||'').toLowerCase().includes(q)).slice(0,12);
+  if(!list.length){results.classList.remove('show');return;}
+  results.innerHTML=list.map(p=>`<div class="res-item" onclick="pick('${p.clientCode}')">
+    <span class="res-code">${p.clientCode}</span>
+    <span class="res-meta">${p.address||''}<div class="sub">${(LL[String(p.landlordIds||'').split(';')[0].trim()]||{}).name||''} · ${p.portfolioLabel||''}</div></span></div>`).join('');
+  results.classList.add('show');
+});
+function pick(code){ search.value=code; results.classList.remove('show'); openProfile(code); }
+search.addEventListener('keydown',e=>{ if(e.key==='Enter'){const m=resolve(search.value); if(m.prop){pick(m.prop.clientCode);} } });
+document.addEventListener('click',e=>{ if(!e.target.closest('.searchwrap')) results.classList.remove('show'); });
+
+init();
+</script>
+</body>
+</html>
