@@ -61,7 +61,6 @@
   .btn-primary{background:var(--navy);color:#fff}.btn-ghost{background:#fff;color:var(--navy);border:1px solid var(--line)}
   .btn-sm{padding:6px 11px;font-size:12px}
 
-  /* profile */
   .pp-head{background:#fff;border:1px solid var(--line);border-radius:11px;padding:18px 20px;margin-bottom:16px}
   .pp-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
   .pp-code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:26px;font-weight:700;color:var(--navy)}
@@ -80,7 +79,6 @@
   .full{grid-column:1/-1} .back{cursor:pointer;color:var(--blue);font-size:13px;margin-bottom:12px;display:inline-block}
   .note{font-size:12px;color:var(--muted);font-style:italic;margin-top:12px}
 
-  /* urgent actions */
   .ua-card{background:#fff;border:1px solid var(--line);border-left:4px solid var(--red);border-radius:8px;padding:13px 16px;margin-bottom:10px}
   .ua-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
   .ua-call{font-weight:600;font-size:14px}
@@ -126,7 +124,6 @@
 </div>
 
 <script>
-// ── CONFIG ──
 const GAS_URL   = "https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5jTsiMRgkv7QPDcmeqcNEAAhFXHW_OwR0-4o0qEtoCkCGjraSA/exec";
 const GAS_TOKEN = "PBmaint2026";
 
@@ -172,7 +169,6 @@ async function init(){
 function openCount(){ return UA.filter(a=>(a.status||'').toLowerCase()!=='done').length; }
 function updateBadge(){ var b=document.getElementById('ua-badge'); var n=openCount(); if(n>0){ b.textContent=n; b.style.display='inline-block'; } else b.style.display='none'; }
 
-// ── Properties list ──
 function showList(filter){
   setNav('nav-props');
   const rows = PROPS.filter(p=>{ if(!filter) return true; const q=filter.toLowerCase();
