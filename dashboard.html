@@ -591,7 +591,7 @@ function applyFilters(){
     if(status==='Overdue' && !isOverdue(j)) return false;
     if(status && status!=='Overdue' && j.status!==status) return false;
     if(prop && j.property!==prop) return false;
-    if(q){ const hay=[j.id,j.property,j.issueDescription,j.contractorName,j.tenantName,j.landlordName,j.status,j.notes].join(' ').toLowerCase(); if(!hay.includes(q)) return false; }
+    if(q){ const hay=[j.id,j.property,resolveCode(j.property),j.issueDescription,j.contractorName,j.tenantName,j.landlordName,j.status,j.notes].join(' ').toLowerCase(); if(!hay.includes(q)) return false; }
     return true;
   });
   renderTable();
@@ -1016,6 +1016,12 @@ document.addEventListener('visibilitychange', function() {
     pollTimer = setInterval(loadJobs, 30000);
   }
 });
+  
+/* code-aware search + clickable stat cards (added 19.06.2026) */
+var __PBPROPS=[];
+fetch(GAS_URL+'?action=getProperties&token='+GAS_TOKEN).then(function(r){return r.json();}).then(function(d){__PBPROPS=(d&&d.properties)||[];}).catch(function(){});
+function resolveCode(addr){if(!addr||!__PBPROPS.length)return '';var a=String(addr).toLowerCase().trim();var hit=__PBPROPS.find(function(p){var pa=String(p.address||'').toLowerCase();return pa&&(pa.indexOf(a)>-1||a.indexOf(pa)>-1);});if(!hit&&a.length>6){hit=__PBPROPS.find(function(p){return String(p.address||'').toLowerCase().indexOf(a.slice(0,18))>-1;});}return hit?hit.clientCode:'';}
+(function(){function setF(v){var s=document.getElementById('filter-status');if(s){s.value=v;applyFilters();}}[['stat-total',''],['stat-progress','In Progress'],['stat-overdue','Overdue'],['stat-complete','Complete']].forEach(function(p){var el=document.getElementById(p[0]);if(el){var c=el.closest('.stat-card');if(c){c.style.cursor='pointer';c.title='Click to filter';c.addEventListener('click',function(){setF(p[1]);});}}});})();
 </script>
 </body>
 </html>
