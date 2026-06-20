@@ -85,22 +85,6 @@
   .ua-meta{font-size:12px;color:var(--muted);margin:2px 0 7px}
   .ua-issue{font-size:13.5px}
   .ua-foot{font-size:11.5px;color:#9ca3af;margin-top:7px}
-
-  /* Replies / right of reply thread */
-  .ua-thread{margin-top:11px;border-top:1px solid #f1f2f4;padding-top:10px;display:flex;flex-direction:column;gap:7px}
-  .reply{background:#f6f8fb;border:1px solid #eef1f5;border-radius:7px;padding:7px 10px}
-  .reply.reply-paul{background:#eef2fb;border-color:#d8e1f5;border-left:3px solid var(--navy)}
-  .reply-head{font-size:11px;color:var(--muted);font-weight:600;margin-bottom:2px}
-  .reply-head .who-paul{color:var(--navy)}
-  .reply-time{font-weight:400}
-  .reply-msg{font-size:13px;color:var(--ink);white-space:pre-wrap}
-  .reply-box{margin-top:11px}
-  .reply-box textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;font-family:inherit;min-height:54px;resize:vertical}
-  .reply-actions{display:flex;gap:8px;margin-top:7px;flex-wrap:wrap}
-  .ua-card.ua-done{border-left-color:var(--green);background:#fcfdfc}
-  .ua-done .ua-call{font-weight:600;color:var(--muted)}
-  .done-pill{font-size:11px;font-weight:700;color:var(--green);background:var(--green-bg);padding:3px 9px;border-radius:20px;height:fit-content;white-space:nowrap}
-
   .form{background:#fff;border:1px solid var(--line);border-radius:11px;padding:18px 20px;max-width:620px}
   .form label{display:block;font-size:12px;font-weight:600;color:#374151;margin:12px 0 4px}
   .form input,.form select,.form textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:7px;font-size:13px;font-family:inherit}
@@ -109,6 +93,42 @@
   .form .actions{margin-top:16px;display:flex;gap:10px}
   .resolved{font-size:12px;color:var(--green);margin-top:6px}
   .empty{background:#fff;border:1px dashed var(--line);border-radius:10px;padding:28px;text-align:center;color:var(--muted)}
+
+  /* ── Renewals / Inspections cards (address-first, mobile-friendly) ── */
+  .li-card{background:#fff;border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:8px;padding:13px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .li-card.ren{border-left-color:var(--amber)}
+  .li-card.insp{border-left-color:var(--blue)}
+  .li-main{flex:1;min-width:0}
+  .li-addr{font-weight:600;font-size:15px;line-height:1.3}
+  .li-sub{font-size:12.5px;color:var(--muted);margin:3px 0 6px}
+  .li-line{font-size:13px}
+  .li-card .btn{flex-shrink:0}
+
+  /* ── Mobile / phone layout ── */
+  @media(max-width:760px){
+    .topbar{flex-wrap:wrap;height:auto;padding:10px 14px;gap:10px}
+    .brand{order:1}
+    .brand .sub{display:none}
+    .user{order:2;margin-left:auto}
+    .searchwrap{order:3;flex:1 0 100%;max-width:none}
+    .results{top:auto}
+    .shell{flex-direction:column;min-height:0}
+    .sidebar{width:auto;display:flex;flex-wrap:wrap;gap:6px;border-right:none;border-bottom:1px solid var(--line);padding:10px 12px;position:sticky;top:0;z-index:20}
+    .nav-group-label{display:none}
+    .nav-item{margin-bottom:0;padding:8px 12px;font-size:13px;border:1px solid var(--line);border-radius:20px;flex:0 0 auto}
+    .main{padding:16px 14px}
+    .page-title{font-size:19px}
+    .page-sub{margin-bottom:14px}
+    .grid{grid-template-columns:1fr}
+    .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+    .form{padding:16px 14px}
+    .form .row{flex-direction:column;gap:0}
+    .form .actions{flex-wrap:wrap}
+    .pp-code{font-size:22px}
+    .pp-tags{margin-left:0;width:100%}
+    .li-card{flex-direction:column}
+    .li-card .btn{align-self:flex-end}
+  }
 </style>
 </head>
 <body>
@@ -153,7 +173,7 @@ const session = checkSession();
 if(!session){ location.href = './dashboard.html?next=platform_hub.html'; }
 
 const PORT_LABEL = {L:"Managed",H:"Unmanaged",F:"Pat",C:"Leonard & Nolan",G:"G"};
-let PROPS=[], LL={}, TEN={}, TENCY={}, JOBS=[], UA=[], REN=[], INS=[], AL=[], REPLIES=[];
+let PROPS=[], LL={}, TEN={}, TENCY={}, JOBS=[], UA=[], REN=[], INS=[], AL=[];
 const main = document.getElementById('main');
 
 async function api(action, params){
@@ -168,21 +188,20 @@ async function postApi(action, data){
 function setNav(id){ document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); var el=document.getElementById(id); if(el) el.classList.add('active'); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function fmtD(s){ if(!s) return '—'; const d=new Date(s); return isNaN(d)?esc(s):d.toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'}); }
-function fmtDT(s){ if(!s) return ''; const d=new Date(s); return isNaN(d)?esc(s):d.toLocaleString('en-ZA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}); }
-function isAdmin(){ return String((session&&session.role)||'').toLowerCase()==='admin'; }
+function addrFor(code){ const p=PROPS.find(x=>(x.clientCode||'').toUpperCase()===String(code||'').toUpperCase()); return p?p.address:''; }
 
 async function init(){
   if(session){ document.getElementById('userName').textContent = session.displayName || session.email;
     document.getElementById('userAv').textContent = (session.displayName||session.email).slice(0,2).toUpperCase(); }
   try{
-    const [p,l,t,ty,j,u,rn,ins,al,rep] = await Promise.all([
-      api('getProperties'), api('getLandlords'), api('getTenants'), api('getTenancies'), api('getJobs'), api('getUrgentActions'), api('getRenewals'), api('getInspections'), api('getActiveListings'), api('getActionReplies')
+    const [p,l,t,ty,j,u,rn,ins,al] = await Promise.all([
+      api('getProperties'), api('getLandlords'), api('getTenants'), api('getTenancies'), api('getJobs'), api('getUrgentActions'), api('getRenewals'), api('getInspections'), api('getActiveListings')
     ]);
     PROPS=(p.properties||[]);
     (l.landlords||[]).forEach(x=>LL[x.landlordId]=x);
     (t.tenants||[]).forEach(x=>TEN[x.tenantId]=x);
     (ty.tenancies||[]).forEach(x=>TENCY[x.tenancyCode]=x);
-    JOBS=(j.jobs||[]); UA=(u.urgentActions||[]); REN=(rn.renewals||[]); INS=(ins.inspections||[]); AL=(al.activeListings||[]); REPLIES=(rep&&rep.replies)||[];
+    JOBS=(j.jobs||[]); UA=(u.urgentActions||[]); REN=(rn.renewals||[]); INS=(ins.inspections||[]); AL=(al.activeListings||[]);
     updateBadge(); showList();
   }catch(e){ main.innerHTML = '<div class="loading">Could not reach the backend. Check GAS_URL / token, then reload.</div>'; }
 }
@@ -255,40 +274,15 @@ function showUrgent(){
   setNav('nav-urgent');
   const openA = UA.filter(a=>(a.status||'').toLowerCase()!=='done');
   const cards = openA.length ? openA.map(uaCard).join('') : '<div class="empty">No urgent actions right now. When staff flag one, it appears here and in Paul\'s 1pm email.</div>';
-  const cutoff = Date.now() - 7*24*60*60*1000;
-  const doneA = UA.filter(a=>(a.status||'').toLowerCase()==='done')
-    .filter(a=>{ const d=new Date(a.completedAt||a.dateFlagged); return isNaN(d)?true:d.getTime()>=cutoff; })
-    .sort((x,y)=>String(y.completedAt||y.dateFlagged).localeCompare(String(x.completedAt||x.dateFlagged)));
-  const doneHtml = doneA.length
-    ? `<div class="page-sub" style="margin-top:26px;margin-bottom:10px;font-weight:600;color:var(--ink)">Recently done · last 7 days</div>${doneA.map(uaCardDone).join('')}`
-    : '';
   main.innerHTML = `
     <div class="page-title">Urgent Actions</div>
-    <div class="page-sub">Issues needing Paul to call an owner or tenant. ${openA.length} open · Paul receives these at 1pm. Reply on a card to tell the team what you've done.</div>
+    <div class="page-sub">Issues needing Paul to call an owner or tenant. ${openA.length} open · Paul receives these at 1pm.</div>
     <button class="btn btn-primary" onclick="showUAForm()">+ Log urgent action</button>
-    <div style="margin-top:14px">${cards}</div>${doneHtml}`;
-}
-function repliesFor(actionId){
-  return REPLIES.filter(r=>String(r.actionId)===String(actionId))
-    .sort((x,y)=>String(x.createdAt).localeCompare(String(y.createdAt)));
+    <div style="margin-top:14px">${cards}</div>`;
 }
 function uaCard(a){
   const prop = PROPS.find(p=>(p.clientCode||'').toUpperCase()===String(a.clientCode||'').toUpperCase());
   const addr = prop?prop.address:'';
-  const id = esc(a.actionId);
-  const thread = repliesFor(a.actionId);
-  const threadHtml = thread.length ? `<div class="ua-thread">${thread.map(r=>{
-      const me = String(r.authorRole||'').toLowerCase()==='admin';
-      return `<div class="reply${me?' reply-paul':''}">
-        <div class="reply-head"><span class="${me?'who-paul':''}">${esc(r.author||'—')}${me?' · Paul':''}</span> <span class="reply-time">${esc(fmtDT(r.createdAt))}</span></div>
-        <div class="reply-msg">${esc(r.message)}</div></div>`;
-    }).join('')}</div>` : '';
-  const replyBox = `<div class="reply-box">
-      <textarea id="reply-input-${id}" placeholder="Reply — say what you've done so the team can see…"></textarea>
-      <div class="reply-actions">
-        <button class="btn btn-primary btn-sm" onclick="addReply('${id}', false)">Reply</button>
-        <button class="btn btn-ghost btn-sm" onclick="addReply('${id}', true)">Reply &amp; mark done</button>
-      </div></div>`;
   return `<div class="ua-card"><div class="ua-top">
       <div>
         <div class="ua-call">Call ${esc(a.contactName||a.whoToCall||'contact')}${a.contactPhone?' · '+esc(a.contactPhone):''}</div>
@@ -296,28 +290,8 @@ function uaCard(a){
         <div class="ua-issue">${esc(a.issue)}</div>
         <div class="ua-foot">Flagged by ${esc(a.flaggedBy||'staff')}${a.dateFlagged?' · '+String(a.dateFlagged).slice(0,10):''}</div>
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="markDone('${id}')">Mark done</button>
-    </div>${threadHtml}${replyBox}</div>`;
-}
-function uaCardDone(a){
-  const prop = PROPS.find(p=>(p.clientCode||'').toUpperCase()===String(a.clientCode||'').toUpperCase());
-  const addr = prop?prop.address:'';
-  const thread = repliesFor(a.actionId);
-  const threadHtml = thread.length ? `<div class="ua-thread">${thread.map(r=>{
-      const me = String(r.authorRole||'').toLowerCase()==='admin';
-      return `<div class="reply${me?' reply-paul':''}">
-        <div class="reply-head"><span class="${me?'who-paul':''}">${esc(r.author||'—')}${me?' · Paul':''}</span> <span class="reply-time">${esc(fmtDT(r.createdAt))}</span></div>
-        <div class="reply-msg">${esc(r.message)}</div></div>`;
-    }).join('')}</div>` : '';
-  const when = a.completedAt||a.dateFlagged;
-  return `<div class="ua-card ua-done"><div class="ua-top">
-      <div>
-        <div class="ua-call">${esc(a.contactName||a.whoToCall||'contact')}${a.clientCode?' · '+esc(a.clientCode):''}${addr?' — '+esc(addr):''}</div>
-        <div class="ua-issue" style="margin-top:4px">${esc(a.issue)}</div>
-        <div class="ua-foot">Flagged by ${esc(a.flaggedBy||'staff')}${when?' · done '+esc(fmtDT(when)):''}</div>
-      </div>
-      <span class="done-pill">Done</span>
-    </div>${threadHtml}</div>`;
+      <button class="btn btn-ghost btn-sm" onclick="markDone('${esc(a.actionId)}')">Mark done</button>
+    </div></div>`;
 }
 function showUAForm(prefillCode){
   setNav('nav-urgent');
@@ -370,21 +344,6 @@ async function submitUA(){
   try{ const res=await postApi('addUrgentAction', data); data.actionId=(res&&res.actionId)||('UA-'+Date.now()); data.status='Open'; data.dateFlagged=new Date().toISOString(); UA.push(data); updateBadge(); showUrgent();
   }catch(e){ btn.textContent='Post urgent action'; btn.disabled=false; alert('Could not post. Please retry.'); }
 }
-async function addReply(id, alsoDone){
-  const ta=document.getElementById('reply-input-'+id);
-  const msg=ta?ta.value.trim():'';
-  if(!msg){ alert('Write a reply first.'); if(ta) ta.focus(); return; }
-  const author = session?(session.displayName||session.email):'';
-  const role = isAdmin()?'admin':'staff';
-  // optimistic update on screen
-  REPLIES.push({ replyId:'R-'+Date.now(), actionId:id, author:author, authorRole:role, message:msg, createdAt:new Date().toISOString() });
-  if(alsoDone){ const a=UA.find(x=>x.actionId===id); if(a) a.status='Done'; }
-  updateBadge(); showUrgent();
-  try{
-    await postApi('addActionReply', {actionId:id, author:author, authorRole:role, message:msg});
-    if(alsoDone) await postApi('updateUrgentAction', {actionId:id, status:'Done', completedAt:new Date().toISOString()});
-  }catch(e){ alert('Saved on screen but could not reach the server — please refresh to confirm.'); }
-}
 async function markDone(id){
   const a=UA.find(x=>x.actionId===id); if(a) a.status='Done'; updateBadge(); showUrgent();
   try{ await postApi('updateUrgentAction', {actionId:id, status:'Done', completedAt:new Date().toISOString()}); }catch(e){ alert('Could not update — please refresh.'); }
@@ -394,10 +353,18 @@ async function markDone(id){
 function showRenewals(){
   setNav('nav-ren');
   const openR = REN.filter(r=>(r.status||'').toLowerCase()!=='done').sort((a,b)=>String(a.leaseEnd).localeCompare(String(b.leaseEnd)));
-  const cards = openR.length ? '<div class="table-wrap"><table><thead><tr><th>Code</th><th>Tenant</th><th>Lease end</th><th>Rent</th><th>Status</th><th></th></tr></thead><tbody>'+
-    openR.map(r=>`<tr><td><span class="code">${esc(r.clientCode)}</span></td><td>${esc(r.tenant)||'—'}</td><td>${fmtD(r.leaseEnd)}</td><td>${esc(r.rentCurrent)||'—'}${r.rentProposed?(' → '+esc(r.rentProposed)):''}</td><td>${esc(r.renewalStatus)||'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="markRenewalDone('${esc(r.renewalId)}')">Done</button></td></tr>`).join('')+'</tbody></table></div>'
+  const cards = openR.length ? openR.map(renCard).join('')
     : '<div class="empty">No upcoming renewals logged yet. Add the leases coming up for renewal.</div>';
   main.innerHTML=`<div class="page-title">Renewals</div><div class="page-sub">Leases coming up for renewal. ${openR.length} open · shown in Paul's 1pm digest.</div><button class="btn btn-primary" onclick="showRenewalForm()">+ Add renewal</button><div style="margin-top:14px">${cards}</div>`;
+}
+function renCard(r){
+  const addr=addrFor(r.clientCode);
+  const rent=(esc(r.rentCurrent)||'—')+(r.rentProposed?(' → '+esc(r.rentProposed)):'');
+  return `<div class="li-card ren"><div class="li-main">
+      <div class="li-addr">${esc(addr)||'<span class="muted">No address found for '+esc(r.clientCode||'this lease')+'</span>'}</div>
+      <div class="li-sub">${r.clientCode?('<span class="code">'+esc(r.clientCode)+'</span> · '):''}${esc(r.tenant)||'—'}</div>
+      <div class="li-line">Lease ends <b>${fmtD(r.leaseEnd)}</b> · Rent ${rent} · ${esc(r.renewalStatus)||'—'}</div>
+    </div><button class="btn btn-ghost btn-sm" onclick="markRenewalDone('${esc(r.renewalId)}')">Done</button></div>`;
 }
 function showRenewalForm(prefill){
   setNav('nav-ren');
@@ -423,10 +390,17 @@ async function markRenewalDone(id){ const r=REN.find(x=>x.renewalId===id); if(r)
 function showInspections(){
   setNav('nav-insp');
   const openI = INS.filter(i=>(i.status||'').toLowerCase()!=='done').sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate)));
-  const cards = openI.length ? '<div class="table-wrap"><table><thead><tr><th>Code</th><th>Tenant</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody>'+
-    openI.map(i=>`<tr><td><span class="code">${esc(i.clientCode)}</span></td><td>${esc(i.tenant)||'—'}</td><td>${fmtD(i.dueDate)}</td><td>${esc(i.inspectionStatus)||'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="markInspectionDone('${esc(i.inspectionId)}')">Done</button></td></tr>`).join('')+'</tbody></table></div>'
+  const cards = openI.length ? openI.map(insCard).join('')
     : '<div class="empty">No upcoming inspections logged yet. Add the inspections coming up.</div>';
   main.innerHTML=`<div class="page-title">Inspections</div><div class="page-sub">Inspections coming up. ${openI.length} open · shown in Paul's 1pm digest.</div><button class="btn btn-primary" onclick="showInspectionForm()">+ Add inspection</button><div style="margin-top:14px">${cards}</div>`;
+}
+function insCard(i){
+  const addr=addrFor(i.clientCode);
+  return `<div class="li-card insp"><div class="li-main">
+      <div class="li-addr">${esc(addr)||'<span class="muted">No address found for '+esc(i.clientCode||'this inspection')+'</span>'}</div>
+      <div class="li-sub">${i.clientCode?('<span class="code">'+esc(i.clientCode)+'</span> · '):''}${esc(i.tenant)||'—'}</div>
+      <div class="li-line">Due <b>${fmtD(i.dueDate)}</b> · ${esc(i.inspectionStatus)||'—'}</div>
+    </div><button class="btn btn-ghost btn-sm" onclick="markInspectionDone('${esc(i.inspectionId)}')">Done</button></div>`;
 }
 function showInspectionForm(prefill){
   setNav('nav-insp');
