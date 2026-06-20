@@ -85,6 +85,22 @@
   .ua-meta{font-size:12px;color:var(--muted);margin:2px 0 7px}
   .ua-issue{font-size:13.5px}
   .ua-foot{font-size:11.5px;color:#9ca3af;margin-top:7px}
+
+  /* Replies / right of reply thread */
+  .ua-thread{margin-top:11px;border-top:1px solid #f1f2f4;padding-top:10px;display:flex;flex-direction:column;gap:7px}
+  .reply{background:#f6f8fb;border:1px solid #eef1f5;border-radius:7px;padding:7px 10px}
+  .reply.reply-paul{background:#eef2fb;border-color:#d8e1f5;border-left:3px solid var(--navy)}
+  .reply-head{font-size:11px;color:var(--muted);font-weight:600;margin-bottom:2px}
+  .reply-head .who-paul{color:var(--navy)}
+  .reply-time{font-weight:400}
+  .reply-msg{font-size:13px;color:var(--ink);white-space:pre-wrap}
+  .reply-box{margin-top:11px}
+  .reply-box textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;font-family:inherit;min-height:54px;resize:vertical}
+  .reply-actions{display:flex;gap:8px;margin-top:7px;flex-wrap:wrap}
+  .ua-card.ua-done{border-left-color:var(--green);background:#fcfdfc}
+  .ua-done .ua-call{font-weight:600;color:var(--muted)}
+  .done-pill{font-size:11px;font-weight:700;color:var(--green);background:var(--green-bg);padding:3px 9px;border-radius:20px;height:fit-content;white-space:nowrap}
+
   .form{background:#fff;border:1px solid var(--line);border-radius:11px;padding:18px 20px;max-width:620px}
   .form label{display:block;font-size:12px;font-weight:600;color:#374151;margin:12px 0 4px}
   .form input,.form select,.form textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:7px;font-size:13px;font-family:inherit}
@@ -137,7 +153,7 @@ const session = checkSession();
 if(!session){ location.href = './dashboard.html?next=platform_hub.html'; }
 
 const PORT_LABEL = {L:"Managed",H:"Unmanaged",F:"Pat",C:"Leonard & Nolan",G:"G"};
-let PROPS=[], LL={}, TEN={}, TENCY={}, JOBS=[], UA=[], REN=[], INS=[], AL=[];
+let PROPS=[], LL={}, TEN={}, TENCY={}, JOBS=[], UA=[], REN=[], INS=[], AL=[], REPLIES=[];
 const main = document.getElementById('main');
 
 async function api(action, params){
@@ -152,19 +168,21 @@ async function postApi(action, data){
 function setNav(id){ document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); var el=document.getElementById(id); if(el) el.classList.add('active'); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function fmtD(s){ if(!s) return '—'; const d=new Date(s); return isNaN(d)?esc(s):d.toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'}); }
+function fmtDT(s){ if(!s) return ''; const d=new Date(s); return isNaN(d)?esc(s):d.toLocaleString('en-ZA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}); }
+function isAdmin(){ return String((session&&session.role)||'').toLowerCase()==='admin'; }
 
 async function init(){
   if(session){ document.getElementById('userName').textContent = session.displayName || session.email;
     document.getElementById('userAv').textContent = (session.displayName||session.email).slice(0,2).toUpperCase(); }
   try{
-    const [p,l,t,ty,j,u,rn,ins,al] = await Promise.all([
-      api('getProperties'), api('getLandlords'), api('getTenants'), api('getTenancies'), api('getJobs'), api('getUrgentActions'), api('getRenewals'), api('getInspections'), api('getActiveListings')
+    const [p,l,t,ty,j,u,rn,ins,al,rep] = await Promise.all([
+      api('getProperties'), api('getLandlords'), api('getTenants'), api('getTenancies'), api('getJobs'), api('getUrgentActions'), api('getRenewals'), api('getInspections'), api('getActiveListings'), api('getActionReplies')
     ]);
     PROPS=(p.properties||[]);
     (l.landlords||[]).forEach(x=>LL[x.landlordId]=x);
     (t.tenants||[]).forEach(x=>TEN[x.tenantId]=x);
     (ty.tenancies||[]).forEach(x=>TENCY[x.tenancyCode]=x);
-    JOBS=(j.jobs||[]); UA=(u.urgentActions||[]); REN=(rn.renewals||[]); INS=(ins.inspections||[]); AL=(al.activeListings||[]);
+    JOBS=(j.jobs||[]); UA=(u.urgentActions||[]); REN=(rn.renewals||[]); INS=(ins.inspections||[]); AL=(al.activeListings||[]); REPLIES=(rep&&rep.replies)||[];
     updateBadge(); showList();
   }catch(e){ main.innerHTML = '<div class="loading">Could not reach the backend. Check GAS_URL / token, then reload.</div>'; }
 }
@@ -237,15 +255,40 @@ function showUrgent(){
   setNav('nav-urgent');
   const openA = UA.filter(a=>(a.status||'').toLowerCase()!=='done');
   const cards = openA.length ? openA.map(uaCard).join('') : '<div class="empty">No urgent actions right now. When staff flag one, it appears here and in Paul\'s 1pm email.</div>';
+  const cutoff = Date.now() - 7*24*60*60*1000;
+  const doneA = UA.filter(a=>(a.status||'').toLowerCase()==='done')
+    .filter(a=>{ const d=new Date(a.completedAt||a.dateFlagged); return isNaN(d)?true:d.getTime()>=cutoff; })
+    .sort((x,y)=>String(y.completedAt||y.dateFlagged).localeCompare(String(x.completedAt||x.dateFlagged)));
+  const doneHtml = doneA.length
+    ? `<div class="page-sub" style="margin-top:26px;margin-bottom:10px;font-weight:600;color:var(--ink)">Recently done · last 7 days</div>${doneA.map(uaCardDone).join('')}`
+    : '';
   main.innerHTML = `
     <div class="page-title">Urgent Actions</div>
-    <div class="page-sub">Issues needing Paul to call an owner or tenant. ${openA.length} open · Paul receives these at 1pm.</div>
+    <div class="page-sub">Issues needing Paul to call an owner or tenant. ${openA.length} open · Paul receives these at 1pm. Reply on a card to tell the team what you've done.</div>
     <button class="btn btn-primary" onclick="showUAForm()">+ Log urgent action</button>
-    <div style="margin-top:14px">${cards}</div>`;
+    <div style="margin-top:14px">${cards}</div>${doneHtml}`;
+}
+function repliesFor(actionId){
+  return REPLIES.filter(r=>String(r.actionId)===String(actionId))
+    .sort((x,y)=>String(x.createdAt).localeCompare(String(y.createdAt)));
 }
 function uaCard(a){
   const prop = PROPS.find(p=>(p.clientCode||'').toUpperCase()===String(a.clientCode||'').toUpperCase());
   const addr = prop?prop.address:'';
+  const id = esc(a.actionId);
+  const thread = repliesFor(a.actionId);
+  const threadHtml = thread.length ? `<div class="ua-thread">${thread.map(r=>{
+      const me = String(r.authorRole||'').toLowerCase()==='admin';
+      return `<div class="reply${me?' reply-paul':''}">
+        <div class="reply-head"><span class="${me?'who-paul':''}">${esc(r.author||'—')}${me?' · Paul':''}</span> <span class="reply-time">${esc(fmtDT(r.createdAt))}</span></div>
+        <div class="reply-msg">${esc(r.message)}</div></div>`;
+    }).join('')}</div>` : '';
+  const replyBox = `<div class="reply-box">
+      <textarea id="reply-input-${id}" placeholder="Reply — say what you've done so the team can see…"></textarea>
+      <div class="reply-actions">
+        <button class="btn btn-primary btn-sm" onclick="addReply('${id}', false)">Reply</button>
+        <button class="btn btn-ghost btn-sm" onclick="addReply('${id}', true)">Reply &amp; mark done</button>
+      </div></div>`;
   return `<div class="ua-card"><div class="ua-top">
       <div>
         <div class="ua-call">Call ${esc(a.contactName||a.whoToCall||'contact')}${a.contactPhone?' · '+esc(a.contactPhone):''}</div>
@@ -253,8 +296,28 @@ function uaCard(a){
         <div class="ua-issue">${esc(a.issue)}</div>
         <div class="ua-foot">Flagged by ${esc(a.flaggedBy||'staff')}${a.dateFlagged?' · '+String(a.dateFlagged).slice(0,10):''}</div>
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="markDone('${esc(a.actionId)}')">Mark done</button>
-    </div></div>`;
+      <button class="btn btn-ghost btn-sm" onclick="markDone('${id}')">Mark done</button>
+    </div>${threadHtml}${replyBox}</div>`;
+}
+function uaCardDone(a){
+  const prop = PROPS.find(p=>(p.clientCode||'').toUpperCase()===String(a.clientCode||'').toUpperCase());
+  const addr = prop?prop.address:'';
+  const thread = repliesFor(a.actionId);
+  const threadHtml = thread.length ? `<div class="ua-thread">${thread.map(r=>{
+      const me = String(r.authorRole||'').toLowerCase()==='admin';
+      return `<div class="reply${me?' reply-paul':''}">
+        <div class="reply-head"><span class="${me?'who-paul':''}">${esc(r.author||'—')}${me?' · Paul':''}</span> <span class="reply-time">${esc(fmtDT(r.createdAt))}</span></div>
+        <div class="reply-msg">${esc(r.message)}</div></div>`;
+    }).join('')}</div>` : '';
+  const when = a.completedAt||a.dateFlagged;
+  return `<div class="ua-card ua-done"><div class="ua-top">
+      <div>
+        <div class="ua-call">${esc(a.contactName||a.whoToCall||'contact')}${a.clientCode?' · '+esc(a.clientCode):''}${addr?' — '+esc(addr):''}</div>
+        <div class="ua-issue" style="margin-top:4px">${esc(a.issue)}</div>
+        <div class="ua-foot">Flagged by ${esc(a.flaggedBy||'staff')}${when?' · done '+esc(fmtDT(when)):''}</div>
+      </div>
+      <span class="done-pill">Done</span>
+    </div>${threadHtml}</div>`;
 }
 function showUAForm(prefillCode){
   setNav('nav-urgent');
@@ -306,6 +369,21 @@ async function submitUA(){
   const btn=document.getElementById('f-save'); btn.textContent='Posting…'; btn.disabled=true;
   try{ const res=await postApi('addUrgentAction', data); data.actionId=(res&&res.actionId)||('UA-'+Date.now()); data.status='Open'; data.dateFlagged=new Date().toISOString(); UA.push(data); updateBadge(); showUrgent();
   }catch(e){ btn.textContent='Post urgent action'; btn.disabled=false; alert('Could not post. Please retry.'); }
+}
+async function addReply(id, alsoDone){
+  const ta=document.getElementById('reply-input-'+id);
+  const msg=ta?ta.value.trim():'';
+  if(!msg){ alert('Write a reply first.'); if(ta) ta.focus(); return; }
+  const author = session?(session.displayName||session.email):'';
+  const role = isAdmin()?'admin':'staff';
+  // optimistic update on screen
+  REPLIES.push({ replyId:'R-'+Date.now(), actionId:id, author:author, authorRole:role, message:msg, createdAt:new Date().toISOString() });
+  if(alsoDone){ const a=UA.find(x=>x.actionId===id); if(a) a.status='Done'; }
+  updateBadge(); showUrgent();
+  try{
+    await postApi('addActionReply', {actionId:id, author:author, authorRole:role, message:msg});
+    if(alsoDone) await postApi('updateUrgentAction', {actionId:id, status:'Done', completedAt:new Date().toISOString()});
+  }catch(e){ alert('Saved on screen but could not reach the server — please refresh to confirm.'); }
 }
 async function markDone(id){
   const a=UA.find(x=>x.actionId===id); if(a) a.status='Done'; updateBadge(); showUrgent();
