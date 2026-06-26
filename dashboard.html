@@ -821,4 +821,31 @@ async function logWhatsApp(){
   setTimeout(()=>{ closeWhatsAppModal(); if(currentJob) loadEmailHistory(currentJob.id) }, 1200);
 }
 
-function closeWhatsAppModal()
+function closeWhatsAppModal(){
+  const logBtn = document.getElementById('log-wa-btn');
+  if(logBtn && logBtn.style.display !== 'none'){
+    if(!confirm('You haven\'t logged this WhatsApp message yet.\n\nClose anyway?')) return;
+  }
+  document.getElementById('whatsapp-modal').classList.remove('open');
+}
+
+// ── Init & polling ───────────────────────────────────────────
+const POLL_MS = 120000;        // 2 minutes
+const REFOCUS_MIN_MS = 60000;  // only auto-refresh on focus if >60s since last load
+let lastLoad = Date.now();
+
+async function refreshJobs(){ lastLoad = Date.now(); await loadJobs(); }
+
+refreshJobs();
+let pollTimer = setInterval(refreshJobs, POLL_MS);
+
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible' && (Date.now() - lastLoad) > REFOCUS_MIN_MS) {
+    clearInterval(pollTimer);
+    refreshJobs();
+    pollTimer = setInterval(refreshJobs, POLL_MS);
+  }
+});
+</script>
+</body>
+</html>
