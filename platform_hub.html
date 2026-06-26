@@ -302,9 +302,11 @@ function uaCard(a){
         <div class="ua-issue">${esc(a.issue)}</div>
         <div class="ua-foot">Flagged by ${esc(a.flaggedBy||'staff')}${a.dateFlagged?' · '+String(a.dateFlagged).slice(0,10):''}</div>
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="markDone('${id}')">Mark done</button>
+      <div class="ua-btns"><button class="btn btn-ghost btn-sm" onclick="editUA('${id}')">Edit</button>
+      <button class="btn btn-ghost btn-sm" onclick="markDone('${id}')">Mark done</button></div>
     </div>${threadHtml}${replyBox}</div>`;
 }
+function editUA(id){ const rec=UA.find(x=>String(x.actionId)===String(id)); if(rec) showUAForm(rec.clientCode, rec); }
 function uaCardDone(a){
   const prop = PROPS.find(p=>(p.clientCode||'').toUpperCase()===String(a.clientCode||'').toUpperCase());
   const addr = prop?prop.address:'';
@@ -325,36 +327,37 @@ function uaCardDone(a){
       <span class="done-pill">Done</span>
     </div>${threadHtml}</div>`;
 }
-function showUAForm(prefillCode){
+function showUAForm(prefillCode, edit){
   setNav('nav-urgent');
+  const e=edit||{}, sel=(v,o)=>v===o?' selected':'';
   main.innerHTML = `
     <span class="back" onclick="showUrgent()">← Urgent actions</span>
-    <div class="page-title" style="margin-top:8px">Log an urgent action</div>
+    <div class="page-title" style="margin-top:8px">${edit?'Edit urgent action':'Log an urgent action'}</div>
     <div class="page-sub">Capture what Paul needs to deal with, who to call, and the points to raise. He sees it in the 1pm email.</div>
     <div class="form">
       <label>Property code (optional)</label>
-      <input id="f-code" type="text" placeholder="e.g. L002" value="${esc(prefillCode||'')}">
+      <input id="f-code" type="text" placeholder="e.g. L002" value="${esc(edit?(e.clientCode||''):(prefillCode||''))}">
       <div id="f-addr" class="resolved"></div>
       <div class="row">
         <div><label>Who must Paul call?</label>
-          <select id="f-who"><option>Owner</option><option>Tenant</option><option>Other</option></select></div>
-        <div><label>Contact name</label><input id="f-name" type="text" placeholder="Name to call"></div>
+          <select id="f-who"><option${sel(e.whoToCall,'Owner')}>Owner</option><option${sel(e.whoToCall,'Tenant')}>Tenant</option><option${sel(e.whoToCall,'Other')}>Other</option></select></div>
+        <div><label>Contact name</label><input id="f-name" type="text" placeholder="Name to call" value="${esc(e.contactName||'')}"></div>
       </div>
       <div class="row">
-        <div><label>Contact phone</label><input id="f-phone" type="text" placeholder="Number to call"></div>
-        <div><label>Flagged by</label><input id="f-by" type="text" value="${esc(session?(session.displayName||session.email):'')}"></div>
+        <div><label>Contact phone</label><input id="f-phone" type="text" placeholder="Number to call" value="${esc(e.contactPhone||'')}"></div>
+        <div><label>Flagged by</label><input id="f-by" type="text" value="${esc(edit?(e.flaggedBy||''):(session?(session.displayName||session.email):''))}"></div>
       </div>
       <label>The issue / points to raise</label>
-      <textarea id="f-issue" placeholder="What's the problem and what does Paul need to take up with them?"></textarea>
+      <textarea id="f-issue" placeholder="What's the problem and what does Paul need to take up with them?">${esc(e.issue||'')}</textarea>
       <div class="actions">
-        <button class="btn btn-primary" id="f-save" onclick="submitUA()">Post urgent action</button>
+        <button class="btn btn-primary" id="f-save" onclick="submitUA('${edit?esc(e.actionId):''}')">${edit?'Save changes':'Post urgent action'}</button>
         <button class="btn btn-ghost" onclick="showUrgent()">Cancel</button>
       </div>
     </div>`;
   const codeEl=document.getElementById('f-code');
   codeEl.addEventListener('input', codeLookup);
   document.getElementById('f-who').addEventListener('change', codeLookup);
-  if(prefillCode) codeLookup();
+  if(prefillCode && !edit) codeLookup();
 }
 function codeLookup(){
   const code=document.getElementById('f-code').value.trim().toUpperCase();
@@ -366,17 +369,25 @@ function codeLookup(){
   if(who==='Owner'){ const ll=String(prop.landlordIds||'').split(';').map(s=>s.trim()).filter(Boolean).map(id=>LL[id]).filter(Boolean)[0]; if(ll && !nameEl.value) nameEl.value=ll.name; }
   else if(who==='Tenant'){ const tcy=TENCY[prop.currentTenancyCode]; const tn=tcy?TEN[tcy.tenantId]:null; if(tn && tn.name && !nameEl.value) nameEl.value=tn.name; }
 }
-async function submitUA(){
+async function submitUA(editId){
   const data={ clientCode:document.getElementById('f-code').value.trim().toUpperCase(),
     whoToCall:document.getElementById('f-who').value, contactName:document.getElementById('f-name').value.trim(),
     contactPhone:document.getElementById('f-phone').value.trim(), flaggedBy:document.getElementById('f-by').value.trim(),
     issue:document.getElementById('f-issue').value.trim() };
   if(!data.issue){ alert('Please describe the issue / points to raise.'); return; }
-  const btn=document.getElementById('f-save'); btn.textContent='Posting…'; btn.disabled=true;
-  // Generate the ID up front and send it so the server stores the same one.
-  data.actionId='UA-'+Date.now(); data.status='Open'; data.dateFlagged=new Date().toISOString();
-  try{ await postApi('addUrgentAction', data); UA.push(data); updateBadge(); showUrgent();
-  }catch(e){ btn.textContent='Post urgent action'; btn.disabled=false; alert('Could not post. Please retry.'); }
+  const btn=document.getElementById('f-save'); btn.textContent='Saving…'; btn.disabled=true;
+  if(editId){
+    data.actionId=editId;
+    const idx=UA.findIndex(x=>String(x.actionId)===String(editId)); if(idx>-1) UA[idx]=Object.assign({},UA[idx],data);
+    updateBadge();
+    try{ await postApi('updateUrgentAction', data); showUrgent();
+    }catch(e){ btn.textContent='Save changes'; btn.disabled=false; alert('Could not save. Please retry.'); }
+  } else {
+    // Generate the ID up front and send it so the server stores the same one.
+    data.actionId='UA-'+Date.now(); data.status='Open'; data.dateFlagged=new Date().toISOString();
+    try{ await postApi('addUrgentAction', data); UA.push(data); updateBadge(); showUrgent();
+    }catch(e){ btn.textContent='Post urgent action'; btn.disabled=false; alert('Could not post. Please retry.'); }
+  }
 }
 async function addReply(id, alsoDone){
   const ta=document.getElementById('reply-input-'+id);
@@ -403,28 +414,36 @@ function showRenewals(){
   setNav('nav-ren');
   const openR = REN.filter(r=>(r.status||'').toLowerCase()!=='done').sort((a,b)=>String(a.leaseEnd).localeCompare(String(b.leaseEnd)));
   const cards = openR.length ? '<div class="table-wrap"><table><thead><tr><th>Code</th><th>Tenant</th><th>Lease end</th><th>Rent</th><th>Status</th><th></th></tr></thead><tbody>'+
-    openR.map(r=>`<tr><td><span class="code">${esc(r.clientCode)}</span></td><td>${esc(r.tenant)||'—'}</td><td>${fmtD(r.leaseEnd)}</td><td>${esc(r.rentCurrent)||'—'}${r.rentProposed?(' → '+esc(r.rentProposed)):''}</td><td>${esc(r.renewalStatus)||'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="markRenewalDone('${esc(r.renewalId)}')">Done</button></td></tr>`).join('')+'</tbody></table></div>'
+    openR.map(r=>`<tr><td><span class="code">${esc(r.clientCode)}</span></td><td>${esc(r.tenant)||'—'}</td><td>${fmtD(r.leaseEnd)}</td><td>${esc(r.rentCurrent)||'—'}${r.rentProposed?(' → '+esc(r.rentProposed)):''}</td><td>${esc(r.renewalStatus)||'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="editRenewal('${esc(r.renewalId)}')">Edit</button> <button class="btn btn-ghost btn-sm" onclick="markRenewalDone('${esc(r.renewalId)}')">Done</button></td></tr>`).join('')+'</tbody></table></div>'
     : '<div class="empty">No upcoming renewals logged yet. Add the leases coming up for renewal.</div>';
   main.innerHTML=`<div class="page-title">Renewals</div><div class="page-sub">Leases coming up for renewal. ${openR.length} open · shown in Paul's 1pm digest.</div><button class="btn btn-primary" onclick="showRenewalForm()">+ Add renewal</button><div style="margin-top:14px">${cards}</div>`;
 }
-function showRenewalForm(prefill){
+function editRenewal(id){ const rec=REN.find(x=>x.renewalId===id); if(rec) showRenewalForm(rec.clientCode, rec); }
+function showRenewalForm(prefill, edit){
   setNav('nav-ren');
-  main.innerHTML=`<span class="back" onclick="showRenewals()">← Renewals</span><div class="page-title" style="margin-top:8px">Add a renewal</div><div class="page-sub">A lease coming up for renewal.</div>
-    <div class="form"><label>Property code</label><input id="r-code" type="text" placeholder="e.g. L002" value="${esc(prefill||'')}"><div id="r-addr" class="resolved"></div>
-    <div class="row"><div><label>Tenant</label><input id="r-tenant" type="text"></div><div><label>Lease end date</label><input id="r-end" type="date"></div></div>
-    <div class="row"><div><label>Current rent</label><input id="r-rentc" type="text" placeholder="R"></div><div><label>Proposed rent</label><input id="r-rentp" type="text" placeholder="R (optional)"></div></div>
-    <label>Renewal status</label><select id="r-status"><option>Pending</option><option>Under negotiation</option><option>Renewed</option><option>Vacating</option></select>
-    <label>Notes</label><textarea id="r-notes"></textarea>
-    <div class="actions"><button class="btn btn-primary" id="r-save" onclick="submitRenewal()">Save renewal</button><button class="btn btn-ghost" onclick="showRenewals()">Cancel</button></div></div>`;
-  document.getElementById('r-code').addEventListener('input',renLookup); if(prefill) renLookup();
+  const e=edit||{}, sel=(v,o)=>v===o?' selected':'';
+  main.innerHTML=`<span class="back" onclick="showRenewals()">← Renewals</span><div class="page-title" style="margin-top:8px">${edit?'Edit':'Add a'} renewal</div><div class="page-sub">A lease coming up for renewal.</div>
+    <div class="form"><label>Property code</label><input id="r-code" type="text" placeholder="e.g. L002" value="${esc(edit?(e.clientCode||''):(prefill||''))}"><div id="r-addr" class="resolved"></div>
+    <div class="row"><div><label>Tenant</label><input id="r-tenant" type="text" value="${esc(e.tenant||'')}"></div><div><label>Lease end date</label><input id="r-end" type="date" value="${esc(String(e.leaseEnd||'').slice(0,10))}"></div></div>
+    <div class="row"><div><label>Current rent</label><input id="r-rentc" type="text" placeholder="R" value="${esc(e.rentCurrent||'')}"></div><div><label>Proposed rent</label><input id="r-rentp" type="text" placeholder="R (optional)" value="${esc(e.rentProposed||'')}"></div></div>
+    <label>Renewal status</label><select id="r-status"><option${sel(e.renewalStatus,'Pending')}>Pending</option><option${sel(e.renewalStatus,'Under negotiation')}>Under negotiation</option><option${sel(e.renewalStatus,'Renewed')}>Renewed</option><option${sel(e.renewalStatus,'Vacating')}>Vacating</option></select>
+    <label>Notes</label><textarea id="r-notes">${esc(e.notes||'')}</textarea>
+    <div class="actions"><button class="btn btn-primary" id="r-save" onclick="submitRenewal('${edit?esc(e.renewalId):''}')">Save renewal</button><button class="btn btn-ghost" onclick="showRenewals()">Cancel</button></div></div>`;
+  document.getElementById('r-code').addEventListener('input',renLookup); if(prefill && !edit) renLookup();
 }
 function renLookup(){ const p=PROPS.find(x=>(x.clientCode||'').toUpperCase()===document.getElementById('r-code').value.trim().toUpperCase()); const a=document.getElementById('r-addr'),tn=document.getElementById('r-tenant'); if(!p){a.textContent='';return;} a.textContent='✓ '+p.address; const tcy=TENCY[p.currentTenancyCode],t=tcy?TEN[tcy.tenantId]:null; if(t&&t.name&&!tn.value) tn.value=t.name; }
-async function submitRenewal(){
+async function submitRenewal(editId){
   const data={clientCode:document.getElementById('r-code').value.trim().toUpperCase(),tenant:document.getElementById('r-tenant').value.trim(),leaseEnd:document.getElementById('r-end').value,rentCurrent:document.getElementById('r-rentc').value.trim(),rentProposed:document.getElementById('r-rentp').value.trim(),renewalStatus:document.getElementById('r-status').value,notes:document.getElementById('r-notes').value.trim()};
   if(!data.clientCode&&!data.tenant){alert('Add at least a property code or tenant.');return;}
   const b=document.getElementById('r-save'); b.textContent='Saving…'; b.disabled=true;
-  data.renewalId='RN-'+Date.now(); data.status='Open';
-  try{ await postApi('addRenewal',data); REN.push(data); showRenewals(); }catch(e){ b.textContent='Save renewal'; b.disabled=false; alert('Could not save. Retry.'); }
+  if(editId){
+    data.renewalId=editId;
+    const idx=REN.findIndex(x=>x.renewalId===editId); if(idx>-1) REN[idx]=Object.assign({},REN[idx],data);
+    try{ await postApi('updateRenewal',data); showRenewals(); }catch(e){ b.textContent='Save renewal'; b.disabled=false; alert('Could not save. Retry.'); }
+  } else {
+    data.renewalId='RN-'+Date.now(); data.status='Open';
+    try{ await postApi('addRenewal',data); REN.push(data); showRenewals(); }catch(e){ b.textContent='Save renewal'; b.disabled=false; alert('Could not save. Retry.'); }
+  }
 }
 async function markRenewalDone(id){ const r=REN.find(x=>x.renewalId===id); if(r) r.status='Done'; showRenewals(); try{ await postApi('updateRenewal',{renewalId:id,status:'Done'}); }catch(e){ alert('Could not update — please refresh.'); } }
 
@@ -433,27 +452,35 @@ function showInspections(){
   setNav('nav-insp');
   const openI = INS.filter(i=>(i.status||'').toLowerCase()!=='done').sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate)));
   const cards = openI.length ? '<div class="table-wrap"><table><thead><tr><th>Code</th><th>Tenant</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody>'+
-    openI.map(i=>`<tr><td><span class="code">${esc(i.clientCode)}</span></td><td>${esc(i.tenant)||'—'}</td><td>${fmtD(i.dueDate)}</td><td>${esc(i.inspectionStatus)||'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="markInspectionDone('${esc(i.inspectionId)}')">Done</button></td></tr>`).join('')+'</tbody></table></div>'
+    openI.map(i=>`<tr><td><span class="code">${esc(i.clientCode)}</span></td><td>${esc(i.tenant)||'—'}</td><td>${fmtD(i.dueDate)}</td><td>${esc(i.inspectionStatus)||'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="editInspection('${esc(i.inspectionId)}')">Edit</button> <button class="btn btn-ghost btn-sm" onclick="markInspectionDone('${esc(i.inspectionId)}')">Done</button></td></tr>`).join('')+'</tbody></table></div>'
     : '<div class="empty">No upcoming inspections logged yet. Add the inspections coming up.</div>';
   main.innerHTML=`<div class="page-title">Inspections</div><div class="page-sub">Inspections coming up. ${openI.length} open · shown in Paul's 1pm digest.</div><button class="btn btn-primary" onclick="showInspectionForm()">+ Add inspection</button><div style="margin-top:14px">${cards}</div>`;
 }
-function showInspectionForm(prefill){
+function editInspection(id){ const rec=INS.find(x=>x.inspectionId===id); if(rec) showInspectionForm(rec.clientCode, rec); }
+function showInspectionForm(prefill, edit){
   setNav('nav-insp');
-  main.innerHTML=`<span class="back" onclick="showInspections()">← Inspections</span><div class="page-title" style="margin-top:8px">Add an inspection</div><div class="page-sub">An inspection coming up.</div>
-    <div class="form"><label>Property code</label><input id="i-code" type="text" placeholder="e.g. L002" value="${esc(prefill||'')}"><div id="i-addr" class="resolved"></div>
-    <div class="row"><div><label>Tenant</label><input id="i-tenant" type="text"></div><div><label>Due date</label><input id="i-due" type="date"></div></div>
-    <label>Status</label><select id="i-status"><option>Scheduled</option><option>To arrange</option><option>Completed</option></select>
-    <label>Notes</label><textarea id="i-notes"></textarea>
-    <div class="actions"><button class="btn btn-primary" id="i-save" onclick="submitInspection()">Save inspection</button><button class="btn btn-ghost" onclick="showInspections()">Cancel</button></div></div>`;
-  document.getElementById('i-code').addEventListener('input',insLookup); if(prefill) insLookup();
+  const e=edit||{}, sel=(v,o)=>v===o?' selected':'';
+  main.innerHTML=`<span class="back" onclick="showInspections()">← Inspections</span><div class="page-title" style="margin-top:8px">${edit?'Edit':'Add an'} inspection</div><div class="page-sub">An inspection coming up.</div>
+    <div class="form"><label>Property code</label><input id="i-code" type="text" placeholder="e.g. L002" value="${esc(edit?(e.clientCode||''):(prefill||''))}"><div id="i-addr" class="resolved"></div>
+    <div class="row"><div><label>Tenant</label><input id="i-tenant" type="text" value="${esc(e.tenant||'')}"></div><div><label>Due date</label><input id="i-due" type="date" value="${esc(String(e.dueDate||'').slice(0,10))}"></div></div>
+    <label>Status</label><select id="i-status"><option${sel(e.inspectionStatus,'Scheduled')}>Scheduled</option><option${sel(e.inspectionStatus,'To arrange')}>To arrange</option><option${sel(e.inspectionStatus,'Completed')}>Completed</option></select>
+    <label>Notes</label><textarea id="i-notes">${esc(e.notes||'')}</textarea>
+    <div class="actions"><button class="btn btn-primary" id="i-save" onclick="submitInspection('${edit?esc(e.inspectionId):''}')">Save inspection</button><button class="btn btn-ghost" onclick="showInspections()">Cancel</button></div></div>`;
+  document.getElementById('i-code').addEventListener('input',insLookup); if(prefill && !edit) insLookup();
 }
 function insLookup(){ const p=PROPS.find(x=>(x.clientCode||'').toUpperCase()===document.getElementById('i-code').value.trim().toUpperCase()); const a=document.getElementById('i-addr'),tn=document.getElementById('i-tenant'); if(!p){a.textContent='';return;} a.textContent='✓ '+p.address; const tcy=TENCY[p.currentTenancyCode],t=tcy?TEN[tcy.tenantId]:null; if(t&&t.name&&!tn.value) tn.value=t.name; }
-async function submitInspection(){
+async function submitInspection(editId){
   const data={clientCode:document.getElementById('i-code').value.trim().toUpperCase(),tenant:document.getElementById('i-tenant').value.trim(),dueDate:document.getElementById('i-due').value,inspectionStatus:document.getElementById('i-status').value,notes:document.getElementById('i-notes').value.trim()};
   if(!data.clientCode&&!data.tenant){alert('Add at least a property code or tenant.');return;}
   const b=document.getElementById('i-save'); b.textContent='Saving…'; b.disabled=true;
-  data.inspectionId='IN-'+Date.now(); data.status='Open';
-  try{ await postApi('addInspection',data); INS.push(data); showInspections(); }catch(e){ b.textContent='Save inspection'; b.disabled=false; alert('Could not save. Retry.'); }
+  if(editId){
+    data.inspectionId=editId;
+    const idx=INS.findIndex(x=>x.inspectionId===editId); if(idx>-1) INS[idx]=Object.assign({},INS[idx],data);
+    try{ await postApi('updateInspection',data); showInspections(); }catch(e){ b.textContent='Save inspection'; b.disabled=false; alert('Could not save. Retry.'); }
+  } else {
+    data.inspectionId='IN-'+Date.now(); data.status='Open';
+    try{ await postApi('addInspection',data); INS.push(data); showInspections(); }catch(e){ b.textContent='Save inspection'; b.disabled=false; alert('Could not save. Retry.'); }
+  }
 }
 async function markInspectionDone(id){ const i=INS.find(x=>x.inspectionId===id); if(i) i.status='Done'; showInspections(); try{ await postApi('updateInspection',{inspectionId:id,status:'Done'}); }catch(e){ alert('Could not update — please refresh.'); } }
 
@@ -462,29 +489,37 @@ function showListings(){
   setNav('nav-listings');
   const openL = AL.filter(x=>(x.status||'').toLowerCase()!=='done');
   const cards = openL.length ? '<div class="table-wrap"><table><thead><tr><th>Property</th><th>Type</th><th>Asking</th><th>Available</th><th>Status</th><th></th></tr></thead><tbody>'+
-    openL.map(x=>`<tr><td>${x.clientCode?('<span class="code">'+esc(x.clientCode)+'</span> '):''}${esc(x.property)||'—'}</td><td>${esc(x.type)||'—'}</td><td>${esc(x.askingPrice)||'—'}</td><td>${x.availableFrom?fmtD(x.availableFrom):'—'}</td><td>${esc(x.listingStatus)||'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="markListingDone('${esc(x.listingId)}')">Remove</button></td></tr>`).join('')+'</tbody></table></div>'
+    openL.map(x=>`<tr><td>${x.clientCode?('<span class="code">'+esc(x.clientCode)+'</span> '):''}${esc(x.property)||'—'}</td><td>${esc(x.type)||'—'}</td><td>${esc(x.askingPrice)||'—'}</td><td>${x.availableFrom?fmtD(x.availableFrom):'—'}</td><td>${esc(x.listingStatus)||'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="editListing('${esc(x.listingId)}')">Edit</button> <button class="btn btn-ghost btn-sm" onclick="markListingDone('${esc(x.listingId)}')">Remove</button></td></tr>`).join('')+'</tbody></table></div>'
     : '<div class="empty">No active listings. Add a property that\'s on the market to let or for sale.</div>';
   main.innerHTML=`<div class="page-title">Active Listings</div><div class="page-sub">Properties currently on the market — to let or for sale. ${openL.length} active.</div><button class="btn btn-primary" onclick="showListingForm()">+ Add listing</button><div style="margin-top:14px">${cards}</div>`;
 }
-function showListingForm(prefill){
+function editListing(id){ const rec=AL.find(z=>z.listingId===id); if(rec) showListingForm(rec.clientCode, rec); }
+function showListingForm(prefill, edit){
   setNav('nav-listings');
-  main.innerHTML=`<span class="back" onclick="showListings()">← Active listings</span><div class="page-title" style="margin-top:8px">Add a listing</div><div class="page-sub">A property on the market.</div>
-    <div class="form"><label>Property code (optional)</label><input id="al-code" type="text" placeholder="e.g. L002, or leave blank for a new property" value="${esc(prefill||'')}"><div id="al-addr" class="resolved"></div>
-    <label>Property / address</label><input id="al-prop" type="text" placeholder="e.g. 12 Beach Road, Sea Point">
-    <div class="row"><div><label>Type</label><select id="al-type"><option>To let</option><option>For sale</option></select></div><div><label>Asking rent / price</label><input id="al-ask" type="text" placeholder="R"></div></div>
-    <div class="row"><div><label>Available from</label><input id="al-avail" type="date"></div><div><label>Status</label><select id="al-status"><option>Available</option><option>Under offer</option><option>Let</option><option>Sold</option></select></div></div>
-    <div class="row"><div><label>Agent</label><input id="al-agent" type="text"></div><div></div></div>
-    <label>Notes</label><textarea id="al-notes"></textarea>
-    <div class="actions"><button class="btn btn-primary" id="al-save" onclick="submitListing()">Save listing</button><button class="btn btn-ghost" onclick="showListings()">Cancel</button></div></div>`;
-  document.getElementById('al-code').addEventListener('input',alLookup); if(prefill) alLookup();
+  const e=edit||{}, sel=(v,o)=>v===o?' selected':'';
+  main.innerHTML=`<span class="back" onclick="showListings()">← Active listings</span><div class="page-title" style="margin-top:8px">${edit?'Edit':'Add a'} listing</div><div class="page-sub">A property on the market.</div>
+    <div class="form"><label>Property code (optional)</label><input id="al-code" type="text" placeholder="e.g. L002, or leave blank for a new property" value="${esc(edit?(e.clientCode||''):(prefill||''))}"><div id="al-addr" class="resolved"></div>
+    <label>Property / address</label><input id="al-prop" type="text" placeholder="e.g. 12 Beach Road, Sea Point" value="${esc(e.property||'')}">
+    <div class="row"><div><label>Type</label><select id="al-type"><option${sel(e.type,'To let')}>To let</option><option${sel(e.type,'For sale')}>For sale</option></select></div><div><label>Asking rent / price</label><input id="al-ask" type="text" placeholder="R" value="${esc(e.askingPrice||'')}"></div></div>
+    <div class="row"><div><label>Available from</label><input id="al-avail" type="date" value="${esc(String(e.availableFrom||'').slice(0,10))}"></div><div><label>Status</label><select id="al-status"><option${sel(e.listingStatus,'Available')}>Available</option><option${sel(e.listingStatus,'Under offer')}>Under offer</option><option${sel(e.listingStatus,'Let')}>Let</option><option${sel(e.listingStatus,'Sold')}>Sold</option></select></div></div>
+    <div class="row"><div><label>Agent</label><input id="al-agent" type="text" value="${esc(e.agent||'')}"></div><div></div></div>
+    <label>Notes</label><textarea id="al-notes">${esc(e.notes||'')}</textarea>
+    <div class="actions"><button class="btn btn-primary" id="al-save" onclick="submitListing('${edit?esc(e.listingId):''}')">Save listing</button><button class="btn btn-ghost" onclick="showListings()">Cancel</button></div></div>`;
+  document.getElementById('al-code').addEventListener('input',alLookup); if(prefill && !edit) alLookup();
 }
 function alLookup(){ const p=PROPS.find(x=>(x.clientCode||'').toUpperCase()===document.getElementById('al-code').value.trim().toUpperCase()); const a=document.getElementById('al-addr'),pr=document.getElementById('al-prop'); if(!p){a.textContent='';return;} a.textContent='✓ '+p.address; if(!pr.value) pr.value=p.address; }
-async function submitListing(){
+async function submitListing(editId){
   const data={clientCode:document.getElementById('al-code').value.trim().toUpperCase(),property:document.getElementById('al-prop').value.trim(),type:document.getElementById('al-type').value,askingPrice:document.getElementById('al-ask').value.trim(),availableFrom:document.getElementById('al-avail').value,listingStatus:document.getElementById('al-status').value,agent:document.getElementById('al-agent').value.trim(),notes:document.getElementById('al-notes').value.trim()};
   if(!data.property&&!data.clientCode){alert('Add at least a property/address or code.');return;}
   const b=document.getElementById('al-save'); b.textContent='Saving…'; b.disabled=true;
-  data.listingId='AL-'+Date.now(); data.status='Open';
-  try{ await postApi('addActiveListing',data); AL.push(data); showListings(); }catch(e){ b.textContent='Save listing'; b.disabled=false; alert('Could not save. Retry.'); }
+  if(editId){
+    data.listingId=editId;
+    const idx=AL.findIndex(z=>z.listingId===editId); if(idx>-1) AL[idx]=Object.assign({},AL[idx],data);
+    try{ await postApi('updateActiveListing',data); showListings(); }catch(e){ b.textContent='Save listing'; b.disabled=false; alert('Could not save. Retry.'); }
+  } else {
+    data.listingId='AL-'+Date.now(); data.status='Open';
+    try{ await postApi('addActiveListing',data); AL.push(data); showListings(); }catch(e){ b.textContent='Save listing'; b.disabled=false; alert('Could not save. Retry.'); }
+  }
 }
 async function markListingDone(id){ const x=AL.find(z=>z.listingId===id); if(x) x.status='Done'; showListings(); try{ await postApi('updateActiveListing',{listingId:id,status:'Done'}); }catch(e){ alert('Could not update — please refresh.'); } }
 
