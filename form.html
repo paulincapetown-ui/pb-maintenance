@@ -7,13 +7,10 @@
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#2c3e50;min-height:100vh}
-    header{background:#1a2332;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+    header{background:#1a2332;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
     header img{height:36px}
-    .header-right{display:flex;align-items:center;gap:12px}
-    .header-right a{color:#c9a84c;font-size:13px;font-weight:700;text-decoration:none}
-    .header-right a:hover{text-decoration:underline}
-    .user-badge{color:#c9a84c;font-size:12px;font-weight:600}
-    .signout-link{color:rgba(255,255,255,.45)!important;font-size:12px!important;font-weight:400!important}
+    header a{color:#c9a84c;font-size:13px;font-weight:700;text-decoration:none}
+    header a:hover{text-decoration:underline}
     .page-title{background:#1a2332;color:#fff;padding:18px 24px 22px;border-bottom:3px solid #c9a84c}
     .page-title h1{font-size:20px;font-weight:700}
     .page-title p{font-size:13px;opacity:.7;margin-top:4px}
@@ -48,91 +45,13 @@
     .success .links a{padding:10px 22px;border-radius:5px;font-size:13px;font-weight:700;text-decoration:none}
     .success .links a.primary{background:#1a2332;color:#fff}
     .success .links a.secondary{background:#fff;color:#1a2332;border:2px solid #1a2332}
-
-    /* ── Login Overlay ── */
-    .lo{position:fixed;inset:0;background:#1a2332;z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px}
-    .lc{background:#fff;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.35);width:min(420px,100%);padding:36px 40px}
-    @media(max-width:480px){.lc{padding:28px 22px}}
-    .l-logo{text-align:center;margin-bottom:26px}
-    .l-logo img{height:42px}
-    .l-title{font-size:22px;font-weight:700;color:#1a2332;margin-bottom:6px}
-    .l-sub{font-size:13px;color:#888;margin-bottom:22px;line-height:1.5}
-    .l-welcome{font-size:16px;font-weight:700;color:#1a2332;margin-bottom:6px}
-    .l-field{margin-bottom:14px}
-    .l-field label{display:block;font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
-    .l-field input{width:100%;border:1.5px solid #d1d9e0;border-radius:5px;padding:11px 14px;font-size:14px;font-family:inherit;color:#2c3e50;transition:border-color .15s}
-    .l-field input:focus{outline:none;border-color:#1a2332}
-    .l-btn{width:100%;padding:13px;background:#1a2332;color:#fff;border:none;border-radius:5px;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px;transition:opacity .15s}
-    .l-btn:hover{opacity:.9}
-    .l-btn:disabled{opacity:.55;cursor:default}
-    .l-err{color:#e74c3c;font-size:13px;margin-top:10px;display:none;line-height:1.4}
-    .l-back{display:block;text-align:center;font-size:12px;color:#aaa;margin-top:14px;background:none;border:none;font-family:inherit;cursor:pointer;padding:0;width:100%}
-    .l-back:hover{color:#1a2332}
   </style>
 </head>
 <body>
-  <a href="platform_hub.html" style="position:fixed;bottom:18px;right:18px;z-index:9999;background:#1a2332;color:#fff;padding:11px 18px;border-radius:30px;box-shadow:0 3px 12px rgba(0,0,0,.25);font:700 13px Arial,sans-serif;text-decoration:none">&#9962; Platform Hub</a>
-
-<!-- ══ LOGIN OVERLAY ══ -->
-<div class="lo" id="login-overlay">
-  <div class="lc">
-    <div class="l-logo">
-      <img src="https://propertybureau.co.za/wp-content/uploads/2026/03/PropertyBureauLogo-1.svg" alt="Property Bureau" onerror="this.style.display='none'"/>
-    </div>
-
-    <!-- Step 1: Email -->
-    <div id="ls1">
-      <div class="l-title">Sign In</div>
-      <div class="l-sub">Property Bureau Maintenance System</div>
-      <div class="l-field">
-        <label>Email Address</label>
-        <input type="email" id="l-email" placeholder="you@propertybureau.co.za" autocomplete="email"/>
-      </div>
-      <button class="l-btn" id="ls1-btn" onclick="loginStep1()">Continue →</button>
-      <div class="l-err" id="ls1-err"></div>
-    </div>
-
-    <!-- Step 2a: First-time — set password -->
-    <div id="ls2a" style="display:none">
-      <div class="l-welcome" id="ls2a-name"></div>
-      <div class="l-sub">First time logging in — create a password to continue.</div>
-      <div class="l-field">
-        <label>Create Password</label>
-        <input type="password" id="l-p1" placeholder="At least 8 characters" autocomplete="new-password"/>
-      </div>
-      <div class="l-field">
-        <label>Confirm Password</label>
-        <input type="password" id="l-p2" autocomplete="new-password"/>
-      </div>
-      <button class="l-btn" id="ls2a-btn" onclick="loginSetPassword()">Set Password &amp; Sign In</button>
-      <div class="l-err" id="ls2a-err"></div>
-      <button class="l-back" onclick="resetLogin()">← Use a different email</button>
-    </div>
-
-    <!-- Step 2b: Returning user — enter password -->
-    <div id="ls2b" style="display:none">
-      <div class="l-welcome" id="ls2b-name"></div>
-      <div class="l-sub">Enter your password to continue.</div>
-      <div class="l-field">
-        <label>Password</label>
-        <input type="password" id="l-p3" placeholder="Your password" autocomplete="current-password"/>
-      </div>
-      <button class="l-btn" id="ls2b-btn" onclick="loginWithPassword()">Sign In</button>
-      <div class="l-err" id="ls2b-err"></div>
-      <button class="l-back" onclick="resetLogin()">← Use a different email</button>
-    </div>
-
-  </div>
-</div>
-<!-- ══ END LOGIN OVERLAY ══ -->
 
 <header>
   <img src="https://propertybureau.co.za/wp-content/uploads/2026/03/PropertyBureauLogo-1.svg" alt="Property Bureau" onerror="this.style.display='none'"/>
-  <div class="header-right">
-    <a href="dashboard.html">Dashboard →</a>
-    <span class="user-badge" id="user-badge"></span>
-    <a href="#" class="signout-link" id="signout-link" style="display:none" onclick="doLogout();return false">Sign out</a>
-  </div>
+  <a href="dashboard.html">Dashboard →</a>
 </header>
 
 <div class="page-title">
@@ -162,10 +81,16 @@
             </select>
           </div>
         </div>
-        <div class="form-row full">
+        <div class="form-row">
+          <div class="field">
+            <label>File Code</label>
+            <input type="text" name="clientCode" id="clientCode" placeholder="e.g. L176" autocomplete="off" list="codeList"/>
+            <datalist id="codeList"></datalist>
+            <span id="codeHint" style="font-size:11.5px;color:#16a34a;min-height:14px"></span>
+          </div>
           <div class="field">
             <label>Property Name <span class="req">*</span></label>
-            <input type="text" name="property" placeholder="e.g. 12 Beach Road, Sea Point" required/>
+            <input type="text" name="property" id="property" placeholder="e.g. 12 Beach Road, Sea Point" required/>
           </div>
         </div>
         <div class="form-row full">
@@ -238,6 +163,7 @@
           </div>
           <div class="field"></div>
         </div>
+        <!-- Additional contacts -->
         <div class="extra-fields" id="landlord-extra">
           <div class="field-group-label">Additional Email Addresses</div>
           <div class="form-row">
@@ -275,6 +201,7 @@
           </div>
           <div class="field"></div>
         </div>
+        <!-- Additional contacts -->
         <div class="extra-fields" id="tenant-extra">
           <div class="field-group-label">Additional Email Addresses</div>
           <div class="form-row">
@@ -330,161 +257,47 @@ const GAS_URL   = 'https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5j
 const GAS_TOKEN = 'PBmaint2026';
 // ────────────────────────────────────────────────────────────────
 
-// ══════════════════════════════════════════════════════════════
-// SESSION & LOGIN
-// ══════════════════════════════════════════════════════════════
-function getSession() {
-  try {
-    const s = localStorage.getItem('pb_session');
-    if (!s) return null;
-    const p = JSON.parse(s);
-    if (Date.now() > p.expiry) { localStorage.removeItem('pb_session'); return null; }
-    return p;
-  } catch(e) { return null; }
-}
-function saveSession(email, displayName, role) {
-  localStorage.setItem('pb_session', JSON.stringify({
-    email, displayName, role,
-    expiry: Date.now() + 8 * 60 * 60 * 1000   // 8 hours
-  }));
-}
-function doLogout() {
-  localStorage.removeItem('pb_session');
-  location.reload();
-}
-
-// Check session on load
-(function initLogin() {
-  const sess = getSession();
-  if (sess) {
-    showMainContent(sess);
-  } else {
-    document.getElementById('login-overlay').style.display = 'flex';
-    setTimeout(() => document.getElementById('l-email').focus(), 80);
-  }
-})();
-
-function showMainContent(sess) {
-  document.getElementById('login-overlay').style.display = 'none';
-  const badge = document.getElementById('user-badge');
-  if (badge) badge.textContent = sess.displayName || sess.email;
-  const signout = document.getElementById('signout-link');
-  if (signout) signout.style.display = 'inline';
-  // Pre-fill staff name in localStorage so email/WA modals pick it up
-  if (!localStorage.getItem('pb_staff') && sess.displayName) {
-    localStorage.setItem('pb_staff', sess.displayName);
-  }
-}
-
-let loginEmail = '', loginDisplayName = '';
-
-async function loginStep1() {
-  const email = document.getElementById('l-email').value.trim().toLowerCase();
-  const err   = document.getElementById('ls1-err');
-  const btn   = document.getElementById('ls1-btn');
-  err.style.display = 'none';
-  if (!email || !email.includes('@')) {
-    err.textContent = 'Please enter a valid email address.'; err.style.display = 'block'; return;
-  }
-  btn.textContent = 'Checking…'; btn.disabled = true;
-  try {
-    const res  = await fetch(GAS_URL + '?action=checkEmail&email=' + encodeURIComponent(email) + '&token=' + GAS_TOKEN, { redirect: 'follow' });
-    const data = await res.json();
-    btn.textContent = 'Continue →'; btn.disabled = false;
-    if (!data.exists) {
-      err.textContent = 'Email not recognised. Ask your administrator to add you to the system.';
-      err.style.display = 'block'; return;
-    }
-    if (data.active === false) {
-      err.textContent = 'Your account is deactivated. Contact your administrator.';
-      err.style.display = 'block'; return;
-    }
-    loginEmail       = email;
-    loginDisplayName = data.displayName || email;
-    document.getElementById('ls1').style.display = 'none';
-    if (!data.hasPassword) {
-      document.getElementById('ls2a-name').textContent = 'Welcome, ' + loginDisplayName + '!';
-      document.getElementById('ls2a').style.display = 'block';
-      setTimeout(() => document.getElementById('l-p1').focus(), 80);
-    } else {
-      document.getElementById('ls2b-name').textContent = 'Welcome back, ' + loginDisplayName + '!';
-      document.getElementById('ls2b').style.display = 'block';
-      setTimeout(() => document.getElementById('l-p3').focus(), 80);
-    }
-  } catch(e) {
-    btn.textContent = 'Continue →'; btn.disabled = false;
-    err.textContent = 'Connection error. Please try again.'; err.style.display = 'block';
-  }
-}
-
-async function loginSetPassword() {
-  const pass1 = document.getElementById('l-p1').value;
-  const pass2 = document.getElementById('l-p2').value;
-  const err   = document.getElementById('ls2a-err');
-  const btn   = document.getElementById('ls2a-btn');
-  err.style.display = 'none';
-  if (pass1.length < 8) { err.textContent = 'Password must be at least 8 characters.'; err.style.display = 'block'; return; }
-  if (pass1 !== pass2)  { err.textContent = 'Passwords do not match.'; err.style.display = 'block'; return; }
-  btn.textContent = 'Setting password…'; btn.disabled = true;
-  try {
-    const res  = await fetch(GAS_URL + '?action=setPassword&email=' + encodeURIComponent(loginEmail) + '&password=' + encodeURIComponent(pass1) + '&token=' + GAS_TOKEN, { redirect: 'follow' });
-    const data = await res.json();
-    btn.textContent = 'Set Password & Sign In'; btn.disabled = false;
-    if (!data.success) {
-      err.textContent = data.error || 'Failed to set password. Please try again.'; err.style.display = 'block'; return;
-    }
-    saveSession(loginEmail, loginDisplayName, data.role || 'staff');
-    showMainContent(getSession());
-  } catch(e) {
-    btn.textContent = 'Set Password & Sign In'; btn.disabled = false;
-    err.textContent = 'Connection error. Please try again.'; err.style.display = 'block';
-  }
-}
-
-async function loginWithPassword() {
-  const pass = document.getElementById('l-p3').value;
-  const err  = document.getElementById('ls2b-err');
-  const btn  = document.getElementById('ls2b-btn');
-  err.style.display = 'none';
-  if (!pass) { err.textContent = 'Please enter your password.'; err.style.display = 'block'; return; }
-  btn.textContent = 'Signing in…'; btn.disabled = true;
-  try {
-    const res  = await fetch(GAS_URL + '?action=login&email=' + encodeURIComponent(loginEmail) + '&password=' + encodeURIComponent(pass) + '&token=' + GAS_TOKEN, { redirect: 'follow' });
-    const data = await res.json();
-    btn.textContent = 'Sign In'; btn.disabled = false;
-    if (!data.success) {
-      err.textContent = 'Incorrect password. Please try again.'; err.style.display = 'block'; return;
-    }
-    saveSession(loginEmail, data.displayName || loginDisplayName, data.role || 'staff');
-    showMainContent(getSession());
-  } catch(e) {
-    btn.textContent = 'Sign In'; btn.disabled = false;
-    err.textContent = 'Connection error. Please try again.'; err.style.display = 'block';
-  }
-}
-
-function resetLogin() {
-  loginEmail = ''; loginDisplayName = '';
-  document.getElementById('ls2a').style.display = 'none';
-  document.getElementById('ls2b').style.display = 'none';
-  document.getElementById('ls1').style.display  = 'block';
-  document.getElementById('ls1-err').style.display = 'none';
-  setTimeout(() => document.getElementById('l-email').focus(), 80);
-}
-
-// Enter key support in login overlay
-document.addEventListener('keydown', function(e) {
-  if (e.key !== 'Enter') return;
-  if (document.getElementById('login-overlay').style.display === 'none') return;
-  if (document.getElementById('ls1').style.display  !== 'none') { loginStep1(); return; }
-  if (document.getElementById('ls2a').style.display !== 'none') { loginSetPassword(); return; }
-  if (document.getElementById('ls2b').style.display !== 'none') { loginWithPassword(); return; }
-});
-// ══════════════════════════════════════════════════════════════
-
 // Set today's date as default; set min date for est. completion
 document.getElementById('dateLogged').valueAsDate = new Date();
 document.querySelector('[name=estCompletionDate]').min = new Date().toISOString().split('T')[0];
+
+// ── File Code -> address auto-fill (Phase C) ────────────────────
+// Loads the property registry once (GET, read-only) so typing an
+// L-code fills in the property address. Fully optional — if the
+// registry can't be reached, the plain Property Name field still works.
+let PB_PROPS = [];
+(function loadProps(){
+  fetch(GAS_URL + '?action=getProperties&token=' + GAS_TOKEN)
+    .then(r => r.json())
+    .then(d => {
+      PB_PROPS = (d && d.properties) ? d.properties : [];
+      const dl = document.getElementById('codeList');
+      dl.innerHTML = PB_PROPS.map(p => '<option value="' + p.clientCode + '">' +
+        (p.address || '').replace(/"/g,'&quot;') + '</option>').join('');
+    })
+    .catch(() => { /* registry optional — silent */ });
+})();
+
+function pbLookupCode(){
+  const codeEl = document.getElementById('clientCode');
+  const propEl = document.getElementById('property');
+  const hint   = document.getElementById('codeHint');
+  const code   = codeEl.value.trim().toUpperCase();
+  hint.textContent = '';
+  if (!code || !PB_PROPS.length) return;
+  const p = PB_PROPS.find(x => String(x.clientCode).toUpperCase() === code);
+  if (p) {
+    codeEl.value = p.clientCode;                 // normalise casing
+    if (!propEl.value.trim()) propEl.value = p.address || '';
+    hint.style.color = '#16a34a';
+    hint.textContent = '✓ ' + (p.address || 'matched');
+  } else {
+    hint.style.color = '#e67e22';
+    hint.textContent = 'No property with that code — you can still type the address.';
+  }
+}
+document.getElementById('clientCode').addEventListener('change', pbLookupCode);
+document.getElementById('clientCode').addEventListener('blur', pbLookupCode);
 
 document.getElementById('job-form').addEventListener('submit', async function(e) {
   e.preventDefault();
@@ -492,14 +305,13 @@ document.getElementById('job-form').addEventListener('submit', async function(e)
   btn.textContent = 'Saving…';
   btn.disabled = true;
 
-  // Generate Job ID BEFORE POST so client and server share the same ID
+  // ── Generate Job ID BEFORE the POST so client and server share the same ID ──
   const _d  = new Date();
   const _ds = _d.toISOString().split('T')[0].replace(/-/g,'');
   const _r  = Math.floor(1000 + Math.random() * 9000);
   const jobId = 'PB-' + _ds + '-' + _r;
 
-  const sess = getSession();
-  const data = { action: 'addJob', id: jobId, token: GAS_TOKEN, loggedBy: sess ? (sess.displayName || sess.email) : '' };
+  const data = { action: 'addJob', id: jobId, token: GAS_TOKEN };
   new FormData(this).forEach((v, k) => { data[k] = v; });
 
   try {
@@ -532,6 +344,7 @@ function clearForm(){
   document.querySelector('[name=estCompletionDate]').min = new Date().toISOString().split('T')[0];
   document.querySelectorAll('.extra-fields').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.extra-toggle').forEach(btn => btn.textContent = '+ Add more contacts');
+  var ch = document.getElementById('codeHint'); if (ch) ch.textContent = '';
 }
 
 function toggleExtra(id, btn) {
