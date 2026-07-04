@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>PB Inspections</title>
+<style>
+  :root{
+    --navy:#1a2332; --navy-soft:#2a3850; --ink:#1a2332; --muted:#6b7280;
+    --line:#e5e7eb; --bg:#f4f5f7;
+    --amber:#b45309; --amber-bg:#fef3c7; --red:#b91c1c; --red-bg:#fee2e2;
+    --green:#15803d; --green-bg:#dcfce7; --blue:#1d4ed8; --blue-bg:#dbeafe;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.5;padding-bottom:90px}
+  .top{background:var(--navy);color:#fff;padding:14px 16px;position:sticky;top:0;z-index:20}
+  .top .t{font-weight:700;font-size:16px;display:flex;align-items:center;gap:10px}
+  .top .mark{width:26px;height:26px;border:2px solid #fff;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
+  .top .s{font-size:11.5px;color:#a9b4c6;margin-top:1px}
+  .wrap{padding:14px;max-width:640px;margin:0 auto}
+  .screen{display:none}.screen.on{display:block}
+  h2{font-size:17px;margin:6px 0 10px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+  label{display:block;font-size:12px;font-weight:700;color:#374151;margin:12px 0 5px;text-transform:uppercase;letter-spacing:.03em}
+  input[type=text],input[type=date],select,textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:9px;font-size:16px;font-family:inherit;background:#fff}
+  textarea{min-height:64px;resize:vertical}
+  .row{display:flex;gap:10px}.row>div{flex:1}
+  .btn{border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-block;text-align:center}
+  .btn-primary{background:var(--navy);color:#fff;width:100%}
+  .btn-ghost{background:#fff;color:var(--navy);border:1.5px solid var(--line)}
+  .btn-green{background:var(--green);color:#fff}
+  .btn-sm{padding:9px 13px;font-size:13px;border-radius:8px}
+  .muted{color:var(--muted)} .small{font-size:12.5px}
+
+  /* Template picker */
+  .tpl-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px}
+  .tpl{border:1.5px solid var(--line);border-radius:10px;padding:12px 4px;text-align:center;cursor:pointer;background:#fff}
+  .tpl .n{font-size:20px;font-weight:800;color:var(--navy)} .tpl .l{font-size:10.5px;color:var(--muted)}
+  .tpl.sel{border-color:var(--navy);background:var(--navy)} .tpl.sel .n,.tpl.sel .l{color:#fff}
+
+  /* Saved list */
+  .saved{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid #f1f2f4;flex-wrap:wrap}
+  .saved:last-child{border-bottom:none}
+  .saved .nm{font-weight:700;font-size:14.5px}
+  .saved .mt{font-size:12px;color:var(--muted)}
+  .saved .btns{display:flex;gap:6px}
+  .pill{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;display:inline-block}
+  .pill.green{background:var(--green-bg);color:var(--green)} .pill.amber{background:var(--amber-bg);color:var(--amber)}
+  .pill.grey{background:#eef1f5;color:#4b5563} .pill.red{background:var(--red-bg);color:var(--red)}
+
+  /* Progress bar */
+  .prog{position:sticky;top:58px;z-index:19;background:#fff;border-bottom:1px solid var(--line);padding:9px 14px;display:flex;align-items:center;gap:12px}
+  .prog .bar{flex:1;height:8px;background:#eef1f5;border-radius:6px;overflow:hidden}
+  .prog .fill{height:100%;background:var(--green);width:0%;transition:width .2s}
+  .prog .txt{font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap}
+
+  /* Rooms & items */
+  .room{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden}
+  .room-h{display:flex;justify-content:space-between;align-items:center;padding:13px 15px;cursor:pointer;background:#fafafa;border-bottom:1px solid var(--line)}
+  .room-h .rn{font-weight:700;font-size:15px}
+  .room-h .rc{font-size:12px;font-weight:700;color:var(--muted)}
+  .room-h .rc.done{color:var(--green)}
+  .room-body{display:none}.room.open .room-body{display:block}
+  .item{padding:12px 15px;border-bottom:1px solid #f1f2f4}
+  .item:last-child{border-bottom:none}
+  .item-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .item-label{font-size:14.5px;font-weight:500;flex:1}
+  .st-btns{display:flex;gap:5px;flex-shrink:0}
+  .st{border:1.5px solid var(--line);background:#fff;border-radius:8px;min-width:44px;height:38px;font-size:12px;font-weight:800;cursor:pointer;color:var(--muted);font-family:inherit}
+  .st.good.sel{background:var(--green);border-color:var(--green);color:#fff}
+  .st.att.sel{background:var(--red);border-color:var(--red);color:#fff}
+  .st.na.sel{background:#6b7280;border-color:#6b7280;color:#fff}
+  .item-extra{margin-top:9px;display:none}
+  .item.expanded .item-extra{display:block}
+  .item-extra textarea{min-height:44px;font-size:15px}
+  .ph-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .ph{position:relative;width:72px;height:72px;border-radius:9px;overflow:hidden;border:1px solid var(--line)}
+  .ph img{width:100%;height:100%;object-fit:cover;display:block}
+  .ph .del{position:absolute;top:2px;right:2px;width:22px;height:22px;border-radius:50%;border:none;background:rgba(0,0,0,.65);color:#fff;font-size:13px;font-weight:700;cursor:pointer;line-height:1}
+  .addph{width:72px;height:72px;border:2px dashed var(--line);border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);font-size:10px;cursor:pointer;background:#fff;gap:2px}
+  .addph .ic{font-size:20px;line-height:1}
+  .more{font-size:12.5px;color:var(--blue);font-weight:700;cursor:pointer;margin-top:7px;display:inline-block}
+  .additem{padding:12px 15px}
+
+  /* Bottom action bar */
+  .actionbar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom));display:none;gap:10px;z-index:25}
+  .actionbar.on{display:flex}
+  .actionbar .btn{flex:1;padding:13px}
+
+  /* Report */
+  .rep-head{background:var(--navy);color:#fff;padding:20px;border-radius:12px 12px 0 0}
+  .rep-head .t{font-size:17px;font-weight:800}.rep-head .s{font-size:12px;color:#a9b4c6;margin-top:3px;line-height:1.7}
+  .rep-wrap{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .rep-body{padding:16px}
+  .rep-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+  .rep-kpi{border:1px solid var(--line);border-radius:9px;padding:9px 4px;text-align:center}
+  .rep-kpi .n{font-size:19px;font-weight:800;color:var(--navy)} .rep-kpi .l{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+  .rep-room{margin-bottom:16px}
+  .rep-room h3{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:2px solid var(--navy);padding-bottom:5px;margin-bottom:6px}
+  .rep-item{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #f1f2f4;font-size:13.5px}
+  .rep-comment{font-size:12.5px;color:#374151;background:#f8f9fb;border-left:3px solid var(--amber);padding:6px 10px;margin:4px 0 6px;border-radius:0 6px 6px 0}
+  .rep-phs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+  .rep-phs img{width:31%;max-width:150px;border-radius:7px;border:1px solid var(--line)}
+  .rep-notes{background:#f8f9fb;border-radius:9px;padding:12px;font-size:13.5px;margin-top:8px;white-space:pre-wrap}
+
+  @media print{
+    body{background:#fff;padding:0}
+    .top,.actionbar,.noprint,.prog{display:none !important}
+    .wrap{max-width:none;padding:0}
+    .rep-wrap{border:none;border-radius:0}
+    .rep-head{border-radius:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .pill,.rep-kpi .n{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .rep-room{page-break-inside:avoid}
+  }
+  #toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:11px 18px;border-radius:9px;font-size:13.5px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.3);display:none;z-index:99;max-width:88vw;text-align:center}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="t"><span class="mark">PB</span> <span id="topTitle">Inspections</span></div>
+  <div class="s" id="topSub">The Property Bureau — on-site inspection tool</div>
+</div>
+
+<div class="wrap">
+
+  <!-- ============ HOME ============ -->
+  <section class="screen on" id="s-home">
+    <div class="card">
+      <h2>New inspection</h2>
+      <label>Inspection type</label>
+      <select id="fType">
+        <option>Routine</option><option>Ingoing</option><option>Outgoing</option>
+      </select>
+      <label>Property template</label>
+      <div class="tpl-grid">
+        <div class="tpl" data-t="1" onclick="pickTpl(this)"><div class="n">1</div><div class="l">BED</div></div>
+        <div class="tpl sel" data-t="2" onclick="pickTpl(this)"><div class="n">2</div><div class="l">BED</div></div>
+        <div class="tpl" data-t="3" onclick="pickTpl(this)"><div class="n">3</div><div class="l">BED</div></div>
+        <div class="tpl" data-t="4" onclick="pickTpl(this)"><div class="n">4+</div><div class="l">BED</div></div>
+      </div>
+      <div class="row">
+        <div><label>File code</label><input type="text" id="fCode" placeholder="L058" autocapitalize="characters"></div>
+        <div><label>Date</label><input type="date" id="fDate"></div>
+      </div>
+      <label>Property address</label><input type="text" id="fAddr" placeholder="14 Milner Rd, Woodstock">
+      <label>Tenant</label><input type="text" id="fTen" placeholder="K. Botha">
+      <label>Inspected by</label><input type="text" id="fBy" value="Paul Grobler">
+      <div style="margin-top:16px"><button class="btn btn-primary" onclick="startInspection()">Start inspection</button></div>
+    </div>
+    <div class="card" id="savedCard" style="display:none">
+      <h2>Saved inspections</h2>
+      <div class="small muted" style="margin-bottom:4px">Stored on this phone. Finished ones can be reopened or re-printed any time.</div>
+      <div id="savedList"></div>
+    </div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report.</div>
+  </section>
+
+  <!-- ============ INSPECT ============ -->
+  <section class="screen" id="s-inspect">
+    <div class="prog noprint"><div class="bar"><div class="fill" id="progFill"></div></div><div class="txt" id="progTxt">0 / 0</div></div>
+    <div id="roomsHost" style="margin-top:12px"></div>
+    <div class="card">
+      <h2>Overall notes</h2>
+      <textarea id="overallNotes" placeholder="General condition, tenant feedback, anything for the record…" oninput="cur.notes=this.value;save()"></textarea>
+      <div class="row" style="margin-top:10px">
+        <div><label>Electricity meter</label><input type="text" id="mElec" placeholder="reading" oninput="cur.meterE=this.value;save()"></div>
+        <div><label>Water meter</label><input type="text" id="mWater" placeholder="reading" oninput="cur.meterW=this.value;save()"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ REPORT ============ -->
+  <section class="screen" id="s-report">
+    <div class="noprint" style="margin-bottom:12px;display:flex;gap:8px">
+      <button class="btn btn-ghost btn-sm" onclick="backToInspect()">← Edit inspection</button>
+      <button class="btn btn-green btn-sm" style="flex:1" onclick="window.print()">Print / Save as PDF</button>
+    </div>
+    <div class="rep-wrap" id="reportHost"></div>
+    <div class="noprint small muted" style="margin-top:12px;line-height:1.7">
+      <b>On iPhone:</b> tap "Print / Save as PDF" → in the print preview <b>pinch outward on the page</b> → tap Share → Mail to the landlord, or Save to Files.
+    </div>
+  </section>
+
+</div>
+
+<div class="actionbar" id="bar">
+  <button class="btn btn-ghost" onclick="goHome()">Home</button>
+  <button class="btn btn-primary" onclick="makeReport()">Finish → Report</button>
+</div>
+
+<input type="file" id="phInput" accept="image/*" capture="environment" style="display:none" multiple>
+<div id="toast"></div>
+
+<script>
+/* ================= Room / item templates ================= */
+var STD_ROOM = ['Walls, ceiling & paintwork','Flooring / carpets','Windows, latches & glass','Doors, locks & handles','Lights, switches & plugs','Curtains / blinds & rails'];
+function bedRoom(n){ return {name:'Bedroom '+n, items:STD_ROOM.concat(['Built-in cupboards'])}; }
+function bathRoom(n){ return {name:'Bathroom'+(n>1?' '+n:''), items:['Toilet & cistern','Basin, taps & plumbing','Bath / shower & screen','Tiles, seals, grouting & mould','Extractor / ventilation','Towel rails & fittings','Lights & switches']}; }
+var KITCHEN = {name:'Kitchen', items:['Sink, taps & plumbing','Stove, oven & extractor','Cupboards & drawers','Countertops & tiling','Appliances present & working','Walls, ceiling & paintwork','Flooring','Lights, switches & plugs']};
+var LIVING  = {name:'Living / Dining', items:STD_ROOM};
+var ENTR    = {name:'Entrance & Passage', items:['Front door, locks & keys','Walls, ceiling & paintwork','Flooring','Lights & switches']};
+var EXT     = {name:'Exterior & Garden', items:['Exterior walls & paintwork','Roof, gutters & downpipes','Garden, lawn & beds','Boundary walls, fences & gates','Paving & driveway','Pool & equipment','Washing line / outside taps']};
+var GARAGE  = {name:'Garage & Parking', items:['Garage door & motor','Gate & gate motor','Remotes & keys','Storeroom / domestic quarters']};
+var SAFETY  = {name:'Safety & General', items:['Geyser & pressure valve','DB board & electrical','Smoke detectors','Alarm, beams & security','Signs of damp / leaks anywhere','Pest / beetle signs']};
+
+function buildRooms(tpl){
+  var r = [ENTR, LIVING, KITCHEN];
+  var beds = tpl, baths = tpl>=3 ? 2 : 1;
+  for(var i=1;i<=beds;i++) r.push(bedRoom(i));
+  for(var b=1;b<=baths;b++) r.push(bathRoom(b));
+  if(tpl>=3) r.push(GARAGE);
+  r.push(EXT, SAFETY);
+  return r.map(function(room){
+    return { name:room.name, items:room.items.map(function(l){ return {label:l, status:null, comment:'', photos:[]}; }) };
+  });
+}
+
+/* ================= State & storage ================= */
+var cur = null;               // current inspection object
+var phTarget = null;          // {ri, ii} for photo input
+var KEY = 'pbInspections';
+
+function allSaved(){ try{ return JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){ return {}; } }
+function save(){
+  if(!cur) return;
+  var all = allSaved(); all[cur.id] = cur;
+  try{ localStorage.setItem(KEY, JSON.stringify(all)); }
+  catch(e){ toast('Phone storage is full — report still works, but remove a photo or two before closing the app.'); }
+}
+function delSaved(id){
+  if(!confirm('Delete this inspection and its photos? This cannot be undone.')) return;
+  var all = allSaved(); delete all[id];
+  localStorage.setItem(KEY, JSON.stringify(all));
+  renderSaved();
+}
+
+/* ================= Navigation ================= */
+function show(s){
+  document.querySelectorAll('.screen').forEach(function(el){el.classList.remove('on')});
+  document.getElementById('s-'+s).classList.add('on');
+  document.getElementById('bar').classList.toggle('on', s==='inspect');
+  window.scrollTo(0,0);
+}
+function goHome(){ save(); cur=null; renderSaved(); show('home');
+  document.getElementById('topTitle').textContent='Inspections';
+  document.getElementById('topSub').textContent='The Property Bureau — on-site inspection tool'; }
+function backToInspect(){ show('inspect'); }
+
+/* ================= New inspection ================= */
+var pickedTpl = 2;
+function pickTpl(el){
+  document.querySelectorAll('.tpl').forEach(function(t){t.classList.remove('sel')});
+  el.classList.add('sel'); pickedTpl = parseInt(el.getAttribute('data-t'),10);
+}
+function startInspection(){
+  var code = document.getElementById('fCode').value.trim().toUpperCase();
+  var addr = document.getElementById('fAddr').value.trim();
+  if(!addr && !code){ toast('Enter at least the address or file code'); return; }
+  var d = new Date();
+  cur = {
+    id:'INS-'+d.getTime(),
+    type:document.getElementById('fType').value,
+    tpl:pickedTpl, code:code, addr:addr,
+    tenant:document.getElementById('fTen').value.trim(),
+    by:document.getElementById('fBy').value.trim(),
+    date:document.getElementById('fDate').value || d.toISOString().slice(0,10),
+    rooms:buildRooms(pickedTpl),
+    notes:'', meterE:'', meterW:'', done:false
+  };
+  save(); openInspect();
+}
+function resume(id){ cur = allSaved()[id]; if(!cur){toast('Could not load');return;} openInspect(); }
+function openInspect(){
+  document.getElementById('topTitle').textContent = (cur.code? cur.code+' — ':'') + (cur.addr||'Inspection');
+  document.getElementById('topSub').textContent = cur.type+' inspection · '+fmtD(cur.date)+(cur.tenant?' · '+cur.tenant:'');
+  document.getElementById('overallNotes').value = cur.notes||'';
+  document.getElementById('mElec').value = cur.meterE||'';
+  document.getElementById('mWater').value = cur.meterW||'';
+  renderRooms(); show('inspect'); updProg();
+}
+
+/* ================= Saved list ================= */
+function renderSaved(){
+  var all = allSaved(), ids = Object.keys(all).sort().reverse();
+  var card = document.getElementById('savedCard'), host = document.getElementById('savedList');
+  if(!ids.length){ card.style.display='none'; return; }
+  card.style.display='block'; host.innerHTML='';
+  ids.forEach(function(id){
+    var x = all[id], n = counts(x);
+    var div = document.createElement('div'); div.className='saved';
+    div.innerHTML = '<div><div class="nm">'+(x.code? x.code+' — ':'')+esc(x.addr||'(no address)')+'</div>'+
+      '<div class="mt">'+x.type+' · '+fmtD(x.date)+' · '+n.set+'/'+n.total+' items · '+n.att+' attention '+(x.done?'<span class="pill green">Report done</span>':'<span class="pill amber">In progress</span>')+'</div></div>'+
+      '<div class="btns"><button class="btn btn-ghost btn-sm" onclick="resume(\''+id+'\')">Open</button>'+
+      '<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="delSaved(\''+id+'\')">Delete</button></div>';
+    host.appendChild(div);
+  });
+}
+
+/* ================= Rooms UI ================= */
+function renderRooms(){
+  var host = document.getElementById('roomsHost'); host.innerHTML='';
+  cur.rooms.forEach(function(room, ri){
+    var div = document.createElement('div'); div.className='room'+(ri===0?' open':''); div.id='room'+ri;
+    var body = '';
+    room.items.forEach(function(it, ii){ body += itemHtml(ri, ii, it); });
+    body += '<div class="additem"><span class="more" onclick="addItem('+ri+')">+ Add item to this room</span></div>';
+    div.innerHTML = '<div class="room-h" onclick="togRoom('+ri+')"><span class="rn">'+esc(room.name)+'</span><span class="rc" id="rc'+ri+'"></span></div>'+
+      '<div class="room-body">'+body+'</div>';
+    host.appendChild(div);
+  });
+  cur.rooms.forEach(function(_,ri){ updRoomCount(ri); });
+}
+function itemHtml(ri, ii, it){
+  var exp = (it.comment || it.photos.length) ? ' expanded' : '';
+  var phs = '';
+  it.photos.forEach(function(p, pi){
+    phs += '<div class="ph"><img src="'+p+'"><button class="del" onclick="delPh('+ri+','+ii+','+pi+')">×</button></div>';
+  });
+  return '<div class="item'+exp+'" id="it'+ri+'_'+ii+'">'+
+    '<div class="item-top"><div class="item-label">'+esc(it.label)+'</div>'+
+    '<div class="st-btns">'+
+      '<button class="st good'+(it.status==='good'?' sel':'')+'" onclick="setSt('+ri+','+ii+',\'good\')">✓</button>'+
+      '<button class="st att'+(it.status==='att'?' sel':'')+'" onclick="setSt('+ri+','+ii+',\'att\')">!</button>'+
+      '<button class="st na'+(it.status==='na'?' sel':'')+'" onclick="setSt('+ri+','+ii+',\'na\')">N/A</button>'+
+    '</div></div>'+
+    '<span class="more" onclick="togExtra('+ri+','+ii+')">Comment / photos</span>'+
+    '<div class="item-extra">'+
+      '<textarea placeholder="Comment…" oninput="cur.rooms['+ri+'].items['+ii+'].comment=this.value;save()">'+esc(it.comment)+'</textarea>'+
+      '<div class="ph-row">'+phs+'<button class="addph" onclick="addPh('+ri+','+ii+')"><span class="ic">📷</span>Photo</button></div>'+
+    '</div></div>';
+}
+function togRoom(ri){ document.getElementById('room'+ri).classList.toggle('open'); }
+function togExtra(ri,ii){ document.getElementById('it'+ri+'_'+ii).classList.toggle('expanded'); }
+function setSt(ri,ii,s){
+  var it = cur.rooms[ri].items[ii];
+  it.status = (it.status===s? null : s);
+  var el = document.getElementById('it'+ri+'_'+ii);
+  el.querySelectorAll('.st').forEach(function(b){b.classList.remove('sel')});
+  if(it.status){ el.querySelector('.st.'+s).classList.add('sel'); }
+  if(it.status==='att'){ el.classList.add('expanded'); }
+  save(); updProg(); updRoomCount(ri);
+}
+function addItem(ri){
+  var l = prompt('Item name (e.g. Fireplace, Aircon, Balcony)'); if(!l) return;
+  cur.rooms[ri].items.push({label:l, status:null, comment:'', photos:[]});
+  save(); renderRooms();
+  document.getElementById('room'+ri).classList.add('open');
+}
+function updRoomCount(ri){
+  var items = cur.rooms[ri].items, set=0;
+  items.forEach(function(i){ if(i.status) set++; });
+  var el = document.getElementById('rc'+ri);
+  el.textContent = set+' / '+items.length;
+  el.className = 'rc'+(set===items.length?' done':'');
+}
+function counts(x){
+  var total=0,set=0,att=0,good=0,ph=0;
+  x.rooms.forEach(function(r){ r.items.forEach(function(i){ total++; if(i.status)set++; if(i.status==='att')att++; if(i.status==='good')good++; ph+=i.photos.length; }); });
+  return {total:total,set:set,att:att,good:good,ph:ph};
+}
+function updProg(){
+  var n = counts(cur);
+  document.getElementById('progFill').style.width = (n.total? Math.round(n.set/n.total*100):0)+'%';
+  document.getElementById('progTxt').textContent = n.set+' / '+n.total;
+}
+
+/* ================= Photos (compressed to ~150KB each) ================= */
+document.getElementById('phInput').addEventListener('change', function(){
+  var files = Array.prototype.slice.call(this.files); this.value='';
+  if(!phTarget || !files.length) return;
+  var t = phTarget;
+  files.forEach(function(f){
+    var img = new Image(), url = URL.createObjectURL(f);
+    img.onload = function(){
+      var max = 900, w = img.width, h = img.height;
+      if(w>h && w>max){ h = h*max/w; w = max; } else if(h>=w && h>max){ w = w*max/h; h = max; }
+      var c = document.createElement('canvas'); c.width=w; c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);
+      cur.rooms[t.ri].items[t.ii].photos.push(c.toDataURL('image/jpeg',0.6));
+      save(); refreshItem(t.ri, t.ii);
+    };
+    img.src = url;
+  });
+});
+function addPh(ri,ii){ phTarget = {ri:ri, ii:ii}; document.getElementById('phInput').click(); }
+function delPh(ri,ii,pi){ cur.rooms[ri].items[ii].photos.splice(pi,1); save(); refreshItem(ri,ii); }
+function refreshItem(ri,ii){
+  var el = document.getElementById('it'+ri+'_'+ii);
+  var tmp = document.createElement('div'); tmp.innerHTML = itemHtml(ri,ii,cur.rooms[ri].items[ii]);
+  el.replaceWith(tmp.firstChild);
+  document.getElementById('it'+ri+'_'+ii).classList.add('expanded');
+}
+
+/* ================= Report ================= */
+function makeReport(){
+  var n = counts(cur);
+  if(n.set===0){ toast('Tick at least one item first'); return; }
+  cur.done = true; save();
+  var h = '<div class="rep-head"><div class="t">'+cur.type+' Inspection Report</div>'+
+    '<div class="s">'+esc(cur.addr)+(cur.code? ' · File '+esc(cur.code):'')+
+    (cur.tenant? '<br>Tenant: '+esc(cur.tenant):'')+
+    '<br>Inspected '+fmtD(cur.date)+' by '+esc(cur.by)+' · The Property Bureau, Cape Town</div></div>'+
+    '<div class="rep-body">'+
+    '<div class="rep-kpis">'+
+      '<div class="rep-kpi"><div class="n">'+n.set+'</div><div class="l">Checked</div></div>'+
+      '<div class="rep-kpi"><div class="n" style="color:var(--green)">'+n.good+'</div><div class="l">Good</div></div>'+
+      '<div class="rep-kpi"><div class="n" style="color:var(--red)">'+n.att+'</div><div class="l">Attention</div></div>'+
+      '<div class="rep-kpi"><div class="n">'+n.ph+'</div><div class="l">Photos</div></div>'+
+    '</div>';
+  if(n.att){
+    h += '<div class="rep-room"><h3>Items needing attention</h3>';
+    cur.rooms.forEach(function(r){ r.items.forEach(function(i){
+      if(i.status==='att') h += '<div class="rep-item"><span>'+esc(r.name)+' — '+esc(i.label)+'</span><span class="pill red">Attention</span></div>'+(i.comment?'<div class="rep-comment">'+esc(i.comment)+'</div>':'');
+    });});
+    h += '</div>';
+  }
+  cur.rooms.forEach(function(r){
+    var any = r.items.some(function(i){ return i.status; });
+    if(!any) return;
+    h += '<div class="rep-room"><h3>'+esc(r.name)+'</h3>';
+    r.items.forEach(function(i){
+      if(!i.status) return;
+      var pill = i.status==='good' ? '<span class="pill green">Good</span>' : i.status==='att' ? '<span class="pill red">Attention</span>' : '<span class="pill grey">N/A</span>';
+      h += '<div class="rep-item"><span>'+esc(i.label)+'</span>'+pill+'</div>';
+      if(i.comment) h += '<div class="rep-comment">'+esc(i.comment)+'</div>';
+      if(i.photos.length){ h += '<div class="rep-phs">'; i.photos.forEach(function(p){ h += '<img src="'+p+'">'; }); h += '</div>'; }
+    });
+    h += '</div>';
+  });
+  if(cur.notes || cur.meterE || cur.meterW){
+    h += '<div class="rep-room"><h3>Notes & readings</h3>';
+    if(cur.meterE) h += '<div class="rep-item"><span>Electricity meter</span><b>'+esc(cur.meterE)+'</b></div>';
+    if(cur.meterW) h += '<div class="rep-item"><span>Water meter</span><b>'+esc(cur.meterW)+'</b></div>';
+    if(cur.notes) h += '<div class="rep-notes">'+esc(cur.notes)+'</div>';
+    h += '</div>';
+  }
+  h += '<div class="small muted" style="margin-top:6px">Report generated on site with PB Inspections. E&amp;OE.</div></div>';
+  document.getElementById('reportHost').innerHTML = h;
+  show('report');
+}
+
+/* ================= Utils ================= */
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtD(d){
+  if(!d) return '';
+  var m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var p = d.split('-'); if(p.length!==3) return d;
+  return parseInt(p[2],10)+' '+m[parseInt(p[1],10)-1]+' '+p[0];
+}
+var toastT;
+function toast(msg){
+  var t = document.getElementById('toast'); t.textContent = msg; t.style.display='block';
+  clearTimeout(toastT); toastT = setTimeout(function(){ t.style.display='none'; }, 3000);
+}
+
+/* ================= Init ================= */
+document.getElementById('fDate').value = new Date().toISOString().slice(0,10);
+renderSaved();
+</script>
+
+</body>
+</html>
