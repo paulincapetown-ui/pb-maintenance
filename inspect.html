@@ -33,14 +33,10 @@
   .btn-green{background:var(--green);color:#fff}
   .btn-sm{padding:9px 13px;font-size:13px;border-radius:8px}
   .muted{color:var(--muted)} .small{font-size:12.5px}
-
-  /* Template picker */
   .tpl-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px}
   .tpl{border:1.5px solid var(--line);border-radius:10px;padding:12px 4px;text-align:center;cursor:pointer;background:#fff}
   .tpl .n{font-size:20px;font-weight:800;color:var(--navy)} .tpl .l{font-size:10.5px;color:var(--muted)}
   .tpl.sel{border-color:var(--navy);background:var(--navy)} .tpl.sel .n,.tpl.sel .l{color:#fff}
-
-  /* Saved list */
   .saved{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid #f1f2f4;flex-wrap:wrap}
   .saved:last-child{border-bottom:none}
   .saved .nm{font-weight:700;font-size:14.5px}
@@ -49,14 +45,10 @@
   .pill{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;display:inline-block}
   .pill.green{background:var(--green-bg);color:var(--green)} .pill.amber{background:var(--amber-bg);color:var(--amber)}
   .pill.grey{background:#eef1f5;color:#4b5563} .pill.red{background:var(--red-bg);color:var(--red)}
-
-  /* Progress bar */
   .prog{position:sticky;top:58px;z-index:19;background:#fff;border-bottom:1px solid var(--line);padding:9px 14px;display:flex;align-items:center;gap:12px}
   .prog .bar{flex:1;height:8px;background:#eef1f5;border-radius:6px;overflow:hidden}
   .prog .fill{height:100%;background:var(--green);width:0%;transition:width .2s}
   .prog .txt{font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap}
-
-  /* Rooms & items */
   .room{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden}
   .room-h{display:flex;justify-content:space-between;align-items:center;padding:13px 15px;cursor:pointer;background:#fafafa;border-bottom:1px solid var(--line)}
   .room-h .rn{font-weight:700;font-size:15px}
@@ -83,13 +75,9 @@
   .addph .ic{font-size:20px;line-height:1}
   .more{font-size:12.5px;color:var(--blue);font-weight:700;cursor:pointer;margin-top:7px;display:inline-block}
   .additem{padding:12px 15px}
-
-  /* Bottom action bar */
   .actionbar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom));display:none;gap:10px;z-index:25}
   .actionbar.on{display:flex}
   .actionbar .btn{flex:1;padding:13px}
-
-  /* Report */
   .rep-head{background:var(--navy);color:#fff;padding:20px;border-radius:12px 12px 0 0}
   .rep-head .t{font-size:17px;font-weight:800}.rep-head .s{font-size:12px;color:#a9b4c6;margin-top:3px;line-height:1.7}
   .rep-wrap{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
@@ -104,7 +92,6 @@
   .rep-phs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
   .rep-phs img{width:31%;max-width:150px;border-radius:7px;border:1px solid var(--line)}
   .rep-notes{background:#f8f9fb;border-radius:9px;padding:12px;font-size:13.5px;margin-top:8px;white-space:pre-wrap}
-
   @media print{
     body{background:#fff;padding:0}
     .top,.actionbar,.noprint,.prog{display:none !important}
@@ -142,11 +129,13 @@
         <div class="tpl" data-t="4" onclick="pickTpl(this)"><div class="n">4+</div><div class="l">BED</div></div>
       </div>
       <div class="row">
-        <div><label>File code</label><input type="text" id="fCode" placeholder="L058" autocapitalize="characters"></div>
+        <div><label>File code</label><input type="text" id="fCode" placeholder="L058" autocapitalize="characters" list="dlCode" oninput="lkCode()"></div>
         <div><label>Date</label><input type="date" id="fDate"></div>
       </div>
-      <label>Property address</label><input type="text" id="fAddr" placeholder="14 Milner Rd, Woodstock">
-      <label>Tenant</label><input type="text" id="fTen" placeholder="K. Botha">
+      <label>Property address</label><input type="text" id="fAddr" placeholder="14 Milner Rd, Woodstock" list="dlAddr" oninput="lkAddr()">
+      <label>Tenant</label><input type="text" id="fTen" placeholder="K. Botha" list="dlTen" oninput="lkTen()">
+      <div class="small" id="lkHint" style="color:var(--green);margin-top:6px"></div>
+      <datalist id="dlCode"></datalist><datalist id="dlAddr"></datalist><datalist id="dlTen"></datalist>
       <label>Inspected by</label><input type="text" id="fBy" value="Paul Grobler">
       <div style="margin-top:16px"><button class="btn btn-primary" onclick="startInspection()">Start inspection</button></div>
     </div>
@@ -155,7 +144,7 @@
       <div class="small muted" style="margin-bottom:4px">Stored on this phone. Finished ones can be reopened or re-printed any time.</div>
       <div id="savedList"></div>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report.<br><b>v1.2</b> · 05.07.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report.<br><b>v1.3</b> · 05.07.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -163,11 +152,31 @@
     <div class="prog noprint"><div class="bar"><div class="fill" id="progFill"></div></div><div class="txt" id="progTxt">0 / 0</div></div>
     <div id="roomsHost" style="margin-top:12px"></div>
     <div class="card">
+      <h2>Add a room</h2>
+      <div class="small muted" style="margin-bottom:8px">Standard layout not quite right? Add what this property has.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="addRoom('ensuite')">+ En-suite bathroom</button>
+        <button class="btn btn-ghost btn-sm" onclick="addRoom('bath')">+ Bathroom</button>
+        <button class="btn btn-ghost btn-sm" onclick="addRoom('toilet')">+ Separate toilet</button>
+        <button class="btn btn-ghost btn-sm" onclick="addRoom('custom')">+ Other room</button>
+      </div>
+    </div>
+    <div class="card">
       <h2>Overall notes</h2>
+      <select id="stdSum" onchange="insertSummary()" style="margin-bottom:8px"><option value="">Insert standard wording…</option><option>The property is in a good, well-maintained condition. No items require attention at this time.</option><option>The property is in reasonable condition and consistent with the condition at handover. There are no deductions other than utilities, which can be actioned.</option><option>The property is generally in fair condition. The items flagged under Attention require action as detailed in this report.</option></select>
       <textarea id="overallNotes" placeholder="General condition, tenant feedback, anything for the record…" oninput="cur.notes=this.value;save()"></textarea>
       <div class="row" style="margin-top:10px">
         <div><label>Electricity meter</label><input type="text" id="mElec" placeholder="reading" oninput="cur.meterE=this.value;save()"></div>
         <div><label>Water meter</label><input type="text" id="mWater" placeholder="reading" oninput="cur.meterW=this.value;save()"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Tenant sign-off (optional)</h2>
+      <div class="small muted" style="margin-bottom:8px">Tenant signs with a finger. It appears on the report. Skip it if not needed.</div>
+      <canvas id="sigPad" width="600" height="200" style="width:100%;height:150px;border:1.5px dashed var(--line);border-radius:9px;background:#fff;touch-action:none"></canvas>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-ghost btn-sm" onclick="clearSig()">Clear</button>
+        <span class="small muted" style="align-self:center" id="sigState"></span>
       </div>
     </div>
   </section>
@@ -217,6 +226,90 @@ function buildRooms(tpl){
     return { name:room.name, items:room.items.map(function(l){ return {label:l, status:null, comment:'', photos:[]}; }) };
   });
 }
+
+/* ================= Property registry (read-only autocomplete) ================= */
+var GAS_URL = 'https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5jTsiMRgkv7QPDcmeqcNEAAhFXHW_OwR0-4o0qEtoCkCGjraSA/exec';
+var GAS_TOKEN = 'PBmaint2026';
+var PROPS=[], TENMAP={}, TENCY={}, TENLIST=[];
+function regApi(action){ return fetch(GAS_URL+'?token='+GAS_TOKEN+'&action='+action).then(function(r){return r.json();}); }
+function loadRegistry(){
+  var settle=function(p){return p.catch(function(){return {};});};
+  Promise.all([settle(regApi('getProperties')),settle(regApi('getTenants')),settle(regApi('getTenancies'))]).then(function(res){
+    PROPS=res[0].properties||[];
+    (res[1].tenants||[]).forEach(function(t){TENMAP[t.tenantId]=t;});
+    (res[2].tenancies||[]).forEach(function(t){TENCY[t.tenancyCode]=t;});
+    var hc='',ha='',ht='';
+    PROPS.forEach(function(p){
+      if(p.clientCode) hc+='<option value="'+esc(p.clientCode)+'">'+esc(p.address||'')+'</option>';
+      if(p.address) ha+='<option value="'+esc(p.address)+'">'+esc(p.clientCode||'')+'</option>';
+      var tcy=TENCY[p.currentTenancyCode], tn=tcy?TENMAP[tcy.tenantId]:null;
+      if(tn&&tn.name){ ht+='<option value="'+esc(tn.name)+'">'+esc(p.clientCode||'')+' — '+esc(p.address||'')+'</option>'; TENLIST.push({name:tn.name,p:p}); }
+    });
+    document.getElementById('dlCode').innerHTML=hc;
+    document.getElementById('dlAddr').innerHTML=ha;
+    document.getElementById('dlTen').innerHTML=ht;
+  });
+}
+function hint(p){ document.getElementById('lkHint').textContent = p? ('✓ '+(p.clientCode||'')+' — '+(p.address||'')) : ''; }
+function fillFrom(p, skip){
+  if(!p) return;
+  if(skip!=='code') document.getElementById('fCode').value=p.clientCode||'';
+  if(skip!=='addr') document.getElementById('fAddr').value=p.address||'';
+  if(skip!=='ten'){ var tcy=TENCY[p.currentTenancyCode], tn=tcy?TENMAP[tcy.tenantId]:null; if(tn&&tn.name) document.getElementById('fTen').value=tn.name; }
+  hint(p);
+}
+function lkCode(){ var q=document.getElementById('fCode').value.trim().toUpperCase(); var p=PROPS.find(function(x){return (x.clientCode||'').toUpperCase()===q;}); if(p) fillFrom(p,'code'); }
+function lkAddr(){ var q=document.getElementById('fAddr').value.trim().toLowerCase(); if(q.length<4) return; var p=PROPS.find(function(x){return (x.address||'').toLowerCase()===q;}); if(p) fillFrom(p,'addr'); }
+function lkTen(){ var q=document.getElementById('fTen').value.trim().toLowerCase(); if(q.length<3) return; var m=TENLIST.find(function(x){return x.name.toLowerCase()===q;}); if(m) fillFrom(m.p,'ten'); }
+
+/* ================= Add-a-room ================= */
+var ROOM_ADDONS = {
+  ensuite:{base:'En-suite bathroom', items:['Toilet & cistern','Basin, taps & plumbing','Shower / bath & screen','Tiles, seals, grouting & mould','Ventilation','Lights & switches']},
+  bath:{base:'Bathroom', items:['Toilet & cistern','Basin, taps & plumbing','Bath / shower & screen','Tiles, seals, grouting & mould','Extractor / ventilation','Towel rails & fittings','Lights & switches']},
+  toilet:{base:'Separate toilet', items:['Toilet & cistern','Basin & taps','Tiles & seals','Ventilation','Light & switch']}
+};
+function addRoom(kind){
+  var name;
+  if(kind==='custom'){
+    name=prompt('Room name (e.g. Study, Flatlet, Patio)'); if(!name) return;
+    cur.rooms.push({name:name, items:STD_ROOM.map(function(l){return {label:l,status:null,comment:'',photos:[]};})});
+  } else {
+    var t=ROOM_ADDONS[kind];
+    var n=cur.rooms.filter(function(r){return r.name.indexOf(t.base)===0;}).length;
+    name=t.base+(n?' '+(n+1):'');
+    cur.rooms.push({name:name, items:t.items.map(function(l){return {label:l,status:null,comment:'',photos:[]};})});
+  }
+  save(); renderRooms(); updProg();
+  var ri=cur.rooms.length-1, el=document.getElementById('room'+ri);
+  if(el){ el.classList.add('open'); el.scrollIntoView({behavior:'smooth'}); }
+  toast(name+' added');
+}
+
+/* ================= Standard wording ================= */
+function insertSummary(){
+  var s=document.getElementById('stdSum'); if(!s.value) return;
+  var ta=document.getElementById('overallNotes');
+  ta.value=(ta.value?ta.value+'\n\n':'')+s.value;
+  cur.notes=ta.value; save(); s.value='';
+}
+
+/* ================= Signature pad ================= */
+var sigC, sigX, sigDrawing=false, sigDirty=false;
+function sigInit(){
+  sigC=document.getElementById('sigPad'); if(!sigC) return; sigX=sigC.getContext('2d');
+  sigX.lineWidth=3; sigX.lineCap='round'; sigX.strokeStyle='#1a2332';
+  function pos(e){ var r=sigC.getBoundingClientRect(); var t=e.touches?e.touches[0]:e;
+    return {x:(t.clientX-r.left)*(sigC.width/r.width), y:(t.clientY-r.top)*(sigC.height/r.height)}; }
+  function start(e){ e.preventDefault(); sigDrawing=true; var p=pos(e); sigX.beginPath(); sigX.moveTo(p.x,p.y); }
+  function move(e){ if(!sigDrawing) return; e.preventDefault(); var p=pos(e); sigX.lineTo(p.x,p.y); sigX.stroke(); sigDirty=true; }
+  function end(){ if(!sigDrawing) return; sigDrawing=false;
+    if(sigDirty&&cur){ cur.sig=sigC.toDataURL('image/png'); save(); document.getElementById('sigState').textContent='Signature captured'; } }
+  sigC.addEventListener('touchstart',start); sigC.addEventListener('touchmove',move); sigC.addEventListener('touchend',end);
+  sigC.addEventListener('mousedown',start); sigC.addEventListener('mousemove',move); window.addEventListener('mouseup',end);
+}
+function clearSig(){ if(!sigX) return; sigX.clearRect(0,0,sigC.width,sigC.height); sigDirty=false; if(cur){ cur.sig=''; save(); } document.getElementById('sigState').textContent=''; }
+function sigRestore(){ if(!sigX) return; sigX.clearRect(0,0,sigC.width,sigC.height); sigDirty=false; document.getElementById('sigState').textContent='';
+  if(cur&&cur.sig){ var im=new Image(); im.onload=function(){ sigX.drawImage(im,0,0); }; im.src=cur.sig; sigDirty=true; document.getElementById('sigState').textContent='Signature captured'; } }
 
 /* ================= State & storage ================= */
 var cur = null;               // current inspection object
@@ -268,7 +361,7 @@ function startInspection(){
     by:document.getElementById('fBy').value.trim(),
     date:document.getElementById('fDate').value || d.toISOString().slice(0,10),
     rooms:buildRooms(pickedTpl),
-    notes:'', meterE:'', meterW:'', done:false
+    notes:'', meterE:'', meterW:'', sig:'', done:false
   };
   save(); openInspect();
 }
@@ -279,7 +372,7 @@ function openInspect(){
   document.getElementById('overallNotes').value = cur.notes||'';
   document.getElementById('mElec').value = cur.meterE||'';
   document.getElementById('mWater').value = cur.meterW||'';
-  renderRooms(); show('inspect'); updProg();
+  renderRooms(); show('inspect'); updProg(); sigRestore();
 }
 
 /* ================= Saved list ================= */
@@ -438,6 +531,9 @@ function makeReport(){
     if(cur.notes) h += '<div class="rep-notes">'+esc(cur.notes)+'</div>';
     h += '</div>';
   }
+  if(cur.sig){
+    h += '<div class="rep-room"><h3>Tenant sign-off</h3><img src="'+cur.sig+'" style="max-width:280px;border-bottom:2px solid #1a2332"><div class="small" style="margin-top:4px">'+esc(cur.tenant||'Tenant')+' · signed on site, '+fmtD(cur.date)+'</div></div>';
+  }
   h += '<div class="small muted" style="margin-top:6px">Report generated on site with PB Inspections. E&amp;OE.</div></div>';
   document.getElementById('reportHost').innerHTML = h;
   show('report');
@@ -460,7 +556,7 @@ function toast(msg){
 
 /* ================= Init ================= */
 document.getElementById('fDate').value = new Date().toISOString().slice(0,10);
-renderSaved();
+renderSaved(); loadRegistry(); sigInit();
 </script>
 
 </body>
