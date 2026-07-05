@@ -155,7 +155,7 @@
       <div class="small muted" style="margin-bottom:4px">Stored on this phone. Finished ones can be reopened or re-printed any time.</div>
       <div id="savedList"></div>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report.</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report.<br><b>v1.2</b> · 05.07.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -408,20 +408,20 @@ function makeReport(){
     '<div class="rep-kpis">'+
       '<div class="rep-kpi"><div class="n">'+n.set+'</div><div class="l">Checked</div></div>'+
       '<div class="rep-kpi"><div class="n" style="color:var(--green)">'+n.good+'</div><div class="l">Good</div></div>'+
-      '<div class="rep-kpi"><div class="n" style="color:var(--red)">'+n.att+'</div><div class="l">Attention</div></div>'+
+      '<div class="rep-kpi" style="cursor:pointer" onclick="jumpTo(\'attSection\')"><div class="n" style="color:var(--red)">'+n.att+'</div><div class="l">Attention ›</div></div>'+
       '<div class="rep-kpi"><div class="n">'+n.ph+'</div><div class="l">Photos</div></div>'+
     '</div>';
   if(n.att){
-    h += '<div class="rep-room"><h3>Items needing attention</h3>';
-    cur.rooms.forEach(function(r){ r.items.forEach(function(i){
-      if(i.status==='att') h += '<div class="rep-item"><span>'+esc(r.name)+' — '+esc(i.label)+'</span><span class="pill red">Attention</span></div>'+(i.comment?'<div class="rep-comment">'+esc(i.comment)+'</div>':'');
+    h += '<div class="rep-room" id="attSection"><h3>Items needing attention — tap one to jump to it</h3>';
+    cur.rooms.forEach(function(r,ri){ r.items.forEach(function(i){
+      if(i.status==='att') h += '<div class="rep-item" style="cursor:pointer" onclick="jumpTo(\'repRoom'+ri+'\')"><span>'+esc(r.name)+' — '+esc(i.label)+' ›</span><span class="pill red">Attention</span></div>'+(i.comment?'<div class="rep-comment">'+esc(i.comment)+'</div>':'');
     });});
     h += '</div>';
   }
-  cur.rooms.forEach(function(r){
+  cur.rooms.forEach(function(r,ri){
     var any = r.items.some(function(i){ return i.status; });
     if(!any) return;
-    h += '<div class="rep-room"><h3>'+esc(r.name)+'</h3>';
+    h += '<div class="rep-room" id="repRoom'+ri+'"><h3>'+esc(r.name)+'</h3>';
     r.items.forEach(function(i){
       if(!i.status) return;
       var pill = i.status==='good' ? '<span class="pill green">Good</span>' : i.status==='att' ? '<span class="pill red">Attention</span>' : '<span class="pill grey">N/A</span>';
@@ -444,6 +444,7 @@ function makeReport(){
 }
 
 /* ================= Utils ================= */
+function jumpTo(id){ var el = document.getElementById(id); if(el) el.scrollIntoView({behavior:'smooth'}); }
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmtD(d){
   if(!d) return '';
@@ -464,4 +465,3 @@ renderSaved();
 
 </body>
 </html>
-
