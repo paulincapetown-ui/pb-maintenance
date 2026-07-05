@@ -37,6 +37,10 @@
   .tpl{border:1.5px solid var(--line);border-radius:10px;padding:12px 4px;text-align:center;cursor:pointer;background:#fff}
   .tpl .n{font-size:20px;font-weight:800;color:var(--navy)} .tpl .l{font-size:10.5px;color:var(--muted)}
   .tpl.sel{border-color:var(--navy);background:var(--navy)} .tpl.sel .n,.tpl.sel .l{color:#fff}
+  .tpl.sel[data-t="1"]{background:#1d4ed8;border-color:#1d4ed8}
+  .tpl.sel[data-t="2"]{background:#0f766e;border-color:#0f766e}
+  .tpl.sel[data-t="3"]{background:#6d28d9;border-color:#6d28d9}
+  .tpl.sel[data-t="4"]{background:#9d174d;border-color:#9d174d}
   .saved{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid #f1f2f4;flex-wrap:wrap}
   .saved:last-child{border-bottom:none}
   .saved .nm{font-weight:700;font-size:14.5px}
@@ -153,7 +157,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.6</b> · 05.07.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.6.2</b> · 05.07.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -614,7 +618,7 @@ function makeReport(){
   var n = counts(cur);
   if(n.set===0){ toast('Tick at least one item first'); return; }
   cur.done = true; save();
-  var bedCol={1:'#1d4ed8',2:'#15803d',3:'#b45309',4:'#6d28d9'}[cur.tpl]||'#1d4ed8';
+  var bedCol={1:'#1d4ed8',2:'#0f766e',3:'#6d28d9',4:'#9d174d'}[cur.tpl]||'#1d4ed8';
   var h = '<div class="rep-head"><div class="t">'+cur.type+' Inspection Report <span style="display:inline-block;font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px;vertical-align:middle;margin-left:8px;background:'+bedCol+';color:#fff">'+cur.tpl+(cur.tpl>=4?'+':'')+' BED</span></div>'+
     '<div class="s">'+esc(cur.addr)+(cur.code? ' · File '+esc(cur.code):'')+
     (cur.tenant? '<br>Tenant: '+esc(cur.tenant):'')+
