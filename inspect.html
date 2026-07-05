@@ -152,7 +152,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.5</b> · 05.07.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.5.1</b> · 05.07.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -413,10 +413,13 @@ function spFileReport(){
   if(typeof html2pdf==='undefined'||!cur) return;
   var el=document.getElementById('reportHost');
   toast('Filing report PDF to SharePoint…');
-  html2pdf().set({margin:6,image:{type:'jpeg',quality:0.85},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'mm',format:'a4'}}).from(el).outputPdf('blob').then(function(blob){
-    var fname=spSan(String(cur.date||'').split('-').reverse().join('.')+'_'+cur.type+'_Inspection_Report_'+(cur.code||cur.addr))+'.pdf';
-    return qAdd({root:'REP', folder:spFolderName(), fname:fname, blob:blob}).then(function(){ spUi(); spRepUi(); spPump(); });
-  }).catch(function(e){});
+  html2pdf().set({margin:6,image:{type:'jpeg',quality:0.8},html2canvas:{scale:1,logging:false},jsPDF:{unit:'mm',format:'a4'}}).from(el).outputPdf('blob').then(function(blob){
+    return blob.slice(0,5).text().then(function(head){
+      if(head!=='%PDF-'||blob.size<2000) throw new Error('bad pdf');
+      var fname=spSan(String(cur.date||'').split('-').reverse().join('.')+'_'+cur.type+'_Inspection_Report_'+(cur.code||cur.addr))+'.pdf';
+      return qAdd({root:'REP', folder:spFolderName(), fname:fname, blob:blob}).then(function(){ spUi(); spRepUi(); spPump(); });
+    });
+  }).catch(function(e){ toast('Could not build the PDF on this phone — use Print / Save as PDF instead.'); });
 }
 window.addEventListener('online', function(){ spPump(); });
 
