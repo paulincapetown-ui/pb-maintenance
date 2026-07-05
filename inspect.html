@@ -103,6 +103,7 @@
   }
   #toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:11px 18px;border-radius:9px;font-size:13.5px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.3);display:none;z-index:99;max-width:88vw;text-align:center}
 </style>
+<script src="https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js"></script>
 </head>
 <body>
 
@@ -144,7 +145,13 @@
       <div class="small muted" style="margin-bottom:4px">Stored on this phone. Finished ones can be reopened or re-printed any time.</div>
       <div id="savedList"></div>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report.<br><b>v1.3</b> · 05.07.2026</div>
+    <div class="card">
+      <h2>SharePoint photo archive</h2>
+      <div class="small muted" style="margin-bottom:8px">Full-resolution photos from each inspection file automatically into MASTER docs → Inspection Photos, one folder per property. Only photos you attach to an inspection — never your photo library.</div>
+      <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
+      <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
+    </div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.4</b> · 05.07.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -187,6 +194,7 @@
       <button class="btn btn-ghost btn-sm" onclick="backToInspect()">← Edit inspection</button>
       <button class="btn btn-green btn-sm" style="flex:1" onclick="window.print()">Print / Save as PDF</button>
     </div>
+    <div class="noprint small" id="repArch" style="margin:0 0 10px;font-weight:600"></div>
     <div class="rep-wrap" id="reportHost"></div>
     <div class="noprint small muted" style="margin-top:12px;line-height:1.7">
       <b>On iPhone:</b> tap "Print / Save as PDF" → in the print preview <b>pinch outward on the page</b> → tap Share → Mail to the landlord, or Save to Files.
@@ -310,6 +318,95 @@ function sigInit(){
 function clearSig(){ if(!sigX) return; sigX.clearRect(0,0,sigC.width,sigC.height); sigDirty=false; if(cur){ cur.sig=''; save(); } document.getElementById('sigState').textContent=''; }
 function sigRestore(){ if(!sigX) return; sigX.clearRect(0,0,sigC.width,sigC.height); sigDirty=false; document.getElementById('sigState').textContent='';
   if(cur&&cur.sig){ var im=new Image(); im.onload=function(){ sigX.drawImage(im,0,0); }; im.src=cur.sig; sigDirty=true; document.getElementById('sigState').textContent='Signature captured'; } }
+
+/* ================= SharePoint archive (v1.4) ================= */
+var MSCONF={clientId:'bacb0a06-013c-4a2c-b256-a269a80b35d5',tenantId:'515596ce-b14a-4e8a-bb12-eac214dbbde5',driveId:'b!Go1iWc9qkUuSYrVBBlsRtA0blynq7stGsw_e1wY-UoUm8F1UuRM_TZtzpTaBrdg5',rootId:'01OYEIJYSQKIPTLSYH65BJCEXOUKBJD6LU'};
+var msalApp=null, msAccount=null, spBusy=false, spFolders={};
+function spInit(){
+  if(typeof msal==='undefined'){ var el=document.getElementById('spState'); if(el) el.textContent='Archive module could not load — photos will queue on this phone.'; return; }
+  msalApp=new msal.PublicClientApplication({auth:{clientId:MSCONF.clientId,authority:'https://login.microsoftonline.com/'+MSCONF.tenantId,redirectUri:location.origin+location.pathname},cache:{cacheLocation:'localStorage'}});
+  msalApp.handleRedirectPromise().then(function(res){
+    if(res&&res.account) msalApp.setActiveAccount(res.account);
+    var accs=msalApp.getAllAccounts();
+    if(accs.length){ msAccount=accs[0]; msalApp.setActiveAccount(msAccount); }
+    spUi(); spPump();
+  }).catch(function(e){ var el=document.getElementById('spState'); if(el) el.textContent='Sign-in problem: '+e.message; });
+}
+function spConnect(){ if(!msalApp) return; msalApp.loginRedirect({scopes:['Files.ReadWrite.All'],loginHint:'paul@propertybureau.co.za'}); }
+function spToken(){
+  return msalApp.acquireTokenSilent({scopes:['Files.ReadWrite.All'],account:msAccount}).then(function(r){return r.accessToken;})
+    .catch(function(){ msalApp.acquireTokenRedirect({scopes:['Files.ReadWrite.All']}); throw new Error('auth'); });
+}
+function idb(){ return new Promise(function(res,rej){ var r=indexedDB.open('pbInspQ',1);
+  r.onupgradeneeded=function(){ r.result.createObjectStore('q',{keyPath:'qid',autoIncrement:true}); };
+  r.onsuccess=function(){res(r.result)}; r.onerror=function(){rej(r.error)}; }); }
+function qAdd(item){ return idb().then(function(db){ return new Promise(function(res,rej){ var tx=db.transaction('q','readwrite'); tx.objectStore('q').add(item); tx.oncomplete=res; tx.onerror=function(){rej(tx.error)}; }); }); }
+function qAll(){ return idb().then(function(db){ return new Promise(function(res,rej){ var tx=db.transaction('q','readonly'); var rq=tx.objectStore('q').getAll(); rq.onsuccess=function(){res(rq.result)}; rq.onerror=function(){rej(rq.error)}; }); }); }
+function qDel(qid){ return idb().then(function(db){ return new Promise(function(res,rej){ var tx=db.transaction('q','readwrite'); tx.objectStore('q').delete(qid); tx.oncomplete=res; tx.onerror=function(){rej(tx.error)}; }); }); }
+function spSan(s){ return String(s||'').replace(/[\\\/:*?"<>|#%&{}~]/g,'-').replace(/\s+/g,' ').trim(); }
+function spFolderName(){ return spSan((cur&&cur.code? cur.code+' - ':'')+(cur?cur.addr:''))||'Unfiled'; }
+function spFileName(room,label,ext){ var d=(cur&&cur.date)?cur.date.split('-').reverse().join('.'):''; return spSan(d+'_'+room+'_'+label)+'_'+(Date.now()%100000)+'.'+ext; }
+function spQueuePhoto(file, room, label){
+  var ext=(file.name&&file.name.indexOf('.')>-1)? file.name.split('.').pop().toLowerCase() : (file.type==='image/png'?'png':(file.type==='image/heic'?'heic':'jpg'));
+  qAdd({folder:spFolderName(), fname:spFileName(room,label,ext), blob:file}).then(function(){ spUi(); spPump(); });
+}
+function spEnsureFolder(name, tok){
+  if(spFolders[name]) return Promise.resolve();
+  return fetch('https://graph.microsoft.com/v1.0/drives/'+MSCONF.driveId+'/items/'+MSCONF.rootId+'/children',{
+    method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},
+    body:JSON.stringify({name:name,folder:{},'@microsoft.graph.conflictBehavior':'fail'})
+  }).then(function(r){ if(r.ok||r.status===409){ spFolders[name]=1; return; } throw new Error('folder '+r.status); });
+}
+function spUpload(item, tok){
+  var base='https://graph.microsoft.com/v1.0/drives/'+MSCONF.driveId+'/items/'+MSCONF.rootId+':/'+encodeURIComponent(item.folder)+'/'+encodeURIComponent(item.fname)+':';
+  if(item.blob.size<3800000){
+    return fetch(base+'/content',{method:'PUT',headers:{Authorization:'Bearer '+tok},body:item.blob}).then(function(r){ if(!r.ok) throw new Error('put '+r.status); });
+  }
+  return fetch(base+'/createUploadSession',{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({item:{'@microsoft.graph.conflictBehavior':'rename'}})})
+    .then(function(r){ if(!r.ok) throw new Error('session '+r.status); return r.json(); })
+    .then(function(s){
+      var chunk=6553600, pos=0, size=item.blob.size;
+      function next(){
+        if(pos>=size) return Promise.resolve();
+        var end=Math.min(pos+chunk,size);
+        return fetch(s.uploadUrl,{method:'PUT',headers:{'Content-Range':'bytes '+pos+'-'+(end-1)+'/'+size},body:item.blob.slice(pos,end)})
+          .then(function(r){ if(!(r.ok||r.status===202)) throw new Error('chunk '+r.status); pos=end; return next(); });
+      }
+      return next();
+    });
+}
+function spPump(){
+  if(spBusy||!msAccount||!navigator.onLine){ spUi(); return; }
+  spBusy=true;
+  qAll().then(function(items){
+    if(!items.length){ spBusy=false; spUi(); return; }
+    spToken().then(function(tok){
+      var p=Promise.resolve();
+      items.forEach(function(it){
+        p=p.then(function(){ return spEnsureFolder(it.folder,tok).then(function(){ return spUpload(it,tok); }).then(function(){ return qDel(it.qid); }).catch(function(e){}); });
+      });
+      p.then(function(){ spBusy=false; spUi(); spRepUi(); });
+    }).catch(function(){ spBusy=false; spUi(); });
+  }).catch(function(){ spBusy=false; });
+}
+function spUi(){
+  var el=document.getElementById('spState'); if(!el) return;
+  qAll().then(function(items){
+    var q=items.length, btn=document.getElementById('spBtn');
+    if(!msAccount){ el.textContent = q? q+' photo'+(q>1?'s':'')+' waiting — connect Microsoft to archive them.' : 'Not connected — photos will queue on this phone until you connect.'; if(btn) btn.style.display='inline-block'; }
+    else { el.textContent = q? 'Uploading — '+q+' photo'+(q>1?'s':'')+' in the queue…' : 'Connected as '+(msAccount.username||'')+' — photo archive active.'; if(btn) btn.style.display='none'; }
+  });
+}
+function spRepUi(){
+  var el=document.getElementById('repArch'); if(!el) return;
+  qAll().then(function(items){
+    var q=items.length;
+    el.style.color = q? 'var(--amber)':'var(--green)';
+    el.textContent = q? 'SharePoint archive: '+q+' photo'+(q>1?'s':'')+' still uploading — keep the app open on Wi-Fi or data.'
+      : (msAccount? 'SharePoint archive: all photos for this inspection are filed in MASTER docs / Inspection Photos.' : 'SharePoint archive: not connected — photos are queued safely on this phone.');
+  });
+}
+window.addEventListener('online', function(){ spPump(); });
 
 /* ================= State & storage ================= */
 var cur = null;               // current inspection object
@@ -466,6 +563,7 @@ document.getElementById('phInput').addEventListener('change', function(){
   if(!phTarget || !files.length) return;
   var t = phTarget;
   files.forEach(function(f){
+    try{ spQueuePhoto(f, cur.rooms[t.ri].name, cur.rooms[t.ri].items[t.ii].label); }catch(e){}
     var img = new Image(), url = URL.createObjectURL(f);
     img.onload = function(){
       var max = 900, w = img.width, h = img.height;
@@ -536,7 +634,7 @@ function makeReport(){
   }
   h += '<div class="small muted" style="margin-top:6px">Report generated on site with PB Inspections. E&amp;OE.</div></div>';
   document.getElementById('reportHost').innerHTML = h;
-  show('report');
+  show('report'); spRepUi();
 }
 
 /* ================= Utils ================= */
@@ -556,7 +654,7 @@ function toast(msg){
 
 /* ================= Init ================= */
 document.getElementById('fDate').value = new Date().toISOString().slice(0,10);
-renderSaved(); loadRegistry(); sigInit();
+renderSaved(); loadRegistry(); sigInit(); spInit();
 </script>
 
 </body>
