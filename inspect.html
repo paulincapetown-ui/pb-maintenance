@@ -152,7 +152,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.5.1</b> · 05.07.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.5.2</b> · 05.07.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -349,7 +349,10 @@ function spFolderName(){ return spSan((cur&&cur.code? cur.code+' - ':'')+(cur?cu
 function spFileName(room,label,ext){ var d=(cur&&cur.date)?cur.date.split('-').reverse().join('.'):''; return spSan(d+'_'+room+'_'+label)+'_'+(Date.now()%100000)+'.'+ext; }
 function spQueuePhoto(file, room, label){
   var ext=(file.name&&file.name.indexOf('.')>-1)? file.name.split('.').pop().toLowerCase() : (file.type==='image/png'?'png':(file.type==='image/heic'?'heic':'jpg'));
-  qAdd({folder:spFolderName(), fname:spFileName(room,label,ext), blob:file}).then(function(){ spUi(); spPump(); });
+  var fname=spFileName(room,label,ext), folder=spFolderName();
+  file.arrayBuffer().then(function(buf){
+    return qAdd({folder:folder, fname:fname, buf:buf, mime:file.type||'image/jpeg'});
+  }).then(function(){ spUi(); spPump(); });
 }
 function spRootFor(item){ return item.root==='REP'? MSCONF.repRootId : MSCONF.rootId; }
 function spEnsureFolder(name, tok, rootId){
@@ -361,18 +364,19 @@ function spEnsureFolder(name, tok, rootId){
   }).then(function(r){ if(r.ok||r.status===409){ spFolders[key]=1; return; } throw new Error('folder '+r.status); });
 }
 function spUpload(item, tok){
+  var body=item.buf||item.blob, size=item.buf? item.buf.byteLength : item.blob.size;
   var base='https://graph.microsoft.com/v1.0/drives/'+MSCONF.driveId+'/items/'+spRootFor(item)+':/'+encodeURIComponent(item.folder)+'/'+encodeURIComponent(item.fname)+':';
-  if(item.blob.size<3800000){
-    return fetch(base+'/content',{method:'PUT',headers:{Authorization:'Bearer '+tok},body:item.blob}).then(function(r){ if(!r.ok) throw new Error('put '+r.status); });
+  if(size<3800000){
+    return fetch(base+'/content',{method:'PUT',headers:{Authorization:'Bearer '+tok,'Content-Type':item.mime||'application/octet-stream'},body:body}).then(function(r){ if(!r.ok) throw new Error('put '+r.status); });
   }
   return fetch(base+'/createUploadSession',{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({item:{'@microsoft.graph.conflictBehavior':'rename'}})})
     .then(function(r){ if(!r.ok) throw new Error('session '+r.status); return r.json(); })
     .then(function(s){
-      var chunk=6553600, pos=0, size=item.blob.size;
+      var chunk=6553600, pos=0;
       function next(){
         if(pos>=size) return Promise.resolve();
         var end=Math.min(pos+chunk,size);
-        return fetch(s.uploadUrl,{method:'PUT',headers:{'Content-Range':'bytes '+pos+'-'+(end-1)+'/'+size},body:item.blob.slice(pos,end)})
+        return fetch(s.uploadUrl,{method:'PUT',headers:{'Content-Range':'bytes '+pos+'-'+(end-1)+'/'+size},body:body.slice(pos,end)})
           .then(function(r){ if(!(r.ok||r.status===202)) throw new Error('chunk '+r.status); pos=end; return next(); });
       }
       return next();
@@ -417,7 +421,9 @@ function spFileReport(){
     return blob.slice(0,5).text().then(function(head){
       if(head!=='%PDF-'||blob.size<2000) throw new Error('bad pdf');
       var fname=spSan(String(cur.date||'').split('-').reverse().join('.')+'_'+cur.type+'_Inspection_Report_'+(cur.code||cur.addr))+'.pdf';
-      return qAdd({root:'REP', folder:spFolderName(), fname:fname, blob:blob}).then(function(){ spUi(); spRepUi(); spPump(); });
+      return blob.arrayBuffer().then(function(buf){
+        return qAdd({root:'REP', folder:spFolderName(), fname:fname, buf:buf, mime:'application/pdf'});
+      }).then(function(){ spUi(); spRepUi(); spPump(); });
     });
   }).catch(function(e){ toast('Could not build the PDF on this phone — use Print / Save as PDF instead.'); });
 }
