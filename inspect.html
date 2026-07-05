@@ -60,10 +60,11 @@
   .item-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
   .item-label{font-size:14.5px;font-weight:500;flex:1}
   .st-btns{display:flex;gap:5px;flex-shrink:0}
-  .st{border:1.5px solid var(--line);background:#fff;border-radius:8px;min-width:44px;height:38px;font-size:12px;font-weight:800;cursor:pointer;color:var(--muted);font-family:inherit}
+  .st{border:1.5px solid var(--line);background:#fff;border-radius:8px;min-width:37px;height:38px;font-size:12px;font-weight:800;cursor:pointer;color:var(--muted);font-family:inherit}
   .st.good.sel{background:var(--green);border-color:var(--green);color:#fff}
   .st.att.sel{background:var(--red);border-color:var(--red);color:#fff}
   .st.na.sel{background:#6b7280;border-color:#6b7280;color:#fff}
+  .st.qry.sel{background:var(--amber);border-color:var(--amber);color:#fff}
   .item-extra{margin-top:9px;display:none}
   .item.expanded .item-extra{display:block}
   .item-extra textarea{min-height:44px;font-size:15px}
@@ -82,7 +83,7 @@
   .rep-head .t{font-size:17px;font-weight:800}.rep-head .s{font-size:12px;color:#a9b4c6;margin-top:3px;line-height:1.7}
   .rep-wrap{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
   .rep-body{padding:16px}
-  .rep-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+  .rep-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(82px,1fr));gap:8px;margin-bottom:16px}
   .rep-kpi{border:1px solid var(--line);border-radius:9px;padding:9px 4px;text-align:center}
   .rep-kpi .n{font-size:19px;font-weight:800;color:var(--navy)} .rep-kpi .l{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
   .rep-room{margin-bottom:16px}
@@ -152,7 +153,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.5.2</b> · 05.07.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.6</b> · 05.07.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -535,6 +536,7 @@ function itemHtml(ri, ii, it){
     '<div class="st-btns">'+
       '<button class="st good'+(it.status==='good'?' sel':'')+'" onclick="setSt('+ri+','+ii+',\'good\')">✓</button>'+
       '<button class="st att'+(it.status==='att'?' sel':'')+'" onclick="setSt('+ri+','+ii+',\'att\')">!</button>'+
+      '<button class="st qry'+(it.status==='qry'?' sel':'')+'" onclick="setSt('+ri+','+ii+',\'qry\')">?</button>'+
       '<button class="st na'+(it.status==='na'?' sel':'')+'" onclick="setSt('+ri+','+ii+',\'na\')">N/A</button>'+
     '</div></div>'+
     '<span class="more" onclick="togExtra('+ri+','+ii+')">Comment / photos</span>'+
@@ -551,7 +553,7 @@ function setSt(ri,ii,s){
   var el = document.getElementById('it'+ri+'_'+ii);
   el.querySelectorAll('.st').forEach(function(b){b.classList.remove('sel')});
   if(it.status){ el.querySelector('.st.'+s).classList.add('sel'); }
-  if(it.status==='att'){ el.classList.add('expanded'); }
+  if(it.status==='att'||it.status==='qry'){ el.classList.add('expanded'); }
   save(); updProg(); updRoomCount(ri);
 }
 function addItem(ri){
@@ -568,9 +570,9 @@ function updRoomCount(ri){
   el.className = 'rc'+(set===items.length?' done':'');
 }
 function counts(x){
-  var total=0,set=0,att=0,good=0,ph=0;
-  x.rooms.forEach(function(r){ r.items.forEach(function(i){ total++; if(i.status)set++; if(i.status==='att')att++; if(i.status==='good')good++; ph+=i.photos.length; }); });
-  return {total:total,set:set,att:att,good:good,ph:ph};
+  var total=0,set=0,att=0,good=0,ph=0,qry=0;
+  x.rooms.forEach(function(r){ r.items.forEach(function(i){ total++; if(i.status)set++; if(i.status==='att')att++; if(i.status==='good')good++; if(i.status==='qry')qry++; ph+=i.photos.length; }); });
+  return {total:total,set:set,att:att,good:good,ph:ph,qry:qry};
 }
 function updProg(){
   var n = counts(cur);
@@ -612,7 +614,8 @@ function makeReport(){
   var n = counts(cur);
   if(n.set===0){ toast('Tick at least one item first'); return; }
   cur.done = true; save();
-  var h = '<div class="rep-head"><div class="t">'+cur.type+' Inspection Report</div>'+
+  var bedCol={1:'#1d4ed8',2:'#15803d',3:'#b45309',4:'#6d28d9'}[cur.tpl]||'#1d4ed8';
+  var h = '<div class="rep-head"><div class="t">'+cur.type+' Inspection Report <span style="display:inline-block;font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px;vertical-align:middle;margin-left:8px;background:'+bedCol+';color:#fff">'+cur.tpl+(cur.tpl>=4?'+':'')+' BED</span></div>'+
     '<div class="s">'+esc(cur.addr)+(cur.code? ' · File '+esc(cur.code):'')+
     (cur.tenant? '<br>Tenant: '+esc(cur.tenant):'')+
     '<br>Inspected '+fmtD(cur.date)+' by '+esc(cur.by)+' · The Property Bureau, Cape Town</div></div>'+
@@ -621,6 +624,7 @@ function makeReport(){
       '<div class="rep-kpi"><div class="n">'+n.set+'</div><div class="l">Checked</div></div>'+
       '<div class="rep-kpi"><div class="n" style="color:var(--green)">'+n.good+'</div><div class="l">Good</div></div>'+
       '<div class="rep-kpi" style="cursor:pointer" onclick="jumpTo(\'attSection\')"><div class="n" style="color:var(--red)">'+n.att+'</div><div class="l">Attention ›</div></div>'+
+      '<div class="rep-kpi" style="cursor:pointer" onclick="jumpTo(\'qrySection\')"><div class="n" style="color:var(--amber)">'+n.qry+'</div><div class="l">To clarify ›</div></div>'+
       '<div class="rep-kpi"><div class="n">'+n.ph+'</div><div class="l">Photos</div></div>'+
     '</div>';
   if(n.att){
@@ -630,13 +634,20 @@ function makeReport(){
     });});
     h += '</div>';
   }
+  if(n.qry){
+    h += '<div class="rep-room" id="qrySection"><h3>Items to clarify — tap one to jump to it</h3>';
+    cur.rooms.forEach(function(r,ri){ r.items.forEach(function(i){
+      if(i.status==='qry') h += '<div class="rep-item" style="cursor:pointer" onclick="jumpTo(\'repRoom'+ri+'\')"><span>'+esc(r.name)+' — '+esc(i.label)+' ›</span><span class="pill amber">To clarify</span></div>'+(i.comment?'<div class="rep-comment">'+esc(i.comment)+'</div>':'');
+    });});
+    h += '</div>';
+  }
   cur.rooms.forEach(function(r,ri){
     var any = r.items.some(function(i){ return i.status; });
     if(!any) return;
     h += '<div class="rep-room" id="repRoom'+ri+'"><h3>'+esc(r.name)+'</h3>';
     r.items.forEach(function(i){
       if(!i.status) return;
-      var pill = i.status==='good' ? '<span class="pill green">Good</span>' : i.status==='att' ? '<span class="pill red">Attention</span>' : '<span class="pill grey">N/A</span>';
+      var pill = i.status==='good' ? '<span class="pill green">Good</span>' : i.status==='att' ? '<span class="pill red">Attention</span>' : i.status==='qry' ? '<span class="pill amber">To clarify</span>' : '<span class="pill grey">N/A</span>';
       h += '<div class="rep-item"><span>'+esc(i.label)+'</span>'+pill+'</div>';
       if(i.comment) h += '<div class="rep-comment">'+esc(i.comment)+'</div>';
       if(i.photos.length){ h += '<div class="rep-phs">'; i.photos.forEach(function(p){ h += '<img src="'+p+'">'; }); h += '</div>'; }
@@ -680,5 +691,3 @@ renderSaved(); loadRegistry(); sigInit(); spInit();
 
 </body>
 </html>
-
-
