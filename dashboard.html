@@ -10,7 +10,7 @@
 
     /* ── Header ── */
     header{background:#1a2332;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-    header img{height:34px}
+    header img{height:34px;filter:brightness(0) invert(1)}
     .header-actions{display:flex;gap:10px;align-items:center}
     .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:5px;font-size:13px;font-weight:700;border:none;cursor:pointer;text-decoration:none;transition:opacity .15s}
     .btn:hover{opacity:.85}
@@ -131,6 +131,7 @@
 <header>
   <img src="https://propertybureau.co.za/wp-content/uploads/2026/03/PropertyBureauLogo-1.svg" alt="Property Bureau" onerror="this.style.display='none'"/>
   <div class="header-actions">
+    <a href="platform_hub.html" class="btn btn-outline btn-sm">⌂ Platform Hub</a>
     <button class="btn btn-outline btn-sm" onclick="loadJobs()">↻ Refresh</button>
     <a href="form.html" class="btn btn-primary btn-sm">+ Log New Job</a>
   </div>

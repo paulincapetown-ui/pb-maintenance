@@ -8,7 +8,7 @@
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#2c3e50;min-height:100vh}
     header{background:#1a2332;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
-    header img{height:36px}
+    header img{height:36px;filter:brightness(0) invert(1)}
     header a{color:#c9a84c;font-size:13px;font-weight:700;text-decoration:none}
     header a:hover{text-decoration:underline}
     .page-title{background:#1a2332;color:#fff;padding:18px 24px 22px;border-bottom:3px solid #c9a84c}
@@ -51,7 +51,10 @@
 
 <header>
   <img src="https://propertybureau.co.za/wp-content/uploads/2026/03/PropertyBureauLogo-1.svg" alt="Property Bureau" onerror="this.style.display='none'"/>
-  <a href="dashboard.html">Dashboard →</a>
+  <div style="display:flex;gap:18px;align-items:center">
+    <a href="platform_hub.html">⌂ Platform Hub</a>
+    <a href="dashboard.html">Dashboard →</a>
+  </div>
 </header>
 
 <div class="page-title">
