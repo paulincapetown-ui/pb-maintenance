@@ -496,18 +496,41 @@ document.querySelector('[name=estCompletionDate]').min = new Date().toISOString(
 // Loads the property registry once (GET, read-only) so typing an
 // L-code fills in the property address. Fully optional — if the
 // registry can't be reached, the plain Property Name field still works.
-let PB_PROPS = [];
+let PB_PROPS = [], PB_LL = {}, PB_TEN = {}, PB_TENCY = {};
+function pbFillDatalist(){
+  const dl = document.getElementById('codeList');
+  dl.innerHTML = PB_PROPS.map(p => '<option value="' + p.clientCode + '">' +
+    (p.address || '').replace(/"/g,'&quot;') + '</option>').join('');
+}
 (function loadProps(){
-  fetch(GAS_URL + '?action=getProperties&token=' + GAS_TOKEN)
+  // One aggregate call brings the whole registry (properties + landlords +
+  // tenants + tenancies) so the File Code can auto-fill the landlord and
+  // tenant blocks too — audit item 6 (07.07.2026). Falls back to the old
+  // properties-only load if the backend can't answer getBootstrap.
+  fetch(GAS_URL + '?action=getBootstrap&token=' + GAS_TOKEN)
     .then(r => r.json())
     .then(d => {
-      PB_PROPS = (d && d.properties) ? d.properties : [];
-      const dl = document.getElementById('codeList');
-      dl.innerHTML = PB_PROPS.map(p => '<option value="' + p.clientCode + '">' +
-        (p.address || '').replace(/"/g,'&quot;') + '</option>').join('');
+      if (!d || !d.success || !d.properties) throw new Error('no bootstrap');
+      PB_PROPS = d.properties || [];
+      (d.landlords || []).forEach(x => { PB_LL[x.landlordId] = x; });
+      (d.tenants   || []).forEach(x => { PB_TEN[x.tenantId] = x; });
+      (d.tenancies || []).forEach(x => { PB_TENCY[x.tenancyCode] = x; });
+      pbFillDatalist();
     })
-    .catch(() => { /* registry optional — silent */ });
+    .catch(() => {
+      fetch(GAS_URL + '?action=getProperties&token=' + GAS_TOKEN)
+        .then(r => r.json())
+        .then(d => { PB_PROPS = (d && d.properties) ? d.properties : []; pbFillDatalist(); })
+        .catch(() => { /* registry optional — silent */ });
+    });
 })();
+// Fill a form field only if the staff member hasn't typed in it.
+function pbFill(name, val){
+  if (!val) return false;
+  const el = document.querySelector('[name=' + name + ']');
+  if (el && !el.value.trim()) { el.value = val; return true; }
+  return false;
+}
 
 function pbLookupCode(){
   const codeEl = document.getElementById('clientCode');
@@ -520,8 +543,37 @@ function pbLookupCode(){
   if (p) {
     codeEl.value = p.clientCode;                 // normalise casing
     if (!propEl.value.trim()) propEl.value = p.address || '';
+    // Auto-fill landlord + tenant from the registry (only empty fields; all editable)
+    const filled = [];
+    const ll = String(p.landlordIds || '').split(';').map(s => s.trim()).filter(Boolean)
+      .map(id => PB_LL[id]).filter(Boolean)[0];
+    if (ll) {
+      let n = false;
+      n = pbFill('landlordName',  ll.name)  || n;
+      n = pbFill('landlordEmail', ll.email) || n;
+      n = pbFill('landlordEmail2',ll.email2)|| n;
+      n = pbFill('landlordEmail3',ll.email3)|| n;
+      n = pbFill('landlordPhone', ll.phone) || n;
+      n = pbFill('landlordPhoneWork', ll.phoneWork) || n;
+      n = pbFill('landlordPhoneAlt',  ll.phoneAlt)  || n;
+      if (n) filled.push('landlord');
+    }
+    const tcy = PB_TENCY[p.currentTenancyCode];
+    const tn  = tcy ? PB_TEN[tcy.tenantId] : null;
+    if (tn) {
+      let n = false;
+      n = pbFill('tenantName',  tn.name)  || n;
+      n = pbFill('tenantEmail', tn.email) || n;
+      n = pbFill('tenantEmail2',tn.email2)|| n;
+      n = pbFill('tenantEmail3',tn.email3)|| n;
+      n = pbFill('tenantPhone', tn.phone) || n;
+      n = pbFill('tenantPhoneWork', tn.phoneWork) || n;
+      n = pbFill('tenantPhoneAlt',  tn.phoneAlt)  || n;
+      if (n) filled.push('tenant');
+    }
     hint.style.color = '#16a34a';
-    hint.textContent = '✓ ' + (p.address || 'matched');
+    hint.textContent = '✓ ' + (p.address || 'matched') +
+      (filled.length ? ' — ' + filled.join(' + ') + ' filled from registry, check & edit' : '');
   } else {
     hint.style.color = '#e67e22';
     hint.textContent = 'No property with that code — you can still type the address.';

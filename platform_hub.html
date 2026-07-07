@@ -221,8 +221,23 @@ function isAdmin(){ return String((session&&session.role)||'').toLowerCase()==='
 async function init(){
   if(session){ document.getElementById('userName').textContent = session.displayName || session.email;
     document.getElementById('userAv').textContent = (session.displayName||session.email).slice(0,2).toUpperCase(); }
-  // Stage 1 — Urgent Actions first. Small + fast, the main thing Paul checks on his phone.
-  // Rendered immediately so the page appears in ~1s instead of waiting on all 10 datasets.
+  // ONE aggregate call (getBootstrap, cached 45s server-side) replaces the old
+  // 10-request load — audit item 4 (07.07.2026). Falls back to the legacy
+  // two-stage load if the backend can't answer it (blip or old deploy).
+  try{
+    const b = await api('getBootstrap');
+    if(b && b.success && b.urgentActions){
+      UA=b.urgentActions||[]; REPLIES=b.replies||[];
+      PROPS=b.properties||[];
+      (b.landlords||[]).forEach(x=>LL[x.landlordId]=x);
+      (b.tenants||[]).forEach(x=>TEN[x.tenantId]=x);
+      (b.tenancies||[]).forEach(x=>TENCY[x.tenancyCode]=x);
+      JOBS=b.jobs||[]; REN=b.renewals||[]; INS=b.inspections||[]; AL=b.activeListings||[];
+      updateBadge(); showUrgent();
+      return;
+    }
+  }catch(e){ /* fall through to the legacy load below */ }
+  // Legacy two-stage load (kept as fallback)
   try{
     const [u,rep] = await Promise.all([ api('getUrgentActions'), api('getActionReplies') ]);
     UA=(u.urgentActions||[]); REPLIES=(rep&&rep.replies)||[];
