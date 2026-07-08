@@ -157,7 +157,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.6.2</b> · 05.07.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.6.3</b> · 08.07.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -418,11 +418,65 @@ function spRepUi(){
       : (msAccount? 'SharePoint archive: all photos for this inspection are filed in MASTER docs / Inspection Photos.' : 'SharePoint archive: not connected — photos are queued safely on this phone.');
   });
 }
+/* Build the report PDF with exact page count — html2canvas capture, trim
+   trailing whitespace, then paginate manually into jsPDF. Fixes the html2pdf
+   auto-pagination blank-page bug (it over-measured the report height and cut
+   the empty tail into blank pages). scale:1 keeps iPhone canvas memory safe. */
+function pbTrimCanvas(canvas){
+  try{
+    var w=canvas.width,h=canvas.height,ctx=canvas.getContext('2d');
+    var d=ctx.getImageData(0,0,w,h).data,last=0,found=false;
+    for(var y=h-1;y>=0;y--){
+      var ink=false;
+      for(var x=0;x<w;x+=4){ var i=(y*w+x)*4; if(d[i]<245||d[i+1]<245||d[i+2]<245){ink=true;break;} }
+      if(ink){last=y;found=true;break;}
+    }
+    if(!found) return canvas;
+    var pad=Math.round(w*0.03), nh=Math.min(h,last+1+pad);
+    if(nh>=h||nh<10) return canvas;
+    var out=document.createElement('canvas'); out.width=w; out.height=nh;
+    var o=out.getContext('2d'); o.fillStyle='#ffffff'; o.fillRect(0,0,w,nh);
+    o.drawImage(canvas,0,0,w,nh,0,0,w,nh);
+    return out;
+  }catch(e){ return canvas; }
+}
+function pbCanvasToPdfBlob(canvas,JS){
+  var pdf=new JS({unit:'mm',format:'a4',compress:true});
+  var margin=6,pw=210,ph=297,cw=pw-margin*2,chp=ph-margin*2;
+  var pxPerMm=canvas.width/cw, pagePx=Math.floor(chp*pxPerMm);
+  var total=canvas.height,y=0,first=true;
+  while(y<total){
+    var sh=Math.min(pagePx,total-y);
+    var tmp=document.createElement('canvas'); tmp.width=canvas.width; tmp.height=sh;
+    var c=tmp.getContext('2d'); c.fillStyle='#ffffff'; c.fillRect(0,0,tmp.width,sh);
+    c.drawImage(canvas,0,y,canvas.width,sh,0,0,canvas.width,sh);
+    var img=tmp.toDataURL('image/jpeg',0.85);
+    if(!first) pdf.addPage();
+    pdf.addImage(img,'JPEG',margin,margin,cw,sh/pxPerMm);
+    first=false; y+=sh;
+  }
+  return pdf.output('blob');
+}
+function pbBuildReportPdf(el){
+  var H2C=window.html2canvas, JS=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
+  if(typeof H2C!=='function'||typeof JS!=='function'){
+    if(typeof html2pdf==='undefined') return Promise.reject(new Error('no pdf lib'));
+    return html2pdf().set({margin:6,image:{type:'jpeg',quality:0.8},html2canvas:{scale:1,logging:false},jsPDF:{unit:'mm',format:'a4'}}).from(el).outputPdf('blob');
+  }
+  var RW=794; // A4 content width in px — wide render for sharp text, still scale:1
+  var pW=el.style.width,pMax=el.style.maxWidth,pMin=el.style.minWidth;
+  el.style.width=RW+'px'; el.style.maxWidth=RW+'px'; el.style.minWidth=RW+'px';
+  function restore(){ el.style.width=pW; el.style.maxWidth=pMax; el.style.minWidth=pMin; }
+  return H2C(el,{scale:1,backgroundColor:'#ffffff',useCORS:true,logging:false,windowWidth:RW,width:RW}).then(function(canvas){
+    restore();
+    return pbCanvasToPdfBlob(pbTrimCanvas(canvas),JS);
+  },function(err){ restore(); throw err; });
+}
 function spFileReport(){
-  if(typeof html2pdf==='undefined'||!cur) return;
+  if(!cur) return;
   var el=document.getElementById('reportHost');
   toast('Filing report PDF to SharePoint…');
-  html2pdf().set({margin:6,image:{type:'jpeg',quality:0.8},html2canvas:{scale:1,logging:false},jsPDF:{unit:'mm',format:'a4'}}).from(el).outputPdf('blob').then(function(blob){
+  pbBuildReportPdf(el).then(function(blob){
     return blob.slice(0,5).text().then(function(head){
       if(head!=='%PDF-'||blob.size<2000) throw new Error('bad pdf');
       var fname=spSan(String(cur.date||'').split('-').reverse().join('.')+'_'+cur.type+'_Inspection_Report_'+(cur.code||cur.addr))+'.pdf';
