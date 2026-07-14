@@ -95,7 +95,7 @@
   .rep-item{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #f1f2f4;font-size:13.5px}
   .rep-comment{font-size:12.5px;color:#374151;background:#f8f9fb;border-left:3px solid var(--amber);padding:6px 10px;margin:4px 0 6px;border-radius:0 6px 6px 0}
   .rep-phs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
-  .rep-phs img{width:31%;max-width:150px;border-radius:7px;border:1px solid var(--line)}
+  .rep-phs img{width:31%;max-width:240px;border-radius:7px;border:1px solid var(--line)}
   .rep-notes{background:#f8f9fb;border-radius:9px;padding:12px;font-size:13.5px;margin-top:8px;white-space:pre-wrap}
   @media print{
     body{background:#fff;padding:0}
@@ -110,6 +110,11 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.4/lib/msal-browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
+<!-- v1.7: html2pdf.bundle does NOT expose window.html2canvas / window.jspdf, so the
+     v1.6.3 "exact page count" renderer was silently falling back to html2pdf auto-pagination.
+     These two give the real globals; if the CDN is unreachable the app falls back exactly as before. -->
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 </head>
 <body>
 
@@ -157,7 +162,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.6.5</b> · 14.07.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.7</b> · 14.07.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -354,7 +359,7 @@ function qAll(){ return idb().then(function(db){ return new Promise(function(res
 function qDel(qid){ return idb().then(function(db){ return new Promise(function(res,rej){ var tx=db.transaction('q','readwrite'); tx.objectStore('q').delete(qid); tx.oncomplete=res; tx.onerror=function(){rej(tx.error)}; }); }); }
 function spSan(s){ return String(s||'').replace(/[\\\/:*?"<>|#%&{}~]/g,'-').replace(/\s+/g,' ').trim(); }
 function spFolderName(){ return spSan((cur&&cur.code? cur.code+' - ':'')+(cur?cur.addr:''))||'Unfiled'; }
-var spSeq=0, spFails=0;
+var spSeq=0, spFails=0, spQueued=0, spQueueFails=0;
 /* v1.6.4: Date.now()%100000 was NOT unique — photos attached to the same item in one
    multi-select got an identical millisecond, hence an identical filename, and the PUT
    below silently overwrote the earlier one. This suffix cannot collide. */
@@ -363,9 +368,19 @@ function spFileName(room,label,ext){ var d=(cur&&cur.date)?cur.date.split('-').r
 function spQueuePhoto(file, room, label){
   var ext=(file.name&&file.name.indexOf('.')>-1)? file.name.split('.').pop().toLowerCase() : (file.type==='image/png'?'png':(file.type==='image/heic'?'heic':'jpg'));
   var fname=spFileName(room,label,ext), folder=spFolderName();
-  file.arrayBuffer().then(function(buf){
+  spQueued++;
+  /* v1.7: this chain had NO .catch — if arrayBuffer() or the IndexedDB write failed the
+     photo showed in the report but never reached the archive, silently. Now it retries
+     once and, if it still fails, it is counted and surfaced on the report screen. */
+  return file.arrayBuffer().then(function(buf){
     return qAdd({folder:folder, fname:fname, buf:buf, mime:file.type||'image/jpeg'});
-  }).then(function(){ spUi(); spPump(); });
+  }).then(function(){ spUi(); spPump(); }, function(){
+    return file.arrayBuffer().then(function(buf){
+      return qAdd({folder:folder, fname:fname, buf:buf, mime:file.type||'image/jpeg'});
+    }).then(function(){ spUi(); spPump(); }, function(){
+      spQueueFails++; toast('One photo could not be queued for the archive — it is still in the report.');
+    });
+  });
 }
 function spRootFor(item){ return item.root==='REP'? MSCONF.repRootId : MSCONF.rootId; }
 function spEnsureFolder(name, tok, rootId){
@@ -427,6 +442,7 @@ function spVerify(){
   }).then(function(j){
     var pre=String(cur.date||'').split('-').reverse().join('.')+'_';
     var have=(j.value||[]).filter(function(f){ return f.name && f.name.indexOf(pre)===0; }).length;
+    if(spQueueFails){ el.style.color='var(--amber)'; el.textContent='Photo archive: '+have+' of '+want+' filed — '+spQueueFails+' photo'+(spQueueFails>1?'s':'')+' failed to queue on this phone. Re-attach '+(spQueueFails>1?'them':'it')+' or file '+(spQueueFails>1?'them':'it')+' by hand.'; return; }
     if(have>=want){ el.style.color='var(--green)'; el.textContent='Photo archive: all '+want+' photo'+(want>1?'s':'')+' filed in MASTER docs / Inspection Photos.'; }
     else { el.style.color='var(--amber)'; el.textContent='Photo archive: only '+have+' of '+want+' photos filed — keep the app open on Wi-Fi; it will keep retrying.'; }
   }).catch(function(){ el.style.color='var(--muted)'; el.textContent='Photo archive: could not verify right now.'; });
@@ -480,13 +496,15 @@ function pbCanvasToPdfBlob(canvas,JS){
   }
   return pdf.output('blob');
 }
-function pbBuildReportPdf(el){
+/* v1.6.5 path — kept verbatim as the fallback. scale:1 = ~100 DPI photos (grainy),
+   but it is the version proven on Paul's iPhone, so it stays as the safety net. */
+function pbBuildReportPdfLegacy(el){
   var H2C=window.html2canvas, JS=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
   if(typeof H2C!=='function'||typeof JS!=='function'){
     if(typeof html2pdf==='undefined') return Promise.reject(new Error('no pdf lib'));
     return html2pdf().set({margin:6,image:{type:'jpeg',quality:0.8},html2canvas:{scale:1,logging:false},jsPDF:{unit:'mm',format:'a4'}}).from(el).outputPdf('blob');
   }
-  var RW=794; // A4 content width in px — wide render for sharp text, still scale:1
+  var RW=794;
   var pW=el.style.width,pMax=el.style.maxWidth,pMin=el.style.minWidth;
   el.style.width=RW+'px'; el.style.maxWidth=RW+'px'; el.style.minWidth=RW+'px';
   function restore(){ el.style.width=pW; el.style.maxWidth=pMax; el.style.minWidth=pMin; }
@@ -494,6 +512,53 @@ function pbBuildReportPdf(el){
     restore();
     return pbCanvasToPdfBlob(pbTrimCanvas(canvas),JS);
   },function(err){ restore(); throw err; });
+}
+/* v1.7 — the grain fix.
+   The photos were never the problem: the whole report was rasterised at scale:1, so a
+   photo printed ~37mm wide from ~150 device pixels ≈ 100 DPI. Rendering the WHOLE report
+   at scale:2 is what broke the iPhone back in v1.5.1 (one canvas > iOS's ~16.7M-pixel
+   limit → corrupt PDF). So render it ONE A4 PAGE AT A TIME at scale:2 — each canvas is
+   only 1588 × ~2286 px (≈3.6M px), well inside the limit, and every photo lands at ~2x
+   the pixels ≈ 200 DPI. Any failure falls straight back to the proven v1.6.5 path. */
+function pbBuildReportPdf(el){
+  var H2C=window.html2canvas, JS=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
+  if(typeof H2C!=='function'||typeof JS!=='function') return pbBuildReportPdfLegacy(el);
+  var RW=794, SC=2, margin=6, cwMm=210-margin*2, chMm=297-margin*2;
+  var pxPerMm=RW/cwMm, pageCss=Math.floor(chMm*pxPerMm);   /* ≈1143 CSS px per page */
+  var pW=el.style.width,pMax=el.style.maxWidth,pMin=el.style.minWidth;
+  var sx=window.pageXOffset||0, sy=window.pageYOffset||0;
+  function restore(){ el.style.width=pW; el.style.maxWidth=pMax; el.style.minWidth=pMin; window.scrollTo(sx,sy); }
+  try{
+    el.style.width=RW+'px'; el.style.maxWidth=RW+'px'; el.style.minWidth=RW+'px';
+    window.scrollTo(0,0);
+    var r=el.getBoundingClientRect();
+    var total=Math.max(el.scrollHeight, Math.round(r.height));
+    if(!total||total<10) throw new Error('no height');
+    var pages=[]; for(var y=0;y<total;y+=pageCss) pages.push(y);
+    if(pages.length>40) throw new Error('too many pages');
+    var pdf=new JS({unit:'mm',format:'a4',compress:true});
+    var chain=Promise.resolve(), first=true;
+    pages.forEach(function(off){
+      chain=chain.then(function(){
+        var h=Math.min(pageCss,total-off);
+        return H2C(el,{scale:SC,backgroundColor:'#ffffff',useCORS:true,logging:false,
+                       windowWidth:RW,width:RW,height:h,x:0,y:off}).then(function(canvas){
+          var c=(off+h>=total)? pbTrimCanvas(canvas) : canvas;
+          if(c.width<10||c.height<10) return;
+          if(!first) pdf.addPage(); first=false;
+          pdf.addImage(c.toDataURL('image/jpeg',0.92),'JPEG',margin,margin,cwMm,(c.height/SC)/pxPerMm);
+        });
+      });
+    });
+    return chain.then(function(){
+      restore();
+      if(first) throw new Error('no pages');
+      return pdf.output('blob');
+    }).then(function(blob){
+      if(!blob||blob.size<2000) throw new Error('thin pdf');
+      return blob;
+    }).catch(function(){ restore(); return pbBuildReportPdfLegacy(el); });
+  }catch(e){ restore(); return pbBuildReportPdfLegacy(el); }
 }
 function spFileReport(){
   if(!cur) return;
@@ -728,12 +793,12 @@ document.getElementById('phInput').addEventListener('change', function(){
     try{ spQueuePhoto(f, cur.rooms[t.ri].name, cur.rooms[t.ri].items[t.ii].label); }catch(e){}
     var img = new Image(), url = URL.createObjectURL(f);
     img.onload = function(){
-      var max = 900, w = img.width, h = img.height;
+      var max = 1400, w = img.width, h = img.height;   /* v1.7: was 900 — IndexedDB (v1.6.5) removed the 5MB cap */
       if(w>h && w>max){ h = h*max/w; w = max; } else if(h>=w && h>max){ w = w*max/h; h = max; }
       var c = document.createElement('canvas'); c.width=w; c.height=h;
       c.getContext('2d').drawImage(img,0,0,w,h);
       URL.revokeObjectURL(url);
-      cur.rooms[t.ri].items[t.ii].photos.push(c.toDataURL('image/jpeg',0.6));
+      cur.rooms[t.ri].items[t.ii].photos.push(c.toDataURL('image/jpeg',0.82));   /* v1.7: was 0.6 */
       save(); refreshItem(t.ri, t.ii);
     };
     img.src = url;
@@ -805,7 +870,23 @@ function makeReport(){
   }
   h += '<div class="small muted" style="margin-top:6px">Report generated on site with PB Inspections. E&amp;OE.</div></div>';
   document.getElementById('reportHost').innerHTML = h;
-  show('report'); spRepUi(); spFileReport();
+  show('report'); spRepUi(); spFileReport(); pbNotifyOffice();
+}
+
+/* ================= v1.7 — office notice, sent 5 minutes after finish =================
+   Fire-and-forget POST (no-cors, response NEVER read — the standing platform rule).
+   The backend queues it and emails the office 5 minutes later; re-finishing the same
+   inspection inside that window REPLACES the queued notice instead of sending twice. */
+function pbNotifyOffice(){
+  if(!cur) return;
+  var n=counts(cur);
+  var body={ token:GAS_TOKEN, action:'addInspectionNotice',
+    code:cur.code||'', addr:cur.addr||'', tenant:cur.tenant||'', type:cur.type||'',
+    date:cur.date||'', by:cur.by||'', checked:n.set, total:n.total, att:n.att, qry:n.qry,
+    photos:n.ph, folder:spFolderName() };
+  try{
+    fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)});
+  }catch(e){}
 }
 
 /* ================= Utils ================= */
