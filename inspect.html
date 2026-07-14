@@ -157,7 +157,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.6.4</b> · 14.07.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.6.5</b> · 14.07.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -343,8 +343,11 @@ function spToken(){
   return msalApp.acquireTokenSilent({scopes:['Files.ReadWrite.All'],account:msAccount}).then(function(r){return r.accessToken;})
     .catch(function(){ msalApp.acquireTokenRedirect({scopes:['Files.ReadWrite.All']}); throw new Error('auth'); });
 }
-function idb(){ return new Promise(function(res,rej){ var r=indexedDB.open('pbInspQ',1);
-  r.onupgradeneeded=function(){ r.result.createObjectStore('q',{keyPath:'qid',autoIncrement:true}); };
+function idb(){ return new Promise(function(res,rej){ var r=indexedDB.open('pbInspQ',2);
+  r.onupgradeneeded=function(){ var db=r.result;
+    if(!db.objectStoreNames.contains('q')) db.createObjectStore('q',{keyPath:'qid',autoIncrement:true});
+    if(!db.objectStoreNames.contains('insp')) db.createObjectStore('insp',{keyPath:'id'});   /* v1.6.5 */
+  };
   r.onsuccess=function(){res(r.result)}; r.onerror=function(){rej(r.error)}; }); }
 function qAdd(item){ return idb().then(function(db){ return new Promise(function(res,rej){ var tx=db.transaction('q','readwrite'); tx.objectStore('q').add(item); tx.oncomplete=res; tx.onerror=function(){rej(tx.error)}; }); }); }
 function qAll(){ return idb().then(function(db){ return new Promise(function(res,rej){ var tx=db.transaction('q','readonly'); var rq=tx.objectStore('q').getAll(); rq.onsuccess=function(){res(rq.result)}; rq.onerror=function(){rej(rq.error)}; }); }); }
@@ -511,20 +514,78 @@ window.addEventListener('online', function(){ spPump(); });
 /* ================= State & storage ================= */
 var cur = null;               // current inspection object
 var phTarget = null;          // {ri, ii} for photo input
-var KEY = 'pbInspections';
+var KEY = 'pbInspections';        /* legacy localStorage key — migration + last-resort fallback only */
 
-function allSaved(){ try{ return JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){ return {}; } }
+/* ===== v1.6.5 storage =====
+   Photos used to live in localStorage, which Safari caps at ~5MB. A 15-photo
+   inspection is ~2MB, so a big job (plus old saved inspections) could hit the
+   ceiling and DROP photos at capture time — invisible to the report and to
+   SharePoint, because the photo never existed as far as they were concerned.
+   Inspections now persist in IndexedDB (same store as the upload queue,
+   hundreds of MB). inspCache keeps allSaved() synchronous so every existing
+   call site is unchanged; writes are debounced and flushed on hide/finish. */
+var inspCache = {}, dirty = null, saveT = null;
+
+function allSaved(){ return inspCache; }
+function inspPut(o){
+  if(!o||!o.id) return Promise.resolve();
+  return idb().then(function(db){ return new Promise(function(res,rej){
+    var tx=db.transaction('insp','readwrite'); tx.objectStore('insp').put(o);
+    tx.oncomplete=res; tx.onerror=function(){rej(tx.error)}; }); });
+}
+function inspDelDb(id){
+  return idb().then(function(db){ return new Promise(function(res,rej){
+    var tx=db.transaction('insp','readwrite'); tx.objectStore('insp').delete(id);
+    tx.oncomplete=res; tx.onerror=function(){rej(tx.error)}; }); });
+}
 function save(){
   if(!cur) return;
-  var all = allSaved(); all[cur.id] = cur;
-  try{ localStorage.setItem(KEY, JSON.stringify(all)); }
-  catch(e){ toast('Phone storage is full — report still works, but remove a photo or two before closing the app.'); }
+  inspCache[cur.id] = cur;         // in-memory: never lost mid-session
+  dirty = cur;
+  clearTimeout(saveT); saveT = setTimeout(flushSave, 400);   // coalesce rapid taps
 }
+function flushSave(){
+  var o = dirty; if(!o) return;
+  dirty = null; clearTimeout(saveT);
+  inspPut(o).catch(function(){
+    dirty = o;
+    try{ localStorage.setItem(KEY, JSON.stringify(inspCache)); dirty=null; }   /* last-resort fallback */
+    catch(e){ toast('Phone storage problem — keep the app open and finish the report.'); }
+  });
+}
+window.addEventListener('pagehide', flushSave);
+document.addEventListener('visibilitychange', function(){ if(document.hidden) flushSave(); });
 function delSaved(id){
   if(!confirm('Delete this inspection and its photos? This cannot be undone.')) return;
-  var all = allSaved(); delete all[id];
-  localStorage.setItem(KEY, JSON.stringify(all));
+  delete inspCache[id];
+  if(dirty && dirty.id===id) dirty=null;
+  inspDelDb(id).catch(function(){});
   renderSaved();
+}
+function inspMigrate(){
+  var raw=null; try{ raw=localStorage.getItem(KEY); }catch(e){}
+  if(!raw) return Promise.resolve();
+  var old={}; try{ old=JSON.parse(raw)||{}; }catch(e){ return Promise.resolve(); }
+  var ids=Object.keys(old);
+  if(!ids.length){ try{ localStorage.removeItem(KEY); }catch(e){} return Promise.resolve(); }
+  var p=Promise.resolve();
+  ids.forEach(function(id){ p=p.then(function(){ if(old[id]&&old[id].id){ inspCache[id]=old[id]; return inspPut(old[id]); } }); });
+  return p.then(function(){
+    try{ localStorage.removeItem(KEY); }catch(e){}      // frees the old 5MB bench
+    toast('Moved '+ids.length+' saved inspection'+(ids.length>1?'s':'')+' to larger phone storage.');
+  }).catch(function(){ /* migration failed: leave localStorage intact as the backup */ });
+}
+function inspBoot(){
+  return idb().then(function(db){ return new Promise(function(res,rej){
+      var tx=db.transaction('insp','readonly'); var rq=tx.objectStore('insp').getAll();
+      rq.onsuccess=function(){ res(rq.result||[]); }; rq.onerror=function(){ rej(rq.error); }; });
+  }).then(function(list){
+    inspCache={};
+    list.forEach(function(o){ if(o&&o.id) inspCache[o.id]=o; });
+    return inspMigrate();
+  }).catch(function(){
+    try{ inspCache=JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){ inspCache={}; }  // IDB unavailable
+  }).then(function(){ renderSaved(); });
 }
 
 /* ================= Navigation ================= */
@@ -534,7 +595,7 @@ function show(s){
   document.getElementById('bar').classList.toggle('on', s==='inspect');
   window.scrollTo(0,0);
 }
-function goHome(){ save(); cur=null; renderSaved(); show('home');
+function goHome(){ save(); flushSave(); cur=null; renderSaved(); show('home');
   document.getElementById('topTitle').textContent='Inspections';
   document.getElementById('topSub').textContent='The Property Bureau — on-site inspection tool'; }
 function backToInspect(){ show('inspect'); }
@@ -691,7 +752,7 @@ function refreshItem(ri,ii){
 function makeReport(){
   var n = counts(cur);
   if(n.set===0){ toast('Tick at least one item first'); return; }
-  cur.done = true; save();
+  cur.done = true; save(); flushSave();
   var bedCol={1:'#1d4ed8',2:'#0f766e',3:'#6d28d9',4:'#9d174d'}[cur.tpl]||'#1d4ed8';
   var h = '<div class="rep-head"><div class="t">'+cur.type+' Inspection Report <span style="display:inline-block;font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px;vertical-align:middle;margin-left:8px;background:'+bedCol+';color:#fff">'+cur.tpl+(cur.tpl>=4?'+':'')+' BED</span></div>'+
     '<div class="s">'+esc(cur.addr)+(cur.code? ' · File '+esc(cur.code):'')+
@@ -764,7 +825,7 @@ function toast(msg){
 
 /* ================= Init ================= */
 document.getElementById('fDate').value = new Date().toISOString().slice(0,10);
-renderSaved(); loadRegistry(); sigInit(); spInit();
+inspBoot(); loadRegistry(); sigInit(); spInit();
 </script>
 
 </body>
