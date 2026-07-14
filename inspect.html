@@ -157,7 +157,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.6.3</b> · 08.07.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.6.4</b> · 14.07.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -351,7 +351,12 @@ function qAll(){ return idb().then(function(db){ return new Promise(function(res
 function qDel(qid){ return idb().then(function(db){ return new Promise(function(res,rej){ var tx=db.transaction('q','readwrite'); tx.objectStore('q').delete(qid); tx.oncomplete=res; tx.onerror=function(){rej(tx.error)}; }); }); }
 function spSan(s){ return String(s||'').replace(/[\\\/:*?"<>|#%&{}~]/g,'-').replace(/\s+/g,' ').trim(); }
 function spFolderName(){ return spSan((cur&&cur.code? cur.code+' - ':'')+(cur?cur.addr:''))||'Unfiled'; }
-function spFileName(room,label,ext){ var d=(cur&&cur.date)?cur.date.split('-').reverse().join('.'):''; return spSan(d+'_'+room+'_'+label)+'_'+(Date.now()%100000)+'.'+ext; }
+var spSeq=0, spFails=0;
+/* v1.6.4: Date.now()%100000 was NOT unique — photos attached to the same item in one
+   multi-select got an identical millisecond, hence an identical filename, and the PUT
+   below silently overwrote the earlier one. This suffix cannot collide. */
+function spUid(){ spSeq++; return Date.now().toString(36)+spSeq.toString(36)+Math.random().toString(36).slice(2,5); }
+function spFileName(room,label,ext){ var d=(cur&&cur.date)?cur.date.split('-').reverse().join('.'):''; return spSan(d+'_'+room+'_'+label)+'_'+spUid()+'.'+ext; }
 function spQueuePhoto(file, room, label){
   var ext=(file.name&&file.name.indexOf('.')>-1)? file.name.split('.').pop().toLowerCase() : (file.type==='image/png'?'png':(file.type==='image/heic'?'heic':'jpg'));
   var fname=spFileName(room,label,ext), folder=spFolderName();
@@ -372,7 +377,7 @@ function spUpload(item, tok){
   var body=item.buf||item.blob, size=item.buf? item.buf.byteLength : item.blob.size;
   var base='https://graph.microsoft.com/v1.0/drives/'+MSCONF.driveId+'/items/'+spRootFor(item)+':/'+encodeURIComponent(item.folder)+'/'+encodeURIComponent(item.fname)+':';
   if(size<3800000){
-    return fetch(base+'/content',{method:'PUT',headers:{Authorization:'Bearer '+tok,'Content-Type':item.mime||'application/octet-stream'},body:body}).then(function(r){ if(!r.ok) throw new Error('put '+r.status); });
+    return fetch(base+'/content?@microsoft.graph.conflictBehavior=rename',{method:'PUT',headers:{Authorization:'Bearer '+tok,'Content-Type':item.mime||'application/octet-stream'},body:body}).then(function(r){ if(!r.ok) throw new Error('put '+r.status); });
   }
   return fetch(base+'/createUploadSession',{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({item:{'@microsoft.graph.conflictBehavior':'rename'}})})
     .then(function(r){ if(!r.ok) throw new Error('session '+r.status); return r.json(); })
@@ -395,7 +400,7 @@ function spPump(){
     spToken().then(function(tok){
       var p=Promise.resolve();
       items.forEach(function(it){
-        p=p.then(function(){ return spEnsureFolder(it.folder,tok,spRootFor(it)).then(function(){ return spUpload(it,tok); }).then(function(){ return qDel(it.qid); }).catch(function(e){}); });
+        p=p.then(function(){ return spEnsureFolder(it.folder,tok,spRootFor(it)).then(function(){ return spUpload(it,tok); }).then(function(){ return qDel(it.qid); }).catch(function(e){ spFails++; }); });
       });
       p.then(function(){ spBusy=false; spUi(); spRepUi(); });
     }).catch(function(){ spBusy=false; spUi(); });
@@ -409,13 +414,28 @@ function spUi(){
     else { el.textContent = q? 'Uploading — '+q+' photo'+(q>1?'s':'')+' in the queue…' : 'Connected as '+(msAccount.username||'')+' — photo archive active.'; if(btn) btn.style.display='none'; }
   });
 }
+function spVerify(){
+  var el=document.getElementById('repArch'); if(!el||!cur||!msAccount||!navigator.onLine) return;
+  var want=counts(cur).ph;
+  if(!want){ el.style.color='var(--muted)'; el.textContent='Photo archive: no photos on this inspection.'; return; }
+  spToken().then(function(tok){
+    var url='https://graph.microsoft.com/v1.0/drives/'+MSCONF.driveId+'/items/'+MSCONF.rootId+':/'+encodeURIComponent(spFolderName())+':/children?$select=name&$top=999';
+    return fetch(url,{headers:{Authorization:'Bearer '+tok}}).then(function(r){ if(!r.ok) throw new Error('list '+r.status); return r.json(); });
+  }).then(function(j){
+    var pre=String(cur.date||'').split('-').reverse().join('.')+'_';
+    var have=(j.value||[]).filter(function(f){ return f.name && f.name.indexOf(pre)===0; }).length;
+    if(have>=want){ el.style.color='var(--green)'; el.textContent='Photo archive: all '+want+' photo'+(want>1?'s':'')+' filed in MASTER docs / Inspection Photos.'; }
+    else { el.style.color='var(--amber)'; el.textContent='Photo archive: only '+have+' of '+want+' photos filed — keep the app open on Wi-Fi; it will keep retrying.'; }
+  }).catch(function(){ el.style.color='var(--muted)'; el.textContent='Photo archive: could not verify right now.'; });
+}
 function spRepUi(){
   var el=document.getElementById('repArch'); if(!el) return;
   qAll().then(function(items){
     var q=items.length;
-    el.style.color = q? 'var(--amber)':'var(--green)';
-    el.textContent = q? 'SharePoint archive: '+q+' photo'+(q>1?'s':'')+' still uploading — keep the app open on Wi-Fi or data.'
-      : (msAccount? 'SharePoint archive: all photos for this inspection are filed in MASTER docs / Inspection Photos.' : 'SharePoint archive: not connected — photos are queued safely on this phone.');
+    if(q){ el.style.color='var(--amber)'; el.textContent='SharePoint archive: '+q+' photo'+(q>1?'s':'')+' still uploading — keep the app open on Wi-Fi or data.'; return; }
+    if(!msAccount){ el.style.color='var(--amber)'; el.textContent='SharePoint archive: not connected — photos are queued safely on this phone.'; return; }
+    el.style.color='var(--muted)'; el.textContent='Photo archive: checking…';
+    spVerify();
   });
 }
 /* Build the report PDF with exact page count — html2canvas capture, trim
