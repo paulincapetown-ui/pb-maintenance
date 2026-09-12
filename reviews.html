@@ -33,6 +33,9 @@
     .btn-primary{background:#1a2332;color:#fff}
     .btn-secondary{background:#fff;color:#1a2332;border:2px solid #1a2332}
     .btn-small{padding:7px 14px;font-size:12px}
+    .btn-remove{background:#fff;color:#9ca3af;border:1px solid #e5e7eb}
+    .btn-remove:hover{color:#b91c1c;border-color:#b91c1c;opacity:1}
+    .btn-remove.arm{background:#b91c1c;color:#fff;border-color:#b91c1c}
 
     .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
     @media(max-width:620px){.stats{grid-template-columns:repeat(2,1fr)}}
@@ -604,7 +607,7 @@ function renderLog(rows) {
     wrap.innerHTML = '<div class="empty">No asks logged yet. The first one goes in above.</div>';
     return;
   }
-  var html = '<table><tr><th>Date</th><th>Property</th><th>Moment</th><th>Asked</th><th>By</th><th>Status</th><th></th></tr>';
+  var html = '<table><tr><th>Date</th><th>Property</th><th>Moment</th><th>Asked</th><th>By</th><th>Status</th><th></th><th></th></tr>';
   rows.slice(0, 25).forEach(function(r) {
     var out = r.outcome || 'Pending';
     var cls = out === 'Received' ? 'received' : (out === 'Declined' ? 'declined' : 'pending');
@@ -618,11 +621,40 @@ function renderLog(rows) {
       '<td>' + (out === 'Pending'
         ? '<button class="btn btn-secondary btn-small" onclick="markReceived(\'' + esc(r.reviewId) + '\',this)">Received</button>'
         : '') + '</td>' +
+      '<td><button class="btn btn-remove btn-small" onclick="removeAsk(\'' + esc(r.reviewId) + '\',this)">Remove</button></td>' +
     '</tr>';
   });
   html += '</table>';
   if (rows.length > 25) html += '<div class="hint">Showing the 25 most recent of ' + rows.length + '. The full log is the Reviews tab in the master sheet.</div>';
   wrap.innerHTML = html;
+}
+
+// Two-step remove: first click arms the button, second click deletes.
+// No browser confirm dialog, deliberately.
+function removeAsk(reviewId, btn) {
+  if (btn.dataset.armed !== '1') {
+    btn.dataset.armed = '1';
+    btn.classList.add('arm');
+    btn.textContent = 'Delete?';
+    setTimeout(function(){
+      if (btn.dataset.armed === '1') {
+        btn.dataset.armed = '0';
+        btn.classList.remove('arm');
+        btn.textContent = 'Remove';
+      }
+    }, 4000);
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Removing…';
+  fetch(GAS_URL, {
+    method: 'POST', mode: 'no-cors',
+    body: JSON.stringify({ action: 'deleteReview', token: GAS_TOKEN, reviewId: reviewId })
+  }).catch(function(){});
+  PENDING_ROWS = PENDING_ROWS.filter(function(r){ return r.reviewId !== reviewId; });
+  SERVER_ROWS  = SERVER_ROWS.filter(function(r){ return r.reviewId !== reviewId; });
+  renderLog(PENDING_ROWS.concat(SERVER_ROWS));
+  setTimeout(function(){ loadStats(); loadLog(); }, 2500);
 }
 
 function markReceived(reviewId, btn) {
