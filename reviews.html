@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Reviews | Property Bureau</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#2c3e50;min-height:100vh}
+    header{background:#1a2332;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+    header img{height:36px;filter:brightness(0) invert(1)}
+    header a{color:#c9a84c;font-size:13px;font-weight:700;text-decoration:none}
+    header a:hover{text-decoration:underline}
+    .user-badge{color:#c9a84c;font-size:12px;font-weight:600}
+    .signout-link{color:rgba(255,255,255,.45)!important;font-size:12px!important;font-weight:400!important}
+    .page-title{background:#1a2332;color:#fff;padding:18px 24px 22px;border-bottom:3px solid #c9a84c}
+    .page-title h1{font-size:20px;font-weight:700}
+    .page-title p{font-size:13px;opacity:.7;margin-top:4px}
+    .container{max-width:820px;margin:28px auto;padding:0 16px 60px}
+    .card{background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.08);margin-bottom:20px;overflow:hidden}
+    .card-header{background:#f8f9fb;border-bottom:1px solid #e8ecf0;padding:14px 20px;font-size:13px;font-weight:700;color:#1a2332;text-transform:uppercase;letter-spacing:.5px}
+    .card-body{padding:20px}
+    .field{display:flex;flex-direction:column;gap:5px}
+    .field label{font-size:12px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.4px}
+    .field input,.field select,.field textarea{border:1px solid #d1d9e0;border-radius:5px;padding:9px 12px;font-size:14px;font-family:inherit;background:#fff;color:#2c3e50}
+    .field input:focus,.field select:focus{outline:none;border-color:#1a2332}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+    .form-row.three{grid-template-columns:1fr 1fr 1fr}
+    @media(max-width:620px){.form-row,.form-row.three{grid-template-columns:1fr}}
+    .hint{font-size:12px;color:#888;margin-top:6px;line-height:1.5}
+    .btn{padding:11px 22px;border-radius:5px;font-size:14px;font-weight:700;border:none;cursor:pointer}
+    .btn:hover{opacity:.85}
+    .btn-primary{background:#1a2332;color:#fff}
+    .btn-secondary{background:#fff;color:#1a2332;border:2px solid #1a2332}
+    .btn-small{padding:7px 14px;font-size:12px}
+
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+    @media(max-width:620px){.stats{grid-template-columns:repeat(2,1fr)}}
+    .stat{background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.08);padding:16px;text-align:center}
+    .stat .n{font-size:26px;font-weight:700;color:#1a2332;line-height:1.1}
+    .stat .l{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-top:4px}
+    .stat.warn .n{color:#b45309}
+    .stat.good .n{color:#16a34a}
+
+    .linkrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid #f0f2f5}
+    .linkrow:last-child{border-bottom:none}
+    .linkrow .tag{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#1a2332;min-width:78px}
+    .linkrow code{font-size:12.5px;background:#f5f7fa;border:1px solid #e8ecf0;border-radius:4px;padding:5px 8px;flex:1;min-width:200px;word-break:break-all;color:#1a2332}
+
+    .moment{border:1px solid #e8ecf0;border-radius:6px;margin-bottom:14px;overflow:hidden}
+    .moment h3{font-size:14px;color:#1a2332;padding:12px 16px;background:#f8f9fb;border-bottom:1px solid #e8ecf0}
+    .moment .when{font-size:12px;color:#b45309;padding:10px 16px 0;font-weight:600}
+    .moment .msg{font-size:13.5px;line-height:1.6;color:#444;padding:8px 16px 12px;white-space:pre-wrap}
+    .moment .act{padding:0 16px 14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .moment .ok{font-size:12px;color:#16a34a;font-weight:700;display:none}
+
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;border-bottom:1px solid #e8ecf0;padding:8px 6px}
+    td{padding:9px 6px;border-bottom:1px solid #f2f4f7;vertical-align:middle}
+    .pill{font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px;display:inline-block}
+    .pill.pending{background:#fef3c7;color:#92400e}
+    .pill.received{background:#dcfce7;color:#166534}
+    .pill.declined{background:#f3f4f6;color:#6b7280}
+    .empty{font-size:13px;color:#888;padding:14px 0}
+    .rules{font-size:13px;line-height:1.7;color:#444}
+    .rules strong{color:#1a2332}
+
+    /* Login Overlay (identical pattern to form.html / dashboard.html) */
+    .lo{position:fixed;inset:0;background:#1a2332;z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px}
+    .lc{background:#fff;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.35);width:min(420px,100%);padding:36px 40px}
+    @media(max-width:480px){.lc{padding:28px 22px}}
+    .l-logo{text-align:center;margin-bottom:26px}
+    .l-logo img{height:42px}
+    .l-title{font-size:22px;font-weight:700;color:#1a2332;margin-bottom:6px}
+    .l-sub{font-size:13px;color:#888;margin-bottom:22px;line-height:1.5}
+    .l-welcome{font-size:16px;font-weight:700;color:#1a2332;margin-bottom:6px}
+    .l-field{margin-bottom:14px}
+    .l-field label{display:block;font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+    .l-field input{width:100%;border:1.5px solid #d1d9e0;border-radius:5px;padding:11px 14px;font-size:14px;font-family:inherit;color:#2c3e50}
+    .l-field input:focus{outline:none;border-color:#1a2332}
+    .l-btn{width:100%;padding:13px;background:#1a2332;color:#fff;border:none;border-radius:5px;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px}
+    .l-btn:hover{opacity:.9}
+    .l-btn:disabled{opacity:.55;cursor:default}
+    .l-err{color:#e74c3c;font-size:13px;margin-top:10px;display:none;line-height:1.4}
+    .l-back{display:block;text-align:center;font-size:12px;color:#aaa;margin-top:14px;background:none;border:none;font-family:inherit;cursor:pointer;padding:0;width:100%}
+    .l-back:hover{color:#1a2332}
+  </style>
+</head>
+<body>
+
+<!-- LOGIN OVERLAY -->
+<div class="lo" id="login-overlay">
+  <div class="lc">
+    <div class="l-logo">
+      <img src="https://propertybureau.co.za/wp-content/uploads/2026/03/PropertyBureauLogo-1.svg" alt="Property Bureau" onerror="this.style.display='none'"/>
+    </div>
+    <div id="ls1">
+      <div class="l-title">Sign In</div>
+      <div class="l-sub">Property Bureau Platform</div>
+      <div class="l-field">
+        <label>Email Address</label>
+        <input type="email" id="l-email" placeholder="you@propertybureau.co.za" autocomplete="email"/>
+      </div>
+      <button class="l-btn" id="ls1-btn" onclick="loginStep1()">Continue &rarr;</button>
+      <div class="l-err" id="ls1-err"></div>
+    </div>
+    <div id="ls2a" style="display:none">
+      <div class="l-welcome" id="ls2a-name"></div>
+      <div class="l-sub">First time logging in. Create a password to continue.</div>
+      <div class="l-field">
+        <label>Create Password</label>
+        <input type="password" id="l-p1" placeholder="At least 8 characters" autocomplete="new-password"/>
+      </div>
+      <div class="l-field">
+        <label>Confirm Password</label>
+        <input type="password" id="l-p2" autocomplete="new-password"/>
+      </div>
+      <button class="l-btn" id="ls2a-btn" onclick="loginSetPassword()">Set Password &amp; Sign In</button>
+      <div class="l-err" id="ls2a-err"></div>
+      <button class="l-back" onclick="resetLogin()">&larr; Use a different email</button>
+    </div>
+    <div id="ls2b" style="display:none">
+      <div class="l-welcome" id="ls2b-name"></div>
+      <div class="l-sub">Enter your password to continue.</div>
+      <div class="l-field">
+        <label>Password</label>
+        <input type="password" id="l-p3" placeholder="Your password" autocomplete="current-password"/>
+      </div>
+      <button class="l-btn" id="ls2b-btn" onclick="loginWithPassword()">Sign In</button>
+      <div class="l-err" id="ls2b-err"></div>
+      <button class="l-back" onclick="resetLogin()">&larr; Use a different email</button>
+    </div>
+  </div>
+</div>
+<!-- END LOGIN OVERLAY -->
+
+<header>
+  <img src="https://propertybureau.co.za/wp-content/uploads/2026/03/PropertyBureauLogo-1.svg" alt="Property Bureau" onerror="this.style.display='none'"/>
+  <div style="display:flex;gap:18px;align-items:center">
+    <a href="platform_hub.html">&#8962; Platform Hub</a>
+    <a href="dashboard.html">Dashboard &rarr;</a>
+    <span class="user-badge" id="user-badge"></span>
+    <a href="#" class="signout-link" id="signout-link" style="display:none" onclick="doLogout();return false">Sign out</a>
+  </div>
+</header>
+
+<div class="page-title">
+  <h1>Reviews</h1>
+  <p>Ask at the moment of relief, not the moment of effort. One button copies the message and logs the ask.</p>
+</div>
+
+<div class="container">
+
+  <div class="stats">
+    <div class="stat"><div class="n" id="s-90">&ndash;</div><div class="l">Asked (90 days)</div></div>
+    <div class="stat good"><div class="n" id="s-rec">&ndash;</div><div class="l">Received</div></div>
+    <div class="stat"><div class="n" id="s-7">&ndash;</div><div class="l">Asked (7 days)</div></div>
+    <div class="stat warn"><div class="n" id="s-wait">&ndash;</div><div class="l">No reply &gt;7d</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">The links</div>
+    <div class="card-body">
+      <div class="linkrow">
+        <span class="tag">Google</span>
+        <code id="link-google">https://g.page/r/CdgkV20WXitZEBM/review</code>
+        <button class="btn btn-secondary btn-small" onclick="copyText(GOOGLE_LINK,this)">Copy</button>
+        <a class="btn btn-secondary btn-small" href="https://g.page/r/CdgkV20WXitZEBM/review" target="_blank" rel="noopener" style="text-decoration:none">Open</a>
+      </div>
+      <div class="linkrow">
+        <span class="tag">Trustpilot</span>
+        <code id="link-tp">https://www.trustpilot.com/evaluate/propertybureau.co.za</code>
+        <button class="btn btn-secondary btn-small" onclick="copyText(TP_LINK,this)">Copy</button>
+        <a class="btn btn-secondary btn-small" href="https://www.trustpilot.com/evaluate/propertybureau.co.za" target="_blank" rel="noopener" style="text-decoration:none">Open</a>
+      </div>
+      <div class="hint">Google is the priority. Trustpilot needs two reviews in total, not fifty.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Who are you asking?</div>
+    <div class="card-body">
+      <div class="form-row three">
+        <div class="field">
+          <label>First name</label>
+          <input type="text" id="f-name" placeholder="Sarah" autocomplete="off"/>
+        </div>
+        <div class="field">
+          <label>Property or L code</label>
+          <input type="text" id="f-prop" placeholder="29 Kensington" autocomplete="off"/>
+        </div>
+        <div class="field">
+          <label>Asking the</label>
+          <select id="f-role">
+            <option value="Tenant">Tenant</option>
+            <option value="Landlord">Landlord</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Job ID (optional)</label>
+          <input type="text" id="f-job" placeholder="PB-20260626-7029" autocomplete="off"/>
+        </div>
+        <div class="field">
+          <label>Platform</label>
+          <select id="f-platform">
+            <option value="Google">Google</option>
+            <option value="Trustpilot">Trustpilot</option>
+          </select>
+        </div>
+      </div>
+      <div class="hint">The first name is used in the message only. It is not saved to the log: the log records the property, whether it was the tenant or the landlord, and who asked.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">The four moments</div>
+    <div class="card-body" id="moments"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Two rules</div>
+    <div class="card-body rules">
+      <strong>Never ask anyone in arrears, in a dispute, or mid complaint.</strong> Fix that first.<br/>
+      <strong>Never ask the same person twice.</strong> Check the log below before you ask.
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Recent asks</div>
+    <div class="card-body">
+      <div id="log-wrap"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
+
+</div>
+
+<textarea id="clip-fallback" style="position:fixed;left:-9999px;top:0;opacity:0" aria-hidden="true"></textarea>
+
+<script>
+// CONFIG
+var GAS_URL   = 'https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5jTsiMRgkv7QPDcmeqcNEAAhFXHW_OwR0-4o0qEtoCkCGjraSA/exec';
+var GAS_TOKEN = 'PBmaint2026';
+var GOOGLE_LINK = 'https://g.page/r/CdgkV20WXitZEBM/review';
+var TP_LINK     = 'https://www.trustpilot.com/evaluate/propertybureau.co.za';
+
+// SESSION AND LOGIN (same pattern as form.html)
+function getSession() {
+  try {
+    var s = localStorage.getItem('pb_session');
+    if (!s) return null;
+    var p = JSON.parse(s);
+    if (Date.now() > p.expiry) { localStorage.removeItem('pb_session'); return null; }
+    return p;
+  } catch(e) { return null; }
+}
+function saveSession(email, displayName, role) {
+  localStorage.setItem('pb_session', JSON.stringify({
+    email: email, displayName: displayName, role: role,
+    expiry: Date.now() + 8 * 60 * 60 * 1000
+  }));
+}
+function doLogout() { localStorage.removeItem('pb_session'); location.reload(); }
+
+(function initLogin() {
+  var sess = getSession();
+  if (sess) { showMainContent(sess); }
+  else {
+    document.getElementById('login-overlay').style.display = 'flex';
+    setTimeout(function(){ document.getElementById('l-email').focus(); }, 80);
+  }
+})();
+
+function showMainContent(sess) {
+  document.getElementById('login-overlay').style.display = 'none';
+  var badge = document.getElementById('user-badge');
+  if (badge) badge.textContent = sess.displayName || sess.email;
+  var signout = document.getElementById('signout-link');
+  if (signout) signout.style.display = 'inline';
+  loadStats();
+  loadLog();
+}
+
+var loginEmail = '', loginDisplayName = '';
+
+async function loginStep1() {
+  var email = document.getElementById('l-email').value.trim().toLowerCase();
+  var err = document.getElementById('ls1-err');
+  var btn = document.getElementById('ls1-btn');
+  err.style.display = 'none';
+  if (!email || email.indexOf('@') === -1) {
+    err.textContent = 'Please enter a valid email address.'; err.style.display = 'block'; return;
+  }
+  btn.textContent = 'Checking…'; btn.disabled = true;
+  try {
+    var res = await fetch(GAS_URL + '?action=checkEmail&email=' + encodeURIComponent(email) + '&token=' + GAS_TOKEN, { redirect: 'follow' });
+    var data = await res.json();
+    btn.textContent = 'Continue →'; btn.disabled = false;
+    if (!data.exists) {
+      err.textContent = 'Email not recognised. Ask your administrator to add you to the system.';
+      err.style.display = 'block'; return;
+    }
+    if (data.active === false) {
+      err.textContent = 'Your account is deactivated. Contact your administrator.';
+      err.style.display = 'block'; return;
+    }
+    loginEmail = email;
+    loginDisplayName = data.displayName || email;
+    document.getElementById('ls1').style.display = 'none';
+    if (!data.hasPassword) {
+      document.getElementById('ls2a-name').textContent = 'Welcome, ' + loginDisplayName + '!';
+      document.getElementById('ls2a').style.display = 'block';
+      setTimeout(function(){ document.getElementById('l-p1').focus(); }, 80);
+    } else {
+      document.getElementById('ls2b-name').textContent = 'Welcome back, ' + loginDisplayName + '!';
+      document.getElementById('ls2b').style.display = 'block';
+      setTimeout(function(){ document.getElementById('l-p3').focus(); }, 80);
+    }
+  } catch(e) {
+    btn.textContent = 'Continue →'; btn.disabled = false;
+    err.textContent = 'Connection error. Please try again.'; err.style.display = 'block';
+  }
+}
+
+async function loginSetPassword() {
+  var pass1 = document.getElementById('l-p1').value;
+  var pass2 = document.getElementById('l-p2').value;
+  var err = document.getElementById('ls2a-err');
+  var btn = document.getElementById('ls2a-btn');
+  err.style.display = 'none';
+  if (pass1.length < 8) { err.textContent = 'Password must be at least 8 characters.'; err.style.display = 'block'; return; }
+  if (pass1 !== pass2)  { err.textContent = 'Passwords do not match.'; err.style.display = 'block'; return; }
+  btn.textContent = 'Setting password…'; btn.disabled = true;
+  try {
+    var res = await fetch(GAS_URL + '?action=setPassword&email=' + encodeURIComponent(loginEmail) + '&password=' + encodeURIComponent(pass1) + '&token=' + GAS_TOKEN, { redirect: 'follow' });
+    var data = await res.json();
+    btn.textContent = 'Set Password & Sign In'; btn.disabled = false;
+    if (!data.success) { err.textContent = data.error || 'Failed to set password. Please try again.'; err.style.display = 'block'; return; }
+    saveSession(loginEmail, loginDisplayName, data.role || 'staff');
+    showMainContent(getSession());
+  } catch(e) {
+    btn.textContent = 'Set Password & Sign In'; btn.disabled = false;
+    err.textContent = 'Connection error. Please try again.'; err.style.display = 'block';
+  }
+}
+
+async function loginWithPassword() {
+  var pass = document.getElementById('l-p3').value;
+  var err = document.getElementById('ls2b-err');
+  var btn = document.getElementById('ls2b-btn');
+  err.style.display = 'none';
+  if (!pass) { err.textContent = 'Please enter your password.'; err.style.display = 'block'; return; }
+  btn.textContent = 'Signing in…'; btn.disabled = true;
+  try {
+    var res = await fetch(GAS_URL + '?action=login&email=' + encodeURIComponent(loginEmail) + '&password=' + encodeURIComponent(pass) + '&token=' + GAS_TOKEN, { redirect: 'follow' });
+    var data = await res.json();
+    btn.textContent = 'Sign In'; btn.disabled = false;
+    if (!data.success) { err.textContent = 'Incorrect password. Please try again.'; err.style.display = 'block'; return; }
+    saveSession(loginEmail, data.displayName || loginDisplayName, data.role || 'staff');
+    showMainContent(getSession());
+  } catch(e) {
+    btn.textContent = 'Sign In'; btn.disabled = false;
+    err.textContent = 'Connection error. Please try again.'; err.style.display = 'block';
+  }
+}
+
+function resetLogin() {
+  loginEmail = ''; loginDisplayName = '';
+  document.getElementById('ls2a').style.display = 'none';
+  document.getElementById('ls2b').style.display = 'none';
+  document.getElementById('ls1').style.display  = 'block';
+  document.getElementById('ls1-err').style.display = 'none';
+  setTimeout(function(){ document.getElementById('l-email').focus(); }, 80);
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Enter') return;
+  if (document.getElementById('login-overlay').style.display === 'none') return;
+  if (document.getElementById('ls1').style.display  !== 'none') { loginStep1(); return; }
+  if (document.getElementById('ls2a').style.display !== 'none') { loginSetPassword(); return; }
+  if (document.getElementById('ls2b').style.display !== 'none') { loginWithPassword(); return; }
+});
+
+// THE FOUR MOMENTS
+var MOMENTS = [
+  {
+    key: 'Renewal',
+    role: 'Landlord',
+    title: '1. Lease renewal or fast placement',
+    when: 'Ask 24 hours after the renewal is signed, or after the new tenant moves in on time. Never during the negotiation.',
+    body: function(n, p) {
+      return 'Hi ' + n + ', glad to see ' + p + ' secured for another strong term with zero vacancy lag. ' +
+        'Managing renewals smoothly is our priority. If you’ve been happy with how we’ve protected your asset this year, ' +
+        'a quick Google review helps other local landlords find us: ';
+    }
+  },
+  {
+    key: 'Deposit',
+    role: 'Tenant',
+    title: '2. Full deposit refunded fast',
+    when: 'Ask in the same message that confirms the transfer has gone out.',
+    body: function(n, p) {
+      return 'Hi ' + n + ', just confirming your full deposit has been processed and is on its way back to you. ' +
+        'Moving out is stressful, so we aim to make deposit returns as seamless as possible. ' +
+        'If our team made your tenancy a good experience, we’d really appreciate a quick Google review: ';
+    }
+  },
+  {
+    key: 'Upgrade',
+    role: 'Tenant',
+    title: '3. An upgrade we won for them',
+    when: 'Ask 48 hours after the work is finished and they have had use of it. Not while contractors are on site.',
+    body: function(n, p) {
+      return 'Hi ' + n + ', the work at ' + p + ' is finished and I hope the place feels like a fresh start. ' +
+        'We put the case to the owner on your behalf because it was the right call for you and for the property. ' +
+        'If we’ve been straightforward to deal with, a quick Google review would mean a lot: ';
+    }
+  },
+  {
+    key: 'Fixed',
+    role: 'Tenant',
+    title: '4. A problem fixed properly',
+    when: 'Ask when you close the job off, once they have confirmed it is working.',
+    body: function(n, p) {
+      return 'Hi ' + n + ', glad that’s sorted and working properly again. ' +
+        'Thanks for reporting it early, it makes a real difference. ' +
+        'If we handled it the way you’d want, a quick Google review helps other tenants and landlords know what to expect from us: ';
+    }
+  },
+  {
+    key: 'Long-running',
+    role: 'Tenant',
+    title: '5. A long running problem finally put to bed',
+    when: 'Ask when the final item closes out, in the message that confirms it.',
+    body: function(n, p) {
+      return 'Hi ' + n + ', that closes out the last of the issues at ' + p + '. ' +
+        'Thank you for your patience while we worked through it, it took longer than any of us wanted and you were fair with us throughout. ' +
+        'If you feel we stayed on it and got it right, a quick Google review would help other tenants and landlords know what to expect from us: ';
+    }
+  }
+];
+
+function currentLink() {
+  return document.getElementById('f-platform').value === 'Trustpilot' ? TP_LINK : GOOGLE_LINK;
+}
+function fieldName() { return document.getElementById('f-name').value.trim() || '[Name]'; }
+function fieldProp() { return document.getElementById('f-prop').value.trim() || '[Property]'; }
+
+function messageFor(m) {
+  return m.body(fieldName(), fieldProp()) + currentLink();
+}
+
+function renderMoments() {
+  var wrap = document.getElementById('moments');
+  wrap.innerHTML = MOMENTS.map(function(m, i) {
+    return '<div class="moment">' +
+      '<h3>' + m.title + '</h3>' +
+      '<div class="when">' + m.when + '</div>' +
+      '<div class="msg" id="msg-' + i + '"></div>' +
+      '<div class="act">' +
+        '<button class="btn btn-primary btn-small" onclick="copyAndLog(' + i + ',this)">Copy message and log the ask</button>' +
+        '<button class="btn btn-secondary btn-small" onclick="copyOnly(' + i + ',this)">Copy only</button>' +
+        '<span class="ok" id="ok-' + i + '">Logged</span>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  refreshPreviews();
+}
+
+function refreshPreviews() {
+  MOMENTS.forEach(function(m, i) {
+    var el = document.getElementById('msg-' + i);
+    if (el) el.textContent = messageFor(m);
+  });
+}
+
+['f-name','f-prop','f-platform'].forEach(function(id) {
+  document.getElementById(id).addEventListener('input', refreshPreviews);
+  document.getElementById(id).addEventListener('change', refreshPreviews);
+});
+
+// CLIPBOARD: works on http as well as https
+function copyText(text, btn) {
+  var done = false;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text);
+      done = true;
+    }
+  } catch(e) { done = false; }
+  if (!done) {
+    var ta = document.getElementById('clip-fallback');
+    ta.value = text;
+    ta.select();
+    try { done = document.execCommand('copy'); } catch(e) { done = false; }
+  }
+  if (btn) {
+    var original = btn.textContent;
+    btn.textContent = done ? 'Copied' : 'Select and copy manually';
+    setTimeout(function(){ btn.textContent = original; }, 1800);
+  }
+  return done;
+}
+
+function copyOnly(i, btn) {
+  copyText(messageFor(MOMENTS[i]), btn);
+}
+
+function copyAndLog(i, btn) {
+  var m = MOMENTS[i];
+  copyText(messageFor(m), btn);
+  logAsk(m, i);
+}
+
+// LOG THE ASK
+function newReviewId() {
+  var d = new Date();
+  var ds = d.getFullYear().toString() +
+    ('0' + (d.getMonth() + 1)).slice(-2) +
+    ('0' + d.getDate()).slice(-2);
+  return 'RV-' + ds + '-' + Math.floor(1000 + Math.random() * 9000);
+}
+function todayISO() {
+  var d = new Date();
+  return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+}
+
+function logAsk(m, i) {
+  var sess = getSession();
+  var prop = document.getElementById('f-prop').value.trim();
+  var code = /^[Ll]\s?\d+/.test(prop) ? prop : '';
+  var payload = {
+    action: 'addReview',
+    token: GAS_TOKEN,
+    reviewId: newReviewId(),
+    dateAsked: todayISO(),
+    moment: m.key,
+    clientCode: code,
+    property: prop,
+    jobId: document.getElementById('f-job').value.trim(),
+    askedOf: document.getElementById('f-role').value,
+    platform: document.getElementById('f-platform').value,
+    askedBy: sess ? (sess.displayName || sess.email) : '',
+    notes: ''
+  };
+
+  fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) })
+    .catch(function(){ /* no-cors gives no readable response either way */ });
+
+  var ok = document.getElementById('ok-' + i);
+  if (ok) { ok.style.display = 'inline'; setTimeout(function(){ ok.style.display = 'none'; }, 2600); }
+
+  PENDING_ROWS.unshift({
+    reviewId: payload.reviewId, dateAsked: payload.dateAsked, moment: payload.moment,
+    property: payload.property, askedOf: payload.askedOf, platform: payload.platform,
+    askedBy: payload.askedBy, outcome: 'Pending'
+  });
+  renderLog(PENDING_ROWS.concat(SERVER_ROWS));
+  setTimeout(function(){ loadStats(); loadLog(); }, 2500);
+}
+
+// READ BACK
+var SERVER_ROWS = [], PENDING_ROWS = [];
+
+function loadStats() {
+  fetch(GAS_URL + '?action=reviewStats&token=' + GAS_TOKEN)
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d || !d.success) return;
+      document.getElementById('s-90').textContent  = d.asked90;
+      document.getElementById('s-rec').textContent = d.received;
+      document.getElementById('s-7').textContent   = d.asked7;
+      document.getElementById('s-wait').textContent = d.waiting;
+    })
+    .catch(function(){});
+}
+
+function loadLog() {
+  fetch(GAS_URL + '?action=getReviews&token=' + GAS_TOKEN)
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d || !d.success) throw new Error('no data');
+      SERVER_ROWS = d.reviews || [];
+      var have = {};
+      SERVER_ROWS.forEach(function(r){ have[r.reviewId] = true; });
+      PENDING_ROWS = PENDING_ROWS.filter(function(r){ return !have[r.reviewId]; });
+      renderLog(PENDING_ROWS.concat(SERVER_ROWS));
+    })
+    .catch(function(){
+      document.getElementById('log-wrap').innerHTML =
+        '<div class="empty">Could not load the log. The asks you just made are still recorded.</div>';
+    });
+}
+
+function esc(s) {
+  return String(s === null || s === undefined ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderLog(rows) {
+  var wrap = document.getElementById('log-wrap');
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="empty">No asks logged yet. The first one goes in above.</div>';
+    return;
+  }
+  var html = '<table><tr><th>Date</th><th>Property</th><th>Moment</th><th>Asked</th><th>By</th><th>Status</th><th></th></tr>';
+  rows.slice(0, 25).forEach(function(r) {
+    var out = r.outcome || 'Pending';
+    var cls = out === 'Received' ? 'received' : (out === 'Declined' ? 'declined' : 'pending');
+    html += '<tr>' +
+      '<td>' + esc(r.dateAsked) + '</td>' +
+      '<td>' + esc(r.property) + '</td>' +
+      '<td>' + esc(r.moment) + '</td>' +
+      '<td>' + esc(r.askedOf) + '</td>' +
+      '<td>' + esc(r.askedBy) + '</td>' +
+      '<td><span class="pill ' + cls + '">' + esc(out) + '</span></td>' +
+      '<td>' + (out === 'Pending'
+        ? '<button class="btn btn-secondary btn-small" onclick="markReceived(\'' + esc(r.reviewId) + '\',this)">Received</button>'
+        : '') + '</td>' +
+    '</tr>';
+  });
+  html += '</table>';
+  if (rows.length > 25) html += '<div class="hint">Showing the 25 most recent of ' + rows.length + '. The full log is the Reviews tab in the master sheet.</div>';
+  wrap.innerHTML = html;
+}
+
+function markReceived(reviewId, btn) {
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  fetch(GAS_URL, {
+    method: 'POST', mode: 'no-cors',
+    body: JSON.stringify({ action: 'updateReview', token: GAS_TOKEN, reviewId: reviewId, outcome: 'Received' })
+  }).catch(function(){});
+  setTimeout(function(){ loadStats(); loadLog(); }, 2500);
+}
+
+renderMoments();
+</script>
+</body>
+</html>
