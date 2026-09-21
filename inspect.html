@@ -166,7 +166,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.8</b> · 21.09.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.8.1</b> · 21.09.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -185,7 +185,7 @@
     </div>
     <div class="card" id="renCard" style="display:none">
       <h2>Renewal terms</h2>
-      <div class="small muted" style="margin-bottom:8px">Printed at the top of the report. Fill in what was agreed.</div>
+      <div class="small muted" style="margin-bottom:8px">Printed at the top of the report. Enter the current rent and EITHER the increase % OR the new rent. The other one fills in by itself.</div>
       <div class="ren-grid">
         <div><label>Current rent</label><input type="text" id="rCur" inputmode="decimal" placeholder="R" oninput="renSet('cur',this.value)"></div>
         <div><label>New rent</label><input type="text" id="rNew" inputmode="decimal" placeholder="R" oninput="renSet('nw',this.value)"></div>
@@ -925,15 +925,21 @@ var PRE=(function(){ var o={}; try{ new URLSearchParams(location.search).forEach
 function renNum(v){ var x=parseFloat(String(v||'').replace(/[^0-9.]/g,'')); return isNaN(x)?null:x; }
 function renMoney(v){ var x=renNum(v); return x===null? String(v) : 'R'+x.toLocaleString('en-ZA',{maximumFractionDigits:2}).replace(/\u00a0/g,' '); }
 function renCalc(){
+  /* v1.8.1: order-independent. Whichever of % or new rent the user typed last is the source;
+     the other is worked out whenever current rent and the source are both present. */
   var R=cur.ren, a=renNum(R.cur), b=renNum(R.nw), p=renNum(R.pct);
-  if(R._last!=='pct' && a && b){ R.pct=(Math.round((b/a-1)*1000)/10).toString(); }
-  else if(R._last==='pct' && a && p!==null){ R.nw=(Math.round(a*(1+p/100)*100)/100).toString(); }
+  var src=R.src || (p!==null ? 'pct' : (b!==null ? 'nw' : ''));
+  if(src==='pct' && a && p!==null){ R.nw=(Math.round(a*(1+p/100)*100)/100).toString(); }
+  else if(src==='nw' && a && b!==null){ R.pct=(Math.round((b/a-1)*1000)/10).toString(); }
 }
 function renSet(k,v){
   if(!cur) return; if(!cur.ren) cur.ren={cur:'',nw:'',pct:'',eff:'',agreed:''};
-  cur.ren[k]=v; if(k==='cur'||k==='nw'||k==='pct'){ cur.ren._last=k; renCalc();
-    if(k!=='pct') document.getElementById('rPct').value=cur.ren.pct||'';
-    if(k==='pct') document.getElementById('rNew').value=cur.ren.nw||''; }
+  cur.ren[k]=v;
+  if(k==='pct') cur.ren.src = String(v).trim() ? 'pct' : (renNum(cur.ren.nw)!==null ? 'nw' : '');
+  if(k==='nw')  cur.ren.src = String(v).trim() ? 'nw'  : (renNum(cur.ren.pct)!==null ? 'pct' : '');
+  if(k==='cur'||k==='nw'||k==='pct'){ renCalc();
+    if(k!=='nw') document.getElementById('rNew').value=cur.ren.nw||'';
+    if(k!=='pct') document.getElementById('rPct').value=cur.ren.pct||''; }
   save();
 }
 function renFill(){
