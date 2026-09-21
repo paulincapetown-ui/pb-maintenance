@@ -168,6 +168,7 @@
     <a class="nav-item" href="./dashboard.html">Jobs</a>
     <a class="nav-item" href="./reviews.html">Reviews</a>
     <a class="nav-item" id="nav-insp" onclick="showInspections()">Inspections</a>
+    <a class="nav-item" href="./inspect.html">Inspection App</a>
     <a class="nav-item" id="nav-ren" onclick="showRenewals()">Renewals</a>
     <div class="nav-group-label">Registries</div>
     <a class="nav-item" onclick="showList()">Landlords</a>
@@ -491,7 +492,7 @@ function showRenewals(){
   setNav('nav-ren');
   const openR = REN.filter(r=>(r.status||'').toLowerCase()!=='done').sort((a,b)=>String(a.leaseEnd).localeCompare(String(b.leaseEnd)));
   const cards = openR.length ? '<div class="table-wrap"><table><thead><tr><th>Code</th><th>Tenant</th><th>Lease end</th><th>Rent</th><th>Status</th><th></th></tr></thead><tbody>'+
-    openR.map(r=>`<tr><td><span class="code">${esc(r.clientCode)}</span></td><td>${esc(r.tenant)||'—'}</td><td>${fmtD(r.leaseEnd)}</td><td>${esc(r.rentCurrent)||'—'}${r.rentProposed?(' → '+esc(r.rentProposed)):''}</td><td>${esc(r.renewalStatus)||'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="editRenewal('${esc(r.renewalId)}')">Edit</button> <button class="btn btn-ghost btn-sm" onclick="markRenewalDone('${esc(r.renewalId)}')">Done</button></td></tr>`).join('')+'</tbody></table></div>'
+    openR.map(r=>`<tr><td><span class="code">${esc(r.clientCode)}</span></td><td>${esc(r.tenant)||'—'}</td><td>${fmtD(r.leaseEnd)}</td><td>${esc(r.rentCurrent)||'—'}${r.rentProposed?(' → '+esc(r.rentProposed)):''}</td><td>${esc(r.renewalStatus)||'—'}</td><td><a class="btn btn-ghost btn-sm" style="text-decoration:none" href="./inspect.html?type=Renewal&code=${encodeURIComponent(r.clientCode||'')}&tenant=${encodeURIComponent(r.tenant||'')}&rent=${encodeURIComponent(r.rentCurrent||'')}&newrent=${encodeURIComponent(r.rentProposed||'')}">Inspect</a> <button class="btn btn-ghost btn-sm" onclick="editRenewal('${esc(r.renewalId)}')">Edit</button> <button class="btn btn-ghost btn-sm" onclick="markRenewalDone('${esc(r.renewalId)}')">Done</button></td></tr>`).join('')+'</tbody></table></div>'
     : '<div class="empty">No upcoming renewals logged yet. Add the leases coming up for renewal.</div>';
   main.innerHTML=`<div class="page-title">Renewals</div><div class="page-sub">Leases coming up for renewal. ${openR.length} open · shown in Paul's 1pm digest.</div><button class="btn btn-primary" onclick="showRenewalForm()">+ Add renewal</button><div style="margin-top:14px">${cards}</div>`;
 }
@@ -529,9 +530,9 @@ function showInspections(){
   setNav('nav-insp');
   const openI = INS.filter(i=>(i.status||'').toLowerCase()!=='done').sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate)));
   const cards = openI.length ? '<div class="table-wrap"><table><thead><tr><th>Code</th><th>Tenant</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody>'+
-    openI.map(i=>`<tr><td><span class="code">${esc(i.clientCode)}</span></td><td>${esc(i.tenant)||'—'}</td><td>${fmtD(i.dueDate)}</td><td>${esc(i.inspectionStatus)||'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="editInspection('${esc(i.inspectionId)}')">Edit</button> <button class="btn btn-ghost btn-sm" onclick="markInspectionDone('${esc(i.inspectionId)}')">Done</button></td></tr>`).join('')+'</tbody></table></div>'
+    openI.map(i=>`<tr><td><span class="code">${esc(i.clientCode)}</span></td><td>${esc(i.tenant)||'—'}</td><td>${fmtD(i.dueDate)}</td><td>${esc(i.inspectionStatus)||'—'}</td><td><a class="btn btn-ghost btn-sm" style="text-decoration:none" href="./inspect.html?type=Routine&code=${encodeURIComponent(i.clientCode||'')}&tenant=${encodeURIComponent(i.tenant||'')}">Inspect</a> <button class="btn btn-ghost btn-sm" onclick="editInspection('${esc(i.inspectionId)}')">Edit</button> <button class="btn btn-ghost btn-sm" onclick="markInspectionDone('${esc(i.inspectionId)}')">Done</button></td></tr>`).join('')+'</tbody></table></div>'
     : '<div class="empty">No upcoming inspections logged yet. Add the inspections coming up.</div>';
-  main.innerHTML=`<div class="page-title">Inspections</div><div class="page-sub">Inspections coming up. ${openI.length} open · shown in Paul's 1pm digest.</div><button class="btn btn-primary" onclick="showInspectionForm()">+ Add inspection</button><div style="margin-top:14px">${cards}</div>`;
+  main.innerHTML=`<div class="page-title">Inspections</div><div class="page-sub">Inspections coming up. ${openI.length} open · shown in Paul's 1pm digest.</div><button class="btn btn-primary" onclick="showInspectionForm()">+ Add inspection</button> <a class="btn btn-primary" href="./inspect.html" style="text-decoration:none">Start an inspection</a><div style="margin-top:14px">${cards}</div>`;
 }
 function editInspection(id){ const rec=INS.find(x=>x.inspectionId===id); if(rec) showInspectionForm(rec.clientCode, rec); }
 function showInspectionForm(prefill, edit){

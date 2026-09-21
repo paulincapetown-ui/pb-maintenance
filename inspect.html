@@ -19,6 +19,9 @@
   .top .t{font-weight:700;font-size:16px;display:flex;align-items:center;gap:10px}
   .top .mark{width:26px;height:26px;border:2px solid #fff;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
   .top .s{font-size:11.5px;color:#a9b4c6;margin-top:1px}
+  .top .home{position:absolute;right:14px;top:14px;color:#fff;text-decoration:none;font-size:12.5px;font-weight:600;border:1.5px solid rgba(255,255,255,.55);border-radius:7px;padding:5px 10px}
+  .ren-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:420px){.ren-grid{grid-template-columns:1fr}}
   .wrap{padding:14px;max-width:640px;margin:0 auto}
   .screen{display:none}.screen.on{display:block}
   h2{font-size:17px;margin:6px 0 10px}
@@ -119,6 +122,7 @@
 <body>
 
 <div class="top">
+  <a class="home noprint" href="./platform_hub.html">&larr; Platform</a>
   <div class="t"><span class="mark">PB</span> <span id="topTitle">Inspections</span></div>
   <div class="s" id="topSub">The Property Bureau — on-site inspection tool</div>
 </div>
@@ -131,7 +135,7 @@
       <h2>New inspection</h2>
       <label>Inspection type</label>
       <select id="fType">
-        <option>Routine</option><option>Ingoing</option><option>Outgoing</option>
+        <option>Routine</option><option>Renewal</option><option>Ingoing</option><option>Outgoing</option>
       </select>
       <label>Property template</label>
       <div class="tpl-grid">
@@ -162,7 +166,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.7</b> · 14.07.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.8</b> · 21.09.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -178,6 +182,17 @@
         <button class="btn btn-ghost btn-sm" onclick="addRoom('toilet')">+ Separate toilet</button>
         <button class="btn btn-ghost btn-sm" onclick="addRoom('custom')">+ Other room</button>
       </div>
+    </div>
+    <div class="card" id="renCard" style="display:none">
+      <h2>Renewal terms</h2>
+      <div class="small muted" style="margin-bottom:8px">Printed at the top of the report. Fill in what was agreed.</div>
+      <div class="ren-grid">
+        <div><label>Current rent</label><input type="text" id="rCur" inputmode="decimal" placeholder="R" oninput="renSet('cur',this.value)"></div>
+        <div><label>New rent</label><input type="text" id="rNew" inputmode="decimal" placeholder="R" oninput="renSet('nw',this.value)"></div>
+        <div><label>Increase %</label><input type="text" id="rPct" inputmode="decimal" placeholder="e.g. 10" oninput="renSet('pct',this.value)"></div>
+        <div><label>Effective from</label><input type="date" id="rEff" oninput="renSet('eff',this.value)"></div>
+      </div>
+      <label>Agreed with</label><input type="text" id="rWith" placeholder="e.g. Maryke (landlord)" oninput="renSet('agreed',this.value)">
     </div>
     <div class="card">
       <h2>Overall notes</h2>
@@ -267,6 +282,7 @@ function loadRegistry(){
     document.getElementById('dlCode').innerHTML=hc;
     document.getElementById('dlAddr').innerHTML=ha;
     document.getElementById('dlTen').innerHTML=ht;
+    if(PRE.code) lkCode();
   });
 }
 function hint(p){ document.getElementById('lkHint').textContent = p? ('✓ '+(p.clientCode||'')+' — '+(p.address||'')) : ''; }
@@ -686,6 +702,8 @@ function startInspection(){
     rooms:buildRooms(pickedTpl),
     notes:'', meterE:'', meterW:'', sig:'', done:false
   };
+  if(cur.type==='Renewal') cur.ren={cur:PRE.rent||'', nw:PRE.newrent||'', pct:'', eff:'', agreed:''};
+  if(cur.ren) renCalc();
   save(); openInspect();
 }
 function resume(id){ cur = allSaved()[id]; if(!cur){toast('Could not load');return;} openInspect(); }
@@ -695,6 +713,7 @@ function openInspect(){
   document.getElementById('overallNotes').value = cur.notes||'';
   document.getElementById('mElec').value = cur.meterE||'';
   document.getElementById('mWater').value = cur.meterW||'';
+  renFill();
   renderRooms(); show('inspect'); updProg(); sigRestore();
 }
 
@@ -831,6 +850,16 @@ function makeReport(){
       '<div class="rep-kpi" style="cursor:pointer" onclick="jumpTo(\'qrySection\')"><div class="n" style="color:var(--amber)">'+n.qry+'</div><div class="l">To clarify ›</div></div>'+
       '<div class="rep-kpi"><div class="n">'+n.ph+'</div><div class="l">Photos</div></div>'+
     '</div>';
+  if(cur.type==='Renewal' && cur.ren && (cur.ren.cur||cur.ren.nw||cur.ren.pct||cur.ren.eff||cur.ren.agreed)){
+    var R=cur.ren;
+    h += '<div class="rep-room"><h3>Lease renewal</h3>';
+    if(R.cur) h += '<div class="rep-item"><span>Current rent</span><b>'+esc(renMoney(R.cur))+'</b></div>';
+    if(R.nw) h += '<div class="rep-item"><span>New rent</span><b>'+esc(renMoney(R.nw))+'</b></div>';
+    if(R.pct) h += '<div class="rep-item"><span>Increase</span><b>'+esc(String(R.pct).replace(/%/g,''))+'%</b></div>';
+    if(R.eff) h += '<div class="rep-item"><span>Effective from</span><b>'+fmtD(R.eff)+'</b></div>';
+    if(R.agreed) h += '<div class="rep-item"><span>Agreed with</span><b>'+esc(R.agreed)+'</b></div>';
+    h += '</div>';
+  }
   if(n.att){
     h += '<div class="rep-room" id="attSection"><h3>Items needing attention — tap one to jump to it</h3>';
     cur.rooms.forEach(function(r,ri){ r.items.forEach(function(i){
@@ -889,6 +918,38 @@ function pbNotifyOffice(){
   }catch(e){}
 }
 
+/* ================= v1.8 — Renewal inspections + opened from the Platform =================
+   The Platform Hub opens this page as inspect.html?code=L411&type=Renewal&rent=..&newrent=..
+   Nothing here changes filing: the report PDF and photos still go to SharePoint as before. */
+var PRE=(function(){ var o={}; try{ new URLSearchParams(location.search).forEach(function(v,k){o[k]=v;}); }catch(e){} return o; })();
+function renNum(v){ var x=parseFloat(String(v||'').replace(/[^0-9.]/g,'')); return isNaN(x)?null:x; }
+function renMoney(v){ var x=renNum(v); return x===null? String(v) : 'R'+x.toLocaleString('en-ZA',{maximumFractionDigits:2}).replace(/\u00a0/g,' '); }
+function renCalc(){
+  var R=cur.ren, a=renNum(R.cur), b=renNum(R.nw), p=renNum(R.pct);
+  if(R._last!=='pct' && a && b){ R.pct=(Math.round((b/a-1)*1000)/10).toString(); }
+  else if(R._last==='pct' && a && p!==null){ R.nw=(Math.round(a*(1+p/100)*100)/100).toString(); }
+}
+function renSet(k,v){
+  if(!cur) return; if(!cur.ren) cur.ren={cur:'',nw:'',pct:'',eff:'',agreed:''};
+  cur.ren[k]=v; if(k==='cur'||k==='nw'||k==='pct'){ cur.ren._last=k; renCalc();
+    if(k!=='pct') document.getElementById('rPct').value=cur.ren.pct||'';
+    if(k==='pct') document.getElementById('rNew').value=cur.ren.nw||''; }
+  save();
+}
+function renFill(){
+  var on = cur && cur.type==='Renewal';
+  document.getElementById('renCard').style.display = on?'block':'none';
+  if(!on) return; var R=cur.ren||{};
+  document.getElementById('rCur').value=R.cur||''; document.getElementById('rNew').value=R.nw||'';
+  document.getElementById('rPct').value=R.pct||''; document.getElementById('rEff').value=R.eff||'';
+  document.getElementById('rWith').value=R.agreed||'';
+}
+function applyPrefill(){
+  if(PRE.type){ var sel=document.getElementById('fType'); for(var i=0;i<sel.options.length;i++){ if(sel.options[i].text.toLowerCase()===PRE.type.toLowerCase()) sel.selectedIndex=i; } }
+  if(PRE.code){ document.getElementById('fCode').value=PRE.code.toUpperCase(); }
+  if(PRE.tenant && !document.getElementById('fTen').value){ document.getElementById('fTen').value=PRE.tenant; }
+}
+
 /* ================= Utils ================= */
 function jumpTo(id){ var el = document.getElementById(id); if(el) el.scrollIntoView({behavior:'smooth'}); }
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -906,7 +967,7 @@ function toast(msg){
 
 /* ================= Init ================= */
 document.getElementById('fDate').value = new Date().toISOString().slice(0,10);
-inspBoot(); loadRegistry(); sigInit(); spInit();
+applyPrefill(); inspBoot(); loadRegistry(); sigInit(); spInit();
 </script>
 
 </body>
