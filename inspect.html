@@ -166,7 +166,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.8.1</b> · 21.09.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.8.2</b> · 25.09.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -282,7 +282,10 @@ function loadRegistry(){
     document.getElementById('dlCode').innerHTML=hc;
     document.getElementById('dlAddr').innerHTML=ha;
     document.getElementById('dlTen').innerHTML=ht;
-    if(PRE.code) lkCode();
+    if(PRE.code){ var pc=document.getElementById('fCode').value.trim().toUpperCase();
+      if(PROPS.some(function(x){return (x.clientCode||'').toUpperCase()===pc;})) lkCode();
+      else if(PRE.full){ document.getElementById('fCode').value=''; document.getElementById('fAddr').value=PRE.full; } /* not a real file code after all: keep the whole text as the address */
+    }
   });
 }
 function hint(p){ document.getElementById('lkHint').textContent = p? ('✓ '+(p.clientCode||'')+' — '+(p.address||'')) : ''; }
@@ -293,7 +296,17 @@ function fillFrom(p, skip){
   if(skip!=='ten'){ var tcy=TENCY[p.currentTenancyCode], tn=tcy?TENMAP[tcy.tenantId]:null; if(tn&&tn.name) document.getElementById('fTen').value=tn.name; }
   hint(p);
 }
-function lkCode(){ var q=document.getElementById('fCode').value.trim().toUpperCase(); var p=PROPS.find(function(x){return (x.clientCode||'').toUpperCase()===q;}); if(p) fillFrom(p,'code'); }
+/* 25.09.2026: staff often type "L395 - 24 AINTREE AVENUE, OTTERY" or "✓ L401 ..." into a code box.
+   pbSplitCode pulls out the file code (L, H, F, C or G plus up to 3 digits, padded to 3) and returns
+   the rest separately, so lookups and SharePoint folder names use the clean code. No code found = code ''. */
+function pbSplitCode(s){
+  var t=String(s||'').replace(/^[\s✓✔*.\-]+/,'').replace(/^\([^)]{1,12}\)\s*/,'').trim(); /* also drops a short tag such as "(PAT)" */
+  var m=t.match(/^([LHFCG])\s*0*(\d{1,3})(?![0-9])\s*[-:,.]?\s*([\s\S]*)$/i);
+  if(!m) return {code:'', rest:t};
+  var n=m[2]; while(n.length<3) n='0'+n;
+  return {code:(m[1].toUpperCase()+n), rest:m[3].trim()};
+}
+function lkCode(){ var q=(pbSplitCode(document.getElementById('fCode').value).code||document.getElementById('fCode').value.trim().toUpperCase()); var p=PROPS.find(function(x){return (x.clientCode||'').toUpperCase()===q;}); if(p) fillFrom(p,'code'); }
 function lkAddr(){ var q=document.getElementById('fAddr').value.trim().toLowerCase(); if(q.length<4) return; var p=PROPS.find(function(x){return (x.address||'').toLowerCase()===q;}); if(p) fillFrom(p,'addr'); }
 function lkTen(){ var q=document.getElementById('fTen').value.trim().toLowerCase(); if(q.length<3) return; var m=TENLIST.find(function(x){return x.name.toLowerCase()===q;}); if(m) fillFrom(m.p,'ten'); }
 
@@ -411,9 +424,11 @@ function spUpload(item, tok){
   var body=item.buf||item.blob, size=item.buf? item.buf.byteLength : item.blob.size;
   var base='https://graph.microsoft.com/v1.0/drives/'+MSCONF.driveId+'/items/'+spRootFor(item)+':/'+encodeURIComponent(item.folder)+'/'+encodeURIComponent(item.fname)+':';
   if(size<3800000){
-    return fetch(base+'/content?@microsoft.graph.conflictBehavior=rename',{method:'PUT',headers:{Authorization:'Bearer '+tok,'Content-Type':item.mime||'application/octet-stream'},body:body}).then(function(r){ if(!r.ok) throw new Error('put '+r.status); });
+    /* 25.09.2026 v1.8.2: report PDFs REPLACE the previous copy (re-finishing must not leave "... 1.pdf" duplicates);
+     photos still RENAME on a clash, because an archived photo must never be overwritten (v1.6.4). */
+    return fetch(base+'/content'+(item.root==='REP'?'?@microsoft.graph.conflictBehavior=replace':'?@microsoft.graph.conflictBehavior=rename'),{method:'PUT',headers:{Authorization:'Bearer '+tok,'Content-Type':item.mime||'application/octet-stream'},body:body}).then(function(r){ if(!r.ok) throw new Error('put '+r.status); });
   }
-  return fetch(base+'/createUploadSession',{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({item:{'@microsoft.graph.conflictBehavior':'rename'}})})
+  return fetch(base+'/createUploadSession',{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({item:{'@microsoft.graph.conflictBehavior':(item.root==='REP'?'replace':'rename')}})})
     .then(function(r){ if(!r.ok) throw new Error('session '+r.status); return r.json(); })
     .then(function(s){
       var chunk=6553600, pos=0;
@@ -688,8 +703,9 @@ function pickTpl(el){
   el.classList.add('sel'); pickedTpl = parseInt(el.getAttribute('data-t'),10);
 }
 function startInspection(){
-  var code = document.getElementById('fCode').value.trim().toUpperCase();
-  var addr = document.getElementById('fAddr').value.trim();
+  var sp0 = pbSplitCode(document.getElementById('fCode').value);
+  var code = sp0.code || document.getElementById('fCode').value.trim().toUpperCase();
+  var addr = document.getElementById('fAddr').value.trim() || (sp0.code ? sp0.rest : '');
   if(!addr && !code){ toast('Enter at least the address or file code'); return; }
   var d = new Date();
   cur = {
@@ -952,7 +968,11 @@ function renFill(){
 }
 function applyPrefill(){
   if(PRE.type){ var sel=document.getElementById('fType'); for(var i=0;i<sel.options.length;i++){ if(sel.options[i].text.toLowerCase()===PRE.type.toLowerCase()) sel.selectedIndex=i; } }
-  if(PRE.code){ document.getElementById('fCode').value=PRE.code.toUpperCase(); }
+  if(PRE.code){ var sp=pbSplitCode(PRE.code);
+    if(sp.code){ document.getElementById('fCode').value=sp.code;
+      if(sp.rest){ PRE.full=String(PRE.code).replace(/^[\s\u2713\u2714*.\-]+/,'').trim(); if(!document.getElementById('fAddr').value) document.getElementById('fAddr').value=sp.rest; } }
+    else { if(!document.getElementById('fAddr').value) document.getElementById('fAddr').value=sp.rest; PRE.code=''; }
+  }
   if(PRE.tenant && !document.getElementById('fTen').value){ document.getElementById('fTen').value=PRE.tenant; }
 }
 

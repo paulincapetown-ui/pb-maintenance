@@ -287,6 +287,16 @@ function showMainContent(sess) {
 
 var loginEmail = '', loginDisplayName = '';
 
+/* 25.09.2026: name the step and the fault instead of one generic line. On 12.08.2026 the single
+   "Connection error" hid which of three faults it was and cost a day. Codes for Paul: NET = the platform
+   could not be reached; REPLY = it answered with something that is not data (the 12.08 fault: redeploy
+   the backend as a New version). */
+function pbConnErr(step, e){
+  var kind = (e && e.name==='SyntaxError') ? 'the platform sent back a page it could not read (code REPLY)'
+           : (e && e.name==='TypeError') ? 'the platform could not be reached from this device (code NET)'
+           : 'something unexpected went wrong (code ' + ((e && e.name) || 'ERR') + ')';
+  return 'Could not finish ' + step + ': ' + kind + '. Please try again. If it keeps happening, tell Paul the code.';
+}
 async function loginStep1() {
   var email = document.getElementById('l-email').value.trim().toLowerCase();
   var err = document.getElementById('ls1-err');
@@ -322,7 +332,7 @@ async function loginStep1() {
     }
   } catch(e) {
     btn.textContent = 'Continue →'; btn.disabled = false;
-    err.textContent = 'Connection error. Please try again.'; err.style.display = 'block';
+    err.textContent = pbConnErr('checking your email', e); err.style.display = 'block';
   }
 }
 
@@ -344,7 +354,7 @@ async function loginSetPassword() {
     showMainContent(getSession());
   } catch(e) {
     btn.textContent = 'Set Password & Sign In'; btn.disabled = false;
-    err.textContent = 'Connection error. Please try again.'; err.style.display = 'block';
+    err.textContent = pbConnErr('setting your password', e); err.style.display = 'block';
   }
 }
 
@@ -364,7 +374,7 @@ async function loginWithPassword() {
     showMainContent(getSession());
   } catch(e) {
     btn.textContent = 'Sign In'; btn.disabled = false;
-    err.textContent = 'Connection error. Please try again.'; err.style.display = 'block';
+    err.textContent = pbConnErr('signing in', e); err.style.display = 'block';
   }
 }
 
@@ -669,5 +679,6 @@ function markReceived(reviewId, btn) {
 
 renderMoments();
 </script>
+<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Reviews · build 25.09.2026</div>
 </body>
 </html>
