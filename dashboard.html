@@ -391,9 +391,14 @@ function getSession() {
   } catch(e) { return null; }
 }
 function saveSession(email, displayName, role) {
+  // Long session for Paul's own login only (26.09.2026, his explicit request, tied to
+  // the email address itself, not a checkbox anyone could tick). Every other email
+  // keeps the original 8-hour session, unconditionally, with no way to extend it.
+  const isPaul = String(email||'').toLowerCase() === 'paul@propertybureau.co.za';
+  const durationMs = isPaul ? (365 * 24 * 60 * 60 * 1000) : (8 * 60 * 60 * 1000);
   localStorage.setItem('pb_session', JSON.stringify({
     email, displayName, role,
-    expiry: Date.now() + 8 * 60 * 60 * 1000
+    expiry: Date.now() + durationMs
   }));
 }
 function doLogout() {
