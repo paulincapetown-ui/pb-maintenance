@@ -157,7 +157,7 @@
     </div>
     <div class="card" id="savedCard" style="display:none">
       <h2>Saved inspections</h2>
-      <div class="small muted" style="margin-bottom:4px">Stored on this phone. Finished ones can be reopened or re-printed any time.</div>
+      <div class="small muted" style="margin-bottom:4px">Latest first, stored on this phone. Tap Open to see what you put in, or re-print. Renewal terms also go to the Hub Renewals page, which you can open on any device.</div>
       <div id="savedList"></div>
     </div>
     <div class="card">
@@ -166,7 +166,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.8.2</b> · 25.09.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.8.3</b> · 28.09.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -193,6 +193,9 @@
         <div><label>Effective from</label><input type="date" id="rEff" oninput="renSet('eff',this.value)"></div>
       </div>
       <label>Agreed with</label><input type="text" id="rWith" placeholder="e.g. Maryke (landlord)" oninput="renSet('agreed',this.value)">
+      <label>Note for next year's renewal <span class="muted">(internal, not printed)</span></label>
+      <textarea id="rNext" placeholder="e.g. Held at 6% instead of 7% this year. Go higher next year." oninput="renSet('next',this.value)"></textarea>
+      <div id="renRemind" style="display:none;margin-top:10px;padding:10px;border-radius:9px;background:#fff7d6;border:1px solid #e8c45a;font-size:13px"></div>
     </div>
     <div class="card">
       <h2>Overall notes</h2>
@@ -221,6 +224,7 @@
       <button class="btn btn-green btn-sm" style="flex:1" onclick="window.print()">Print / Save as PDF</button>
     </div>
     <div class="noprint small" id="repArch" style="margin:0 0 10px;font-weight:600"></div>
+    <div class="noprint small" id="repRenSync" style="margin:0 0 10px;font-weight:600"></div>
     <div class="rep-wrap" id="reportHost"></div>
     <div class="noprint small muted" style="margin-top:12px;line-height:1.7">
       <b>On iPhone:</b> tap "Print / Save as PDF" → in the print preview <b>pinch outward on the page</b> → tap Share → Mail to the landlord, or Save to Files.
@@ -719,6 +723,7 @@ function startInspection(){
     notes:'', meterE:'', meterW:'', sig:'', done:false
   };
   if(cur.type==='Renewal') cur.ren={cur:PRE.rent||'', nw:PRE.newrent||'', pct:'', eff:'', agreed:''};
+  if(cur.type==='Renewal') cur.rid=PRE.rid||''; /* v1.8.3: platform renewal row this inspection belongs to */
   if(cur.ren) renCalc();
   save(); openInspect();
 }
@@ -735,20 +740,26 @@ function openInspect(){
 
 /* ================= Saved list ================= */
 function renderSaved(){
-  var all = allSaved(), ids = Object.keys(all).sort().reverse();
+  var all = allSaved(), ids = Object.keys(all).sort(function(a,b){ var da=String(all[a].date||''), db=String(all[b].date||''); return da<db?1:da>db?-1:(a<b?1:-1); });
   var card = document.getElementById('savedCard'), host = document.getElementById('savedList');
   if(!ids.length){ card.style.display='none'; return; }
   card.style.display='block'; host.innerHTML='';
+  var more=ids.length-5; if(!savedAll && more>0) ids=ids.slice(0,5);
   ids.forEach(function(id){
-    var x = all[id], n = counts(x);
+    var x = all[id], n = counts(x), R = x.ren||{};
+    var ren = (x.type==='Renewal' && (R.pct||R.nw)) ? '<div class="mt" style="color:var(--ink,#1a2332);font-weight:600">Renewal: '+(R.pct?esc(String(R.pct).replace(/%/g,''))+'%':'')+(R.nw?' · new rent '+esc(renMoney(R.nw)):'')+(R.cur?' (was '+esc(renMoney(R.cur))+')':'')+'</div>' : '';
+    if(R.next) ren += '<div class="mt">Next year: '+esc(R.next)+'</div>';
     var div = document.createElement('div'); div.className='saved';
     div.innerHTML = '<div><div class="nm">'+(x.code? x.code+' — ':'')+esc(x.addr||'(no address)')+'</div>'+
-      '<div class="mt">'+x.type+' · '+fmtD(x.date)+' · '+n.set+'/'+n.total+' items · '+n.att+' attention '+(x.done?'<span class="pill green">Report done</span>':'<span class="pill amber">In progress</span>')+'</div></div>'+
+      '<div class="mt">'+x.type+' · '+fmtD(x.date)+' · '+n.set+'/'+n.total+' items · '+n.att+' attention '+(x.done?'<span class="pill green">Report done</span>':'<span class="pill amber">In progress</span>')+'</div>'+ren+'</div>'+
       '<div class="btns"><button class="btn btn-ghost btn-sm" onclick="resume(\''+id+'\')">Open</button>'+
       '<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="delSaved(\''+id+'\')">Delete</button></div>';
     host.appendChild(div);
   });
+  if(more>0){ var t=document.createElement('div'); t.className='small'; t.style.cssText='padding-top:10px;text-align:center';
+    t.innerHTML='<span class="more" onclick="savedAll=!savedAll;renderSaved()">'+(savedAll?'Show the latest 5 only':'Show all '+(more+5)+' saved inspections')+'</span>'; host.appendChild(t); }
 }
+var savedAll=false;
 
 /* ================= Rooms UI ================= */
 function renderRooms(){
@@ -915,7 +926,34 @@ function makeReport(){
   }
   h += '<div class="small muted" style="margin-top:6px">Report generated on site with PB Inspections. E&amp;OE.</div></div>';
   document.getElementById('reportHost').innerHTML = h;
-  show('report'); spRepUi(); spFileReport(); pbNotifyOffice();
+  show('report'); spRepUi(); spFileReport(); pbNotifyOffice(); pbSaveRenewal();
+}
+
+/* ================= v1.8.3 (28.09.2026): renewal terms go to the platform =================
+   When a Renewal inspection is finished with a new rent or %, the agreed terms are written to
+   the matching row on the Hub's Renewals page (rentProposed + a dated note), so the office
+   works from the same figure as the report. Row = the renewal the inspection was opened from
+   (rid), else the one open renewal with the same file code. Fire-and-forget like every write. */
+function pbSaveRenewal(){
+  if(!cur || cur.type!=='Renewal' || !cur.ren) return;
+  var R=cur.ren; if(!(R.nw||R.pct||R.next)) return;
+  var el=document.getElementById('repRenSync');
+  regApi('getRenewals').then(function(d){
+    var rows=(d&&d.renewals)||[], row=null;
+    if(cur.rid) row=rows.filter(function(x){return String(x.renewalId)===String(cur.rid);})[0]||null;
+    if(!row && cur.code){
+      var m=rows.filter(function(x){ return pbSplitCode(x.clientCode||'').code===cur.code && String(x.status||'').toLowerCase()!=='done'; });
+      if(m.length===1) row=m[0];
+    }
+    if(!row){ if(el){ el.style.color='var(--amber)'; el.textContent='Renewal terms: no matching renewal on the platform. Add them on the Hub Renewals page.'; } return; }
+    var line='Inspection '+fmtD(cur.date)+': '+(R.pct?String(R.pct).replace(/%/g,'')+'% ':'')+(R.nw?'new rent '+renMoney(R.nw):'')+(R.eff?', from '+fmtD(R.eff):'')+(R.agreed?', agreed with '+R.agreed:'')+' ('+(cur.by||'inspector')+', via PB Inspections)';
+    var notes=String(row.notes||''); if((R.nw||R.pct) && notes.indexOf(line)===-1) notes=(notes?notes+'\n':'')+line;
+    if(R.next){ var nl='NEXT RENEWAL: '+String(R.next).replace(/\s*\n\s*/g,' ').trim()+' ('+fmtD(cur.date)+')'; if(notes.indexOf(nl)===-1) notes=(notes?notes+'\n':'')+nl; }
+    var body={ token:GAS_TOKEN, action:'updateRenewal', renewalId:row.renewalId, notes:notes };
+    if(R.nw){ body.rentProposed=renMoney(R.nw); } if(R.nw||R.pct){ body.renewalStatus='Under negotiation'; }
+    try{ fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)}); }catch(e){}
+    if(el){ el.style.color='var(--muted)'; el.textContent='Renewal terms sent to the platform ('+(row.clientCode||'')+').'; }
+  }).catch(function(){ if(el){ el.style.color='var(--amber)'; el.textContent='Renewal terms: platform not reachable. Add them on the Hub Renewals page.'; } });
 }
 
 /* ================= v1.7 — office notice, sent 5 minutes after finish =================
@@ -960,11 +998,32 @@ function renSet(k,v){
 }
 function renFill(){
   var on = cur && cur.type==='Renewal';
+  if(on) renRemind();
   document.getElementById('renCard').style.display = on?'block':'none';
   if(!on) return; var R=cur.ren||{};
   document.getElementById('rCur').value=R.cur||''; document.getElementById('rNew').value=R.nw||'';
   document.getElementById('rPct').value=R.pct||''; document.getElementById('rEff').value=R.eff||'';
   document.getElementById('rWith').value=R.agreed||'';
+  document.getElementById('rNext').value=R.next||'';
+}
+/* v1.8.3: last year's "note for next renewal" for this property, from this phone and the platform */
+function renRemind(){
+  var box=document.getElementById('renRemind'); if(!box||!cur) return;
+  var code=cur.code, found=[];
+  if(!code){ box.style.display='none'; return; }
+  var all=allSaved(); Object.keys(all).forEach(function(id){ var x=all[id];
+    if(x&&x.id!==cur.id&&x.code===code&&x.ren&&x.ren.next) found.push(fmtD(x.date)+': '+x.ren.next); });
+  var paint=function(){ if(!found.length){ box.style.display='none'; return; }
+    box.innerHTML='<b>Reminder from a previous renewal</b><br>'+found.map(esc).join('<br>'); box.style.display='block'; };
+  paint();
+  regApi('getRenewals').then(function(d){
+    ((d&&d.renewals)||[]).forEach(function(r){
+      if(pbSplitCode(r.clientCode||'').code!==code || (cur.rid && String(r.renewalId)===String(cur.rid))) return;
+      String(r.notes||'').split('\n').forEach(function(l){ var i=l.indexOf('NEXT RENEWAL:');
+        if(i>-1){ var t=l.slice(i).trim(); if(!found.some(function(f){return f.indexOf(t.slice(14))>-1;})) found.push(t); } });
+    });
+    paint();
+  }).catch(function(){});
 }
 function applyPrefill(){
   if(PRE.type){ var sel=document.getElementById('fType'); for(var i=0;i<sel.options.length;i++){ if(sel.options[i].text.toLowerCase()===PRE.type.toLowerCase()) sel.selectedIndex=i; } }

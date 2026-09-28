@@ -182,7 +182,7 @@
   </nav>
   <main class="main" id="main"><div class="loading">Loading…</div></main>
 </div>
-<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Hub · build 26.09.2026 · leads</div>
+<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Hub · build 28.09.2026 · leads, renewal link</div>
 
 <script>
 const GAS_URL   = "https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5jTsiMRgkv7QPDcmeqcNEAAhFXHW_OwR0-4o0qEtoCkCGjraSA/exec";
@@ -574,7 +574,7 @@ function showRenewals(){
   setNav('nav-ren');
   const openR = REN.filter(r=>(r.status||'').toLowerCase()!=='done').sort((a,b)=>String(a.leaseEnd).localeCompare(String(b.leaseEnd)));
   const cards = openR.length ? '<div class="table-wrap"><table><thead><tr><th>Code</th><th>Tenant</th><th>Lease end</th><th>Rent</th><th>Status</th><th></th></tr></thead><tbody>'+
-    openR.map(r=>`<tr><td><span class="code">${esc(r.clientCode)}</span></td><td>${esc(r.tenant)||'—'}</td><td>${fmtD(r.leaseEnd)}</td><td>${esc(r.rentCurrent)||'—'}${r.rentProposed?(' → '+esc(r.rentProposed)):''}</td><td>${esc(r.renewalStatus)||'—'}</td><td><a class="btn btn-ghost btn-sm" style="text-decoration:none" href="./inspect.html?type=Renewal&code=${encodeURIComponent(r.clientCode||'')}&tenant=${encodeURIComponent(r.tenant||'')}&rent=${encodeURIComponent(r.rentCurrent||'')}&newrent=${encodeURIComponent(r.rentProposed||'')}">Inspect</a> <button class="btn btn-ghost btn-sm" onclick="editRenewal('${esc(r.renewalId)}')">Edit</button> <button class="btn btn-ghost btn-sm" onclick="markRenewalDone('${esc(r.renewalId)}')">Done</button></td></tr>`).join('')+'</tbody></table></div>'
+    openR.map(r=>`<tr><td><span class="code">${esc(r.clientCode)}</span></td><td>${esc(r.tenant)||'—'}</td><td>${fmtD(r.leaseEnd)}</td><td>${esc(r.rentCurrent)||'—'}${r.rentProposed?(' → '+esc(r.rentProposed)):''}</td><td>${esc(r.renewalStatus)||'—'}</td><td><a class="btn btn-ghost btn-sm" style="text-decoration:none" href="./inspect.html?type=Renewal&code=${encodeURIComponent(r.clientCode||'')}&tenant=${encodeURIComponent(r.tenant||'')}&rent=${encodeURIComponent(r.rentCurrent||'')}&newrent=${encodeURIComponent(r.rentProposed||'')}&rid=${encodeURIComponent(r.renewalId||'')}">Inspect</a> <button class="btn btn-ghost btn-sm" onclick="editRenewal('${esc(r.renewalId)}')">Edit</button> <button class="btn btn-ghost btn-sm" onclick="markRenewalDone('${esc(r.renewalId)}')">Done</button></td></tr>`).join('')+'</tbody></table></div>'
     : '<div class="empty">No upcoming renewals logged yet. Add the leases coming up for renewal.</div>';
   main.innerHTML=`<div class="page-title">Renewals</div><div class="page-sub">Leases coming up for renewal. ${openR.length} open · shown in Paul's 1pm digest.</div><button class="btn btn-primary" onclick="showRenewalForm()">+ Add renewal</button><div style="margin-top:14px">${cards}</div>`;
 }
