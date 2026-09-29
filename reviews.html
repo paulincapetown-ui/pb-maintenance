@@ -259,9 +259,14 @@ function getSession() {
   } catch(e) { return null; }
 }
 function saveSession(email, displayName, role) {
+  // 29.09.2026: same rule as dashboard.html (26.09.2026). Paul's own login lasts 365 days,
+  // tied to the email address itself. Every other email keeps the fixed 8-hour session.
+  // Without this, signing in on this page overwrote Paul's year-long session with 8 hours.
+  var isPaul = String(email||'').toLowerCase() === 'paul@propertybureau.co.za';
+  var durationMs = isPaul ? (365 * 24 * 60 * 60 * 1000) : (8 * 60 * 60 * 1000);
   localStorage.setItem('pb_session', JSON.stringify({
     email: email, displayName: displayName, role: role,
-    expiry: Date.now() + 8 * 60 * 60 * 1000
+    expiry: Date.now() + durationMs
   }));
 }
 function doLogout() { localStorage.removeItem('pb_session'); location.reload(); }
