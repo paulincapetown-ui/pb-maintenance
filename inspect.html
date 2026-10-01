@@ -131,6 +131,7 @@
 
   <!-- ============ HOME ============ -->
   <section class="screen on" id="s-home">
+    <div id="spBanner" style="display:none;background:var(--amber-bg);color:var(--amber);border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:13.5px;font-weight:600"></div>
     <div class="card">
       <h2>New inspection</h2>
       <label>Inspection type</label>
@@ -166,7 +167,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.8.3</b> · 28.09.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.8.4</b> · 01.10.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -224,6 +225,8 @@
       <button class="btn btn-green btn-sm" style="flex:1" onclick="window.print()">Print / Save as PDF</button>
     </div>
     <div class="noprint small" id="repArch" style="margin:0 0 10px;font-weight:600"></div>
+    <div class="noprint small" id="repOffice" style="margin:0 0 10px;font-weight:600"></div>
+    <button class="noprint btn btn-primary btn-sm" id="repConnBtn" onclick="spConnect()" style="display:none;margin:0 0 12px">Connect Microsoft (paul@propertybureau.co.za)</button>
     <div class="noprint small" id="repRenSync" style="margin:0 0 10px;font-weight:600"></div>
     <div class="rep-wrap" id="reportHost"></div>
     <div class="noprint small muted" style="margin-top:12px;line-height:1.7">
@@ -453,7 +456,9 @@ function spPump(){
     spToken().then(function(tok){
       var p=Promise.resolve();
       items.forEach(function(it){
-        p=p.then(function(){ return spEnsureFolder(it.folder,tok,spRootFor(it)).then(function(){ return spUpload(it,tok); }).then(function(){ return qDel(it.qid); }).catch(function(e){ spFails++; }); });
+        p=p.then(function(){ return spEnsureFolder(it.folder,tok,spRootFor(it)).then(function(){ return spUpload(it,tok); }).then(function(){ return qDel(it.qid); })
+          /* v1.8.4: the office notice travels with the report PDF and goes only once the PDF is in SharePoint */
+          .then(function(){ if(it.root==='REP' && it.notice) return pbNotifyOffice(it.notice, it.folder); }).catch(function(e){ spFails++; }); });
       });
       p.then(function(){ spBusy=false; spUi(); spRepUi(); });
     }).catch(function(){ spBusy=false; spUi(); });
@@ -463,6 +468,8 @@ function spUi(){
   var el=document.getElementById('spState'); if(!el) return;
   qAll().then(function(items){
     var q=items.length, btn=document.getElementById('spBtn');
+    var bn=document.getElementById('spBanner');
+    if(bn){ if(!msAccount && q){ bn.textContent=q+' file'+(q>1?'s':'')+' waiting on this phone and NOT yet with the office. Scroll down to SharePoint photo archive and tap Connect Microsoft.'; bn.style.display='block'; } else bn.style.display='none'; }
     if(!msAccount){ el.textContent = q? q+' photo'+(q>1?'s':'')+' waiting — connect Microsoft to archive them.' : 'Not connected — photos will queue on this phone until you connect.'; if(btn) btn.style.display='inline-block'; }
     else { el.textContent = q? 'Uploading — '+q+' photo'+(q>1?'s':'')+' in the queue…' : 'Connected as '+(msAccount.username||'')+' — photo archive active.'; if(btn) btn.style.display='none'; }
   });
@@ -486,6 +493,16 @@ function spRepUi(){
   var el=document.getElementById('repArch'); if(!el) return;
   qAll().then(function(items){
     var q=items.length;
+    /* v1.8.4: say plainly whether the office has been told */
+    var of=document.getElementById('repOffice'), cb=document.getElementById('repConnBtn');
+    var mine=cur? items.filter(function(x){ return x.root==='REP' && x.folder===spFolderName(); }).length : 0;
+    if(cb) cb.style.display = msAccount ? 'none' : 'inline-block';
+    if(of){
+      if(!msAccount){ of.style.color='var(--amber)'; of.textContent='Office NOT told yet. This app is not connected to Microsoft, so the report and photos are waiting safely on this phone. Tap Connect Microsoft below; the office is told automatically once the report is filed.'; }
+      else if(mine){ of.style.color='var(--amber)'; of.textContent='Filing the report to SharePoint. The office is told automatically once it is there. Keep the app open.'; }
+      else if(cur && cur.notifiedAt){ of.style.color='var(--green)'; of.textContent='Report filed in SharePoint. Office notice queued (arrives about 5 minutes later).'; }
+      else { of.textContent=''; }
+    }
     if(q){ el.style.color='var(--amber)'; el.textContent='SharePoint archive: '+q+' photo'+(q>1?'s':'')+' still uploading — keep the app open on Wi-Fi or data.'; return; }
     if(!msAccount){ el.style.color='var(--amber)'; el.textContent='SharePoint archive: not connected — photos are queued safely on this phone.'; return; }
     el.style.color='var(--muted)'; el.textContent='Photo archive: checking…';
@@ -595,7 +612,7 @@ function pbBuildReportPdf(el){
     }).catch(function(){ restore(); return pbBuildReportPdfLegacy(el); });
   }catch(e){ restore(); return pbBuildReportPdfLegacy(el); }
 }
-function spFileReport(){
+function spFileReport(notice){
   if(!cur) return;
   var el=document.getElementById('reportHost');
   toast('Filing report PDF to SharePoint…');
@@ -603,11 +620,17 @@ function spFileReport(){
     return blob.slice(0,5).text().then(function(head){
       if(head!=='%PDF-'||blob.size<2000) throw new Error('bad pdf');
       var fname=spSan(String(cur.date||'').split('-').reverse().join('.')+'_'+cur.type+'_Inspection_Report_'+(cur.code||cur.addr))+'.pdf';
+      var folder=spFolderName();
       return blob.arrayBuffer().then(function(buf){
-        return qAdd({root:'REP', folder:spFolderName(), fname:fname, buf:buf, mime:'application/pdf'});
+        /* v1.8.4: a re-finish replaces the unsent copy, so the office gets one report and one notice */
+        return qAll().then(function(items){
+          var p=Promise.resolve();
+          items.forEach(function(x){ if(x.root==='REP' && x.folder===folder && x.fname===fname) p=p.then(function(){ return qDel(x.qid); }); });
+          return p;
+        }).then(function(){ return qAdd({root:'REP', folder:folder, fname:fname, buf:buf, mime:'application/pdf', notice:notice||null, insp:cur.id}); });
       }).then(function(){ spUi(); spRepUi(); spPump(); });
     });
-  }).catch(function(e){ toast('Could not build the PDF on this phone — use Print / Save as PDF instead.'); });
+  }).catch(function(e){ toast('Could not build the PDF on this phone, so the office was NOT told. Use Print / Save as PDF instead.'); });
 }
 window.addEventListener('online', function(){ spPump(); });
 
@@ -926,7 +949,7 @@ function makeReport(){
   }
   h += '<div class="small muted" style="margin-top:6px">Report generated on site with PB Inspections. E&amp;OE.</div></div>';
   document.getElementById('reportHost').innerHTML = h;
-  show('report'); spRepUi(); spFileReport(); pbNotifyOffice(); pbSaveRenewal();
+  show('report'); spRepUi(); spFileReport(pbNoticeBody()); pbSaveRenewal();
 }
 
 /* ================= v1.8.3 (28.09.2026): renewal terms go to the platform =================
@@ -956,20 +979,31 @@ function pbSaveRenewal(){
   }).catch(function(){ if(el){ el.style.color='var(--amber)'; el.textContent='Renewal terms: platform not reachable. Add them on the Hub Renewals page.'; } });
 }
 
-/* ================= v1.7 — office notice, sent 5 minutes after finish =================
-   Fire-and-forget POST (no-cors, response NEVER read — the standing platform rule).
-   The backend queues it and emails the office 5 minutes later; re-finishing the same
-   inspection inside that window REPLACES the queued notice instead of sending twice. */
-function pbNotifyOffice(){
-  if(!cur) return;
+/* ================= v1.7 office notice, v1.8.4 timing (01.10.2026) =================
+   Fire-and-forget POST (no-cors, response NEVER read, the standing platform rule).
+   v1.8.4: the notice no longer goes at Finish. It rides on the report PDF in the upload queue and is
+   posted only once that PDF is in SharePoint, so the office is never told about a report that is not
+   there. The backend still waits 5 minutes and a re-finish inside that window replaces the notice. */
+function pbNoticeBody(){
+  if(!cur) return null;
   var n=counts(cur);
-  var body={ token:GAS_TOKEN, action:'addInspectionNotice',
+  return { token:GAS_TOKEN, action:'addInspectionNotice',
     code:cur.code||'', addr:cur.addr||'', tenant:cur.tenant||'', type:cur.type||'',
     date:cur.date||'', by:cur.by||'', checked:n.set, total:n.total, att:n.att, qry:n.qry,
     photos:n.ph, folder:spFolderName() };
-  try{
-    fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)});
-  }catch(e){}
+}
+/* v1.8.4: called by spPump only after the report PDF is in SharePoint. "photos" becomes the number
+   actually filed (photos still waiting in the queue for this property are subtracted). */
+function pbNotifyOffice(body, folder){
+  if(!body) return Promise.resolve();
+  return qAll().then(function(items){
+    var waiting=items.filter(function(x){ return x.root!=='REP' && x.folder===folder; }).length;
+    body.photos=Math.max(0,(parseInt(body.photos,10)||0)-waiting);
+  }).catch(function(){}).then(function(){
+    try{ fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)}); }catch(e){}
+    if(cur && spFolderName()===folder){ cur.notifiedAt=new Date().toISOString(); save(); }
+    spRepUi();
+  });
 }
 
 /* ================= v1.8 — Renewal inspections + opened from the Platform =================
