@@ -82,7 +82,8 @@
   .actb{border:1.5px dashed var(--line);background:#fff;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:800;color:var(--muted);font-family:inherit;cursor:pointer}
   .actb.sel{border:1.5px solid var(--red);background:var(--red-bg);color:var(--red)}
   .item.flagged{box-shadow:inset 4px 0 0 var(--red)}
-  .allgood{padding:10px 15px;border-bottom:1px solid var(--line);background:#fbfbfd;display:flex;justify-content:flex-end}
+  .allgood{padding:10px 15px;border-bottom:1px solid var(--line);background:#fbfbfd;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+  .allgood button.na{border-color:#9ca3af;color:#4b5563}
   .allgood button{border:1.5px solid var(--green);color:var(--green);background:#fff;border-radius:9px;padding:9px 14px;font-size:13px;font-weight:800;font-family:inherit;cursor:pointer}
   .hk{display:grid;grid-template-columns:1fr 70px 70px;gap:6px;align-items:center;margin-top:6px}
   .hk.one{grid-template-columns:1fr 70px}
@@ -185,6 +186,9 @@
       <label>Tenant</label><input type="text" id="fTen" placeholder="K. Botha" list="dlTen" oninput="lkTen()">
       <div class="small" id="lkHint" style="color:var(--green);margin-top:6px"></div>
       <datalist id="dlCode"></datalist><datalist id="dlAddr"></datalist><datalist id="dlTen"></datalist>
+      <label>Garden or outside area</label>
+      <select id="fGarden"><option value="">No garden noted</option><option value="yes">Yes, there is a garden</option></select>
+      <div class="small muted" style="margin-top:4px">With a garden, the outside section comes first. Without, it goes to the end.</div>
       <label>Inspected by</label><input type="text" id="fBy" value="Paul Grobler">
       <div class="lastbox" id="lastBox" style="display:none"></div>
       <div style="margin-top:16px"><button class="btn btn-primary" onclick="startInspection()">Start inspection</button></div>
@@ -200,7 +204,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.1</b> · 02.10.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.2</b> · 02.10.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -316,13 +320,16 @@ var EXT     = {name:'Exterior & Garden', items:['Exterior walls & paintwork','Ro
 var GARAGE  = {name:'Garage & Parking', items:['Garage door & motor','Gate & gate motor','Remotes & keys','Storeroom / domestic quarters']};
 var SAFETY  = {name:'Safety & General', items:['Geyser & pressure valve','DB board & electrical','Smoke detectors','Alarm, beams & security','Signs of damp / leaks anywhere','Pest / beetle signs']};
 
-function buildRooms(tpl){
-  var r = [ENTR, LIVING, KITCHEN];
+/* v1.9.2 (02.10.2026, Paul): a garden is what you see walking in, so when one is noted the outside
+   section comes first; when nothing is said about a garden (flats) it goes to the very end. */
+function buildRooms(tpl, garden){
+  var r = garden ? [EXT, ENTR, LIVING, KITCHEN] : [ENTR, LIVING, KITCHEN];
   var beds = tpl, baths = tpl>=3 ? 2 : 1;
   for(var i=1;i<=beds;i++) r.push(bedRoom(i));
   for(var b=1;b<=baths;b++) r.push(bathRoom(b));
   if(tpl>=3) r.push(GARAGE);
-  r.push(EXT, SAFETY);
+  r.push(SAFETY);
+  if(!garden) r.push(EXT);
   return r.map(function(room){
     return { name:room.name, items:room.items.map(function(l){ return {label:l, status:null, comment:'', photos:[]}; }) };
   });
@@ -822,7 +829,7 @@ function startInspection(){
     tenant:document.getElementById('fTen').value.trim(),
     by:document.getElementById('fBy').value.trim(),
     date:document.getElementById('fDate').value || d.toISOString().slice(0,10),
-    rooms:buildRooms(pickedTpl),
+    rooms:buildRooms(pickedTpl, document.getElementById('fGarden').value==='yes'),
     notes:'', meterE:'', meterW:'', meterP:'', sig:'', sigBy:'', done:false
   };
   var fl=document.getElementById('fromLast'), prev=(fl&&fl.checked)? lastFor(code) : null;
@@ -888,7 +895,7 @@ function renderRooms(){
 }
 function roomBody(ri){
   var room=cur.rooms[ri], body='';
-  body += '<div class="allgood"><button onclick="roomAllGood('+ri+')">Rest of room: Good'+(inOut()?' and clean':'')+'</button></div>';
+  body += '<div class="allgood"><button class="na" onclick="roomAllNA('+ri+')">Not applicable</button><button onclick="roomAllGood('+ri+')">Rest of room: Good'+(inOut()?' and clean':'')+'</button></div>';
   room.items.forEach(function(it, ii){ body += itemHtml(ri, ii, it); });
   body += '<div class="additem"><span class="more" onclick="addItem('+ri+')">+ Add item to this room</span></div>';
   return body;
@@ -939,6 +946,15 @@ function roomAllGood(ri){
   save(); updProg(); updRoomCount(ri);
   document.getElementById('rb'+ri).innerHTML=roomBody(ri);
   toast(n ? n+' item'+(n>1?'s':'')+' marked Good'+(io?' and clean':'') : 'Every item in this room is already rated');
+  var nx=document.getElementById('room'+(ri+1));
+  if(nx){ document.getElementById('room'+ri).classList.remove('open'); nx.classList.add('open'); nx.scrollIntoView({behavior:'smooth',block:'start'}); }
+}
+function roomAllNA(ri){
+  var n=0;
+  cur.rooms[ri].items.forEach(function(it){ if(!it.status){ it.status='na'; it.clean=null; n++; } });
+  save(); updProg(); updRoomCount(ri);
+  document.getElementById('rb'+ri).innerHTML=roomBody(ri);
+  toast(n ? n+' item'+(n>1?'s':'')+' marked N/A' : 'Every item in this room is already rated');
   var nx=document.getElementById('room'+(ri+1));
   if(nx){ document.getElementById('room'+ri).classList.remove('open'); nx.classList.add('open'); nx.scrollIntoView({behavior:'smooth',block:'start'}); }
 }
@@ -1121,6 +1137,9 @@ function updLastHint(){
   var box=document.getElementById('lastBox'); if(!box) return;
   var sp=pbSplitCode(document.getElementById('fCode').value), code=sp.code||document.getElementById('fCode').value.trim().toUpperCase();
   var p=lastFor(code);
+  var g=document.getElementById('fGarden');
+  if(g && p && p.rooms){ var ex=p.rooms.filter(function(r){ return r.name==='Exterior & Garden'; })[0];
+    g.value = (ex && ex.items.some(function(i){ return i.status && i.status!=='na'; })) ? 'yes' : ''; }
   if(!p){ box.style.display='none'; box.innerHTML=''; return; }
   var n=counts(normItems(p));
   box.innerHTML='<label><input type="checkbox" id="fromLast"> Start from the '+esc(p.type)+' inspection of '+fmtD(p.date)+' on this phone ('+n.set+' items rated). Copies rooms, ratings, comments and keys. Photos and meter readings are not copied.</label>';
