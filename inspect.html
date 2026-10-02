@@ -76,6 +76,7 @@
   .clb{border:1.5px solid var(--line);background:#fff;border-radius:8px;height:34px;padding:0 10px;font-size:12px;font-weight:800;color:var(--muted);font-family:inherit;cursor:pointer}
   .clb.sel.clean{background:var(--green);border-color:var(--green);color:#fff}
   .clb.sel.dirty{background:var(--amber);border-color:var(--amber);color:#fff}
+  .clb.sel.na{background:#6b7280;border-color:#6b7280;color:#fff}
   .item-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:7px}
   .item-foot .more{margin-top:0}
   .actb{border:1.5px dashed var(--line);background:#fff;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:800;color:var(--muted);font-family:inherit;cursor:pointer}
@@ -199,7 +200,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.0</b> · 02.10.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.1</b> · 02.10.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -259,11 +260,19 @@
       <textarea id="overallNotes" placeholder="General condition, tenant feedback, anything for the record…" oninput="cur.notes=this.value;save()"></textarea>
     </div>
     <div class="card">
-      <h2>Tenant sign-off (optional)</h2>
-      <div class="small muted" style="margin-bottom:8px">Tenant signs with a finger. It appears on the report. Skip it if not needed.</div>
+      <h2>Sign-off</h2>
+      <div class="small muted" style="margin-bottom:8px">Both signatures appear on the report. Sign with a finger.</div>
+      <label>Inspector</label>
+      <canvas id="sigPad2" width="600" height="200" style="width:100%;height:150px;border:1.5px dashed var(--line);border-radius:9px;background:#fff;touch-action:none"></canvas>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="clearSig('sigBy')">Clear</button>
+        <button class="btn btn-ghost btn-sm" id="sigUseSaved" onclick="sigUseSaved()" style="display:none">Use my saved signature</button>
+        <span class="small muted" style="align-self:center" id="sigState2"></span>
+      </div>
+      <label>Tenant (optional)</label>
       <canvas id="sigPad" width="600" height="200" style="width:100%;height:150px;border:1.5px dashed var(--line);border-radius:9px;background:#fff;touch-action:none"></canvas>
       <div style="display:flex;gap:8px;margin-top:8px">
-        <button class="btn btn-ghost btn-sm" onclick="clearSig()">Clear</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearSig('sig')">Clear</button>
         <span class="small muted" style="align-self:center" id="sigState"></span>
       </div>
     </div>
@@ -409,22 +418,31 @@ function insertSummary(){
 }
 
 /* ================= Signature pad ================= */
-var sigC, sigX, sigDrawing=false, sigDirty=false;
-function sigInit(){
-  sigC=document.getElementById('sigPad'); if(!sigC) return; sigX=sigC.getContext('2d');
-  sigX.lineWidth=3; sigX.lineCap='round'; sigX.strokeStyle='#182048';
-  function pos(e){ var r=sigC.getBoundingClientRect(); var t=e.touches?e.touches[0]:e;
-    return {x:(t.clientX-r.left)*(sigC.width/r.width), y:(t.clientY-r.top)*(sigC.height/r.height)}; }
-  function start(e){ e.preventDefault(); sigDrawing=true; var p=pos(e); sigX.beginPath(); sigX.moveTo(p.x,p.y); }
-  function move(e){ if(!sigDrawing) return; e.preventDefault(); var p=pos(e); sigX.lineTo(p.x,p.y); sigX.stroke(); sigDirty=true; }
-  function end(){ if(!sigDrawing) return; sigDrawing=false;
-    if(sigDirty&&cur){ cur.sig=sigC.toDataURL('image/png'); save(); document.getElementById('sigState').textContent='Signature captured'; } }
-  sigC.addEventListener('touchstart',start); sigC.addEventListener('touchmove',move); sigC.addEventListener('touchend',end);
-  sigC.addEventListener('mousedown',start); sigC.addEventListener('mousemove',move); window.addEventListener('mouseup',end);
+/* v1.9.1 (02.10.2026): two pads. "sig" = tenant (as before), "sigBy" = inspector. The inspector's
+   signature is also kept on this phone so the next report can use it with one tap. */
+var PADS={};
+function padInit(canvasId, key, stateId){
+  var c=document.getElementById(canvasId); if(!c) return; var x=c.getContext('2d');
+  x.lineWidth=3; x.lineCap='round'; x.strokeStyle='#182048';
+  var P={c:c,x:x,draw:false,dirty:false,st:stateId}; PADS[key]=P;
+  function pos(e){ var r=c.getBoundingClientRect(); var t=e.touches?e.touches[0]:e;
+    return {x:(t.clientX-r.left)*(c.width/r.width), y:(t.clientY-r.top)*(c.height/r.height)}; }
+  function start(e){ e.preventDefault(); P.draw=true; var p=pos(e); x.beginPath(); x.moveTo(p.x,p.y); }
+  function move(e){ if(!P.draw) return; e.preventDefault(); var p=pos(e); x.lineTo(p.x,p.y); x.stroke(); P.dirty=true; }
+  function end(){ if(!P.draw) return; P.draw=false;
+    if(P.dirty&&cur){ cur[key]=c.toDataURL('image/png'); save(); document.getElementById(stateId).textContent='Signature captured';
+      if(key==='sigBy'){ try{ localStorage.setItem('pbInspSigBy', cur[key]); }catch(e){} } } }
+  c.addEventListener('touchstart',start); c.addEventListener('touchmove',move); c.addEventListener('touchend',end);
+  c.addEventListener('mousedown',start); c.addEventListener('mousemove',move); window.addEventListener('mouseup',end);
 }
-function clearSig(){ if(!sigX) return; sigX.clearRect(0,0,sigC.width,sigC.height); sigDirty=false; if(cur){ cur.sig=''; save(); } document.getElementById('sigState').textContent=''; }
-function sigRestore(){ if(!sigX) return; sigX.clearRect(0,0,sigC.width,sigC.height); sigDirty=false; document.getElementById('sigState').textContent='';
-  if(cur&&cur.sig){ var im=new Image(); im.onload=function(){ sigX.drawImage(im,0,0); }; im.src=cur.sig; sigDirty=true; document.getElementById('sigState').textContent='Signature captured'; } }
+function sigInit(){ padInit('sigPad','sig','sigState'); padInit('sigPad2','sigBy','sigState2'); }
+function clearSig(key){ key=key||'sig'; var P=PADS[key]; if(!P) return; P.x.clearRect(0,0,P.c.width,P.c.height); P.dirty=false; if(cur){ cur[key]=''; save(); } document.getElementById(P.st).textContent=''; sigSavedBtn(); }
+function sigDraw(key){ var P=PADS[key]; if(!P) return; P.x.clearRect(0,0,P.c.width,P.c.height); P.dirty=false; document.getElementById(P.st).textContent='';
+  if(cur&&cur[key]){ var im=new Image(); im.onload=function(){ P.x.drawImage(im,0,0); }; im.src=cur[key]; P.dirty=true; document.getElementById(P.st).textContent='Signature captured'; } }
+function sigSaved(){ try{ return localStorage.getItem('pbInspSigBy')||''; }catch(e){ return ''; } }
+function sigSavedBtn(){ var b=document.getElementById('sigUseSaved'); if(b) b.style.display=(sigSaved() && cur && !cur.sigBy)?'inline-block':'none'; }
+function sigUseSaved(){ var v=sigSaved(); if(!v||!cur) return; cur.sigBy=v; save(); sigDraw('sigBy'); sigSavedBtn(); }
+function sigRestore(){ sigDraw('sig'); sigDraw('sigBy'); sigSavedBtn(); }
 
 /* ================= SharePoint archive (v1.4) ================= */
 var MSCONF={clientId:'bacb0a06-013c-4a2c-b256-a269a80b35d5',tenantId:'515596ce-b14a-4e8a-bb12-eac214dbbde5',driveId:'b!Go1iWc9qkUuSYrVBBlsRtA0blynq7stGsw_e1wY-UoUm8F1UuRM_TZtzpTaBrdg5',rootId:'01OYEIJYSQKIPTLSYH65BJCEXOUKBJD6LU',repRootId:'01OYEIJYSDS2O5GS3BTZDLKXT5XJUGIFX6'};
@@ -805,7 +823,7 @@ function startInspection(){
     by:document.getElementById('fBy').value.trim(),
     date:document.getElementById('fDate').value || d.toISOString().slice(0,10),
     rooms:buildRooms(pickedTpl),
-    notes:'', meterE:'', meterW:'', meterP:'', sig:'', done:false
+    notes:'', meterE:'', meterW:'', meterP:'', sig:'', sigBy:'', done:false
   };
   var fl=document.getElementById('fromLast'), prev=(fl&&fl.checked)? lastFor(code) : null;
   if(prev) copyFrom(prev, cur);
@@ -1066,7 +1084,7 @@ function hSet(k,v){ if(!cur) return; handInit(cur); cur.hand[k]=v; save(); if(k=
 function renderSegs(){
   [['segCarpet','carpet'],['segFum','fum']].forEach(function(p){
     var el=document.getElementById(p[0]); if(!el) return; var v=(cur&&cur.hand&&cur.hand[p[1]])||'';
-    el.innerHTML=['Yes','No','N/A'].map(function(o){ return '<button class="clb'+(v===o?' sel '+(o==='Yes'?'clean':(o==='No'?'dirty':'')):'')+'" onclick="hSet(\''+p[1]+'\',\''+(v===o?'':o)+'\')">'+o+'</button>'; }).join('');
+    el.innerHTML=['Yes','No','N/A'].map(function(o){ return '<button class="clb'+(v===o?' sel '+(o==='Yes'?'clean':(o==='No'?'dirty':'na')):'')+'" onclick="hSet(\''+p[1]+'\',\''+(v===o?'':o)+'\')">'+o+'</button>'; }).join('');
   });
 }
 function renderKeys(){
@@ -1205,8 +1223,11 @@ function makeReport(){
   if(cur.notes){
     h += '<div class="rep-room"><h3>Notes</h3><div class="rep-notes">'+esc(cur.notes)+'</div></div>';
   }
-  if(cur.sig){
-    h += '<div class="rep-room"><h3>Tenant sign-off</h3><img src="'+cur.sig+'" style="max-width:280px;border-bottom:2px solid #182048"><div class="small" style="margin-top:4px">'+esc(cur.tenant||'Tenant')+' · signed on site, '+fmtD(cur.date)+'</div></div>';
+  if(cur.sig || cur.sigBy){
+    var sb=function(img, who){ return '<div style="flex:1;min-width:220px"><img src="'+img+'" style="max-width:260px;width:100%;border-bottom:2px solid #182048"><div class="small" style="margin-top:4px">'+who+' · signed on site, '+fmtD(cur.date)+'</div></div>'; };
+    h += '<div class="rep-room"><h3>Sign-off</h3><div style="display:flex;gap:18px;flex-wrap:wrap">'+
+      (cur.sigBy? sb(cur.sigBy, esc(cur.by||'Inspector')+', The Property Bureau') : '')+
+      (cur.sig? sb(cur.sig, esc(cur.tenant||'Tenant')+', tenant') : '')+'</div></div>';
   }
   h += '<div class="small muted" style="margin-top:6px">Ratings: Good, acceptable with no issue. Fair, wear and tear noted. Poor, damage or a defect. Report generated on site with PB Inspections. E&amp;OE.</div></div>';
   document.getElementById('reportHost').innerHTML = h;
