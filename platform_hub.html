@@ -182,21 +182,33 @@
     <a class="nav-item" id="nav-insp" onclick="showInspections()">Inspections</a>
     <a class="nav-item" href="./inspect.html">Inspection App</a>
     <a class="nav-item" id="nav-ren" onclick="showRenewals()">Renewals</a>
+    <a class="nav-item" id="nav-staff" onclick="showStaffAccess()" style="display:none">Staff access</a>
     <div class="nav-group-label">Registries</div>
     <a class="nav-item" onclick="showList()">Landlords</a>
     <a class="nav-item" onclick="showList()">Tenants</a>
   </nav>
   <main class="main" id="main"><div class="loading">Loading…</div></main>
 </div>
-<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Hub · build 03.10.2026 · add property, mark ended</div>
+<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Hub · build 03.10.2026 · add property, mark ended, personal sign-in, candidate access</div>
 
 <script>
 const GAS_URL   = "https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5jTsiMRgkv7QPDcmeqcNEAAhFXHW_OwR0-4o0qEtoCkCGjraSA/exec";
-const GAS_TOKEN = "PBmaint2026";
+/* 03.10.2026 (POPIA access control): the shared code is retired. Every call to the platform
+   carries this person's own session id, issued at sign-in and checked on the server, which also
+   decides what each person may see. If the server says the session is no longer valid, the page
+   clears it and asks for a fresh sign-in. GAS_TOKEN now simply holds that session id. */
+function pbSid_(){ try{ var s=JSON.parse(localStorage.getItem('pb_session')||'null'); if(s && s.sid && (!s.expiry || Date.now() < s.expiry)) return s.sid; }catch(e){} return ''; }
+var GAS_TOKEN = pbSid_();
+function pbRole_(){ try{ var s=JSON.parse(localStorage.getItem('pb_session')||'null'); return String((s&&s.role)||'').toLowerCase(); }catch(e){ return ''; } }
+(function(){ var of=window.fetch; window.fetch=function(u,o){ var pr=of.apply(this,arguments);
+  try{ if(String(u).indexOf('script.google.com/macros')>-1 && !(o&&o.mode==='no-cors')){
+    pr.then(function(r){ try{ r.clone().json().then(function(j){ if(j&&j.authRequired) pbAuthExpired_(); }).catch(function(){}); }catch(e){} }).catch(function(){}); } }catch(e){}
+  return pr; }; })();
+function pbAuthExpired_(){ var had=false; try{ had=!!localStorage.getItem('pb_session'); localStorage.removeItem('pb_session'); }catch(e){} if(window.__pbAuthGone) return; window.__pbAuthGone=true; if(had){ location.href='./dashboard.html?next=platform_hub.html'; } }
 
 function checkSession(){
   try{ const s = JSON.parse(localStorage.getItem('pb_session') || 'null');
-    if(s && s.email && (!s.expires || s.expires > Date.now())) return s; }catch(e){}
+    if(s && s.email && s.sid && (!s.expiry || s.expiry > Date.now())) return s; }catch(e){}
   return null;
 }
 const session = checkSession();
@@ -236,10 +248,22 @@ function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 function fmtD(s){ if(!s) return '—'; const d=new Date(s); return isNaN(d)?esc(s):d.toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'}); }
 function fmtDT(s){ if(!s) return ''; const d=new Date(s); return isNaN(d)?esc(s):d.toLocaleString('en-ZA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}); }
 function isAdmin(){ return String((session&&session.role)||'').toLowerCase()==='admin'; }
+/* 03.10.2026 Candidate access. The server already filters what a candidate receives; this only
+   tidies the screen (hides pages that hold nothing for him) and gives Paul the assign controls. */
+function isCandidate(){ return String((session&&session.role)||'').toLowerCase()==='candidate'; }
+let STAFF=[];
+function pbTruthy(v){ v=String(v||'').trim().toLowerCase(); return v==='true'||v==='yes'||v==='y'||v==='1'; }
+function pbApplyRole_(){
+  if(isAdmin()){ api('getStaffList').then(r=>{ STAFF=(r&&r.staff)||[]; }).catch(()=>{}); const sn=document.getElementById('nav-staff'); if(sn) sn.style.display=''; }
+  if(!isCandidate()) return;
+  ['nav-leads','nav-listings','nav-ren'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
+  document.querySelectorAll('.nav-item[href="./reviews.html"]').forEach(el=>el.style.display='none');
+}
 
 async function init(){
   if(session){ document.getElementById('userName').textContent = session.displayName || session.email;
     document.getElementById('userAv').textContent = (session.displayName||session.email).slice(0,2).toUpperCase(); }
+  pbApplyRole_();
   // ONE aggregate call (getBootstrap, cached 45s server-side) replaces the old
   // 10-request load — audit item 4 (07.07.2026). Falls back to the legacy
   // two-stage load if the backend can't answer it (blip or old deploy).
@@ -301,7 +325,7 @@ function showList(filter){
   main.innerHTML = `
     <div class="page-title">Properties</div>
     <div class="page-sub">${PROPS.length-endedN} current properties${endedN?' · '+endedN+' ended':''}. Type a code in the search bar above to jump straight to one.</div>
-    <button class="btn btn-primary" id="btn-add-prop" onclick="showPropertyForm()">+ Add property</button>${endedN?` <button class="btn btn-ghost" onclick="toggleEnded()">${SHOW_ENDED?'Hide ended':'Show ended ('+endedN+')'}</button>`:''}
+    ${isCandidate()?'':'<button class="btn btn-primary" id="btn-add-prop" onclick="showPropertyForm()">+ Add property</button>'}${endedN?` <button class="btn btn-ghost" onclick="toggleEnded()">${SHOW_ENDED?'Hide ended':'Show ended ('+endedN+')'}</button>`:''}
     <div class="toolbar" style="margin-top:14px"><input id="flt" type="text" placeholder="Filter by code, address, portfolio or agent…" value="${esc(filter||'')}"></div>
     <div class="table-wrap"><table>
       <thead><tr><th>Code</th><th>Address</th><th>Portfolio</th><th>Agent</th><th>Tenancy</th></tr></thead>
@@ -328,6 +352,17 @@ function resolve(code){
 function openProfile(code){
   const {prop,tcy}=resolve(code);
   if(!prop){ main.innerHTML='<div class="loading">No match for '+esc(code)+'.</div>'; return; }
+  if(prop.accessLevel==='inspection'){   // Candidate, inspection only: address, tenant name and phone
+    const t0=tcy?TEN[tcy.tenantId]:null;
+    main.innerHTML=`<span class="back" onclick="showInspections()">← Inspections</span>
+      <div class="pp-head"><div class="pp-top"><div><div class="pp-code">${esc(prop.clientCode)}</div><div class="pp-addr">${esc(prop.address)}</div></div>
+      <div class="pp-tags"><span class="tag agent">INSPECTION ONLY</span></div></div></div>
+      <div class="grid"><div class="panel full"><h4>Tenant</h4><div class="ent"><div class="nm">${esc((t0&&t0.name)||'')||'<span class="muted">Name not on file</span>'}</div>
+      <div class="ct">${esc(prop.tenantPhone||'')||'<span class="muted">No phone on file. Ask the office.</span>'}</div></div>
+      <div style="margin-top:12px"><a class="btn btn-primary btn-sm" style="text-decoration:none" href="./inspect.html?type=Routine&code=${encodeURIComponent(prop.clientCode||'')}&tenant=${encodeURIComponent((t0&&t0.name)||'')}">Start the inspection</a></div>
+      <div class="note">Your access to this property closes when you submit the report.</div></div></div>`;
+    return;
+  }
   const owners=String(prop.landlordIds||'').split(';').map(s=>s.trim()).filter(Boolean).map(id=>LL[id]).filter(Boolean);
   const tenant=tcy?TEN[tcy.tenantId]:null;
   const a=String(prop.address||'').toLowerCase().slice(0,14);
@@ -348,14 +383,15 @@ function openProfile(code){
       <div class="pp-tags">${propEnded(prop)?'<span class="tag ended">ENDED</span>':''}<span class="tag portfolio">PORTFOLIO · ${esc(prop.portfolio)} ${esc(prop.portfolioLabel)}</span>${agentTag}</div>
     </div>
     <div style="margin-top:12px"><button class="btn btn-ghost btn-sm" onclick="showUAForm('${esc(prop.clientCode)}')">+ Flag urgent action for this property</button>
-      ${propEnded(prop)?`<button class="btn btn-ghost btn-sm" id="btn-reinstate" onclick="reinstateProperty('${esc(prop.clientCode)}')">Reinstate as current</button>`:`<button class="btn btn-ghost btn-sm" id="btn-end" onclick="showEndPanel('${esc(prop.clientCode)}')">Mark as ended</button>`}</div>
+      ${isCandidate()?'':propEnded(prop)?`<button class="btn btn-ghost btn-sm" id="btn-reinstate" onclick="reinstateProperty('${esc(prop.clientCode)}')">Reinstate as current</button>`:`<button class="btn btn-ghost btn-sm" id="btn-end" onclick="showEndPanel('${esc(prop.clientCode)}')">Mark as ended</button>`}</div>
     ${propEnded(prop)?`<div class="note" style="font-style:normal">${esc(String(prop.notes).split('\n')[0])}</div>`:''}
     <div id="end-panel"></div></div>
     <div class="grid">
-      <div class="panel"><h4>Landlord(s)</h4>${llHtml}</div>
+      <div class="panel"><h4>Landlord(s)</h4>${(isCandidate()&&!pbTruthy(prop.ownerVisible))?'<div class="muted">Owner details are not shared yet.</div>':llHtml}</div>
       <div class="panel"><h4>Current tenant</h4>${tenHtml}
         <div class="note">Only the current tenant is held. The next tenant becomes /02.</div></div>
       <div class="panel full"><h4>Linked jobs</h4>${jobsHtml}</div>
+      ${isAdmin()?pbAccessPanel(prop):''}
     </div>`;
 }
 
@@ -440,6 +476,70 @@ async function reinstateProperty(code){
   const notes=lines.join('\n');
   try{ await postApi('updateProperty',{propertyId:p.propertyId, notes:notes}); p.notes=notes; openProfile(p.clientCode); }
   catch(e){ alert('Could not save. Check the connection and try again.'); }
+}
+
+// Paul only: who the property is assigned to, and whether a candidate may see the owner.
+function pbAccessPanel(prop){
+  const names=[...new Set(PROPS.map(p=>String(p.assignedAgent||'').trim()).filter(Boolean)
+    .concat(STAFF.filter(s=>s.role==='candidate'&&s.active!==false).map(s=>s.displayName)))].sort();
+  const cur=String(prop.assignedAgent||'').trim();
+  const opts=['<option value="">Unassigned</option>'].concat(names.map(n=>`<option${n===cur?' selected':''}>${esc(n)}</option>`)).join('');
+  const isG=String(prop.portfolio||'').toUpperCase()==='G';
+  return `<div class="panel full"><h4>Access · only you see this</h4>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <label style="margin:0">Agent</label><select id="pp-agent" style="width:auto">${opts}</select>
+      <label style="margin:0;display:flex;gap:6px;align-items:center"><input type="checkbox" id="pp-owner" style="width:auto" ${pbTruthy(prop.ownerVisible)?'checked':''}> Show owner details to a candidate agent</label>
+      <button class="btn btn-primary btn-sm" id="pp-save" onclick="saveAccess('${esc(prop.propertyId)}','${esc(prop.clientCode)}')">Save</button></div>
+    <div class="note">${isG?'This is a trust property. It is never shown to a candidate, whatever is set here.':'A candidate sees only the properties assigned to him. Owner details stay hidden until you tick the box.'}</div></div>`;
+}
+async function saveAccess(pid, code){
+  const agent=document.getElementById('pp-agent').value, owner=document.getElementById('pp-owner').checked?'TRUE':'';
+  const b=document.getElementById('pp-save'); b.textContent='Saving…'; b.disabled=true;
+  const p=PROPS.find(x=>x.propertyId===pid); if(p){ p.assignedAgent=agent; p.ownerVisible=owner; }
+  try{ await postApi('updateProperty',{propertyId:pid, assignedAgent:agent, ownerVisible:owner}); }catch(e){ alert('Could not save. Retry.'); }
+  openProfile(code);
+}
+
+// Paul only: who can sign in, and at what level. One switch per person (03.10.2026).
+function showStaffAccess(){
+  if(!isAdmin()) return;
+  setNav('nav-staff');
+  const label=r=>r==='admin'?'Admin':(r==='candidate'?'Candidate (own properties only)':'Staff (full access)');
+  const rows=STAFF.map(u=>{ const fixed=u.role==='admin';
+    const em=esc(u.email);
+    const roleCell=fixed?'Admin':`<select style="width:auto" onchange="pbSetRole('${em}',this.value)"><option value="staff"${u.role==='staff'?' selected':''}>${label('staff')}</option><option value="candidate"${u.role==='candidate'?' selected':''}>${label('candidate')}</option></select>`;
+    const onCell=fixed?'On':`<label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" style="width:auto" ${u.active?'checked':''} onchange="pbSetActive('${em}',this.checked)"> ${u.active?'On':'Off'}</label>`;
+    return `<tr><td>${esc(u.displayName)}</td><td>${em}</td><td>${roleCell}</td><td>${onCell}</td></tr>`; }).join('');
+  main.innerHTML=`<div class="page-title">Staff access</div><div class="page-sub">Who can sign in to the platform, and what they see. Only you see this page. A change takes effect within a minute.</div>
+    <div class="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Access</th><th>Sign-in</th></tr></thead><tbody>${rows||'<tr><td colspan="4" class="muted">Loading…</td></tr>'}</tbody></table></div>
+    <div class="form" style="margin-top:18px"><div class="page-sub" style="font-weight:600;color:var(--ink)">Add a person</div>
+    <div class="row"><div><label>Full name</label><input id="u-name" type="text" placeholder="e.g. Toafeeq Mintin"></div><div><label>Work email</label><input id="u-email" type="email" placeholder="name@propertybureau.co.za"></div></div>
+    <label>Access</label><select id="u-role"><option value="candidate">${label('candidate')}</option><option value="staff">${label('staff')}</option></select>
+    <div class="note">They choose their own password the first time they sign in with this email.</div>
+    <div class="actions"><button class="btn btn-primary" id="u-save" onclick="pbAddUser()">Add</button></div></div>`;
+  if(!STAFF.length) pbReloadStaff().then(()=>{ if(STAFF.length) showStaffAccess(); });
+}
+async function pbReloadStaff(){ try{ const r=await api('getStaffList'); STAFF=(r&&r.staff)||[]; }catch(e){} }
+async function pbAddUser(){
+  const n=document.getElementById('u-name').value.trim(), e=document.getElementById('u-email').value.trim().toLowerCase(), r=document.getElementById('u-role').value;
+  if(!n||e.indexOf('@')<1){ alert('Add a name and a valid email.'); return; }
+  if(STAFF.some(x=>x.email===e)){ alert('That email is already on the list.'); return; }
+  const b=document.getElementById('u-save'); b.textContent='Adding…'; b.disabled=true;
+  try{ await postApi('addUser',{email:e, displayName:n, role:r}); }catch(x){ alert('Could not add. Retry.'); }
+  await new Promise(res=>setTimeout(res,1500)); await pbReloadStaff(); showStaffAccess();
+}
+async function pbSetRole(email, role){
+  const msg=role==='staff'?'Give '+email+' full staff access? They will see every property and owner.':'Limit '+email+' to Candidate access (own properties only)?';
+  if(!confirm(msg)){ showStaffAccess(); return; }
+  const u=STAFF.find(x=>x.email===email); if(u) u.role=role;
+  try{ await postApi('updateUser',{email:email, role:role}); }catch(x){ alert('Could not save. Retry.'); }
+  showStaffAccess();
+}
+async function pbSetActive(email, on){
+  if(!on && !confirm('Switch off sign-in for '+email+'? They lose access within a minute.')){ showStaffAccess(); return; }
+  const u=STAFF.find(x=>x.email===email); if(u) u.active=on;
+  try{ await postApi('updateUser',{email:email, active:on}); }catch(x){ alert('Could not save. Retry.'); }
+  showStaffAccess();
 }
 
 // ── Urgent Actions ──
@@ -709,11 +809,60 @@ async function markRenewalDone(id){ const r=REN.find(x=>x.renewalId===id); if(r)
 // ── Inspections ──
 function showInspections(){
   setNav('nav-insp');
+  const cand=isCandidate(), adm=isAdmin();
+  const CANDS=STAFF.filter(x=>x.role==='candidate'&&x.active!==false);
+  const nameOf=em=>{ const x=STAFF.find(y=>y.email===String(em||'').toLowerCase()); return x?x.displayName:String(em||''); };
   const openI = INS.filter(i=>(i.status||'').toLowerCase()!=='done').sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate)));
+  const btns=i=>{
+    const insp=`<a class="btn btn-ghost btn-sm" style="text-decoration:none" href="./inspect.html?type=Routine&code=${encodeURIComponent(i.clientCode||'')}&tenant=${encodeURIComponent(i.tenant||'')}">Inspect</a>`;
+    if(cand) return insp+` <button class="btn btn-ghost btn-sm" onclick="openProfile('${esc(i.clientCode)}')">Details</button>`;
+    let h=insp+` <button class="btn btn-ghost btn-sm" onclick="editInspection('${esc(i.inspectionId)}')">Edit</button> <button class="btn btn-ghost btn-sm" onclick="markInspectionDone('${esc(i.inspectionId)}')">Done</button>`;
+    if(adm && CANDS.length) h+=(i.assignedTo && !i.accessClosedAt)
+      ? ` <button class="btn btn-ghost btn-sm" onclick="recallInspection('${esc(i.inspectionId)}')">Recall</button>`
+      : ` <button class="btn btn-ghost btn-sm" onclick="sendInspectionForm('${esc(i.inspectionId)}')">Send to ${esc(CANDS.length===1?CANDS[0].displayName.split(' ')[0]:'candidate')}</button>`;
+    return h;
+  };
+  const stat=i=>{ let h=esc(i.inspectionStatus)||'—'; if(i.assignedTo) h+=`<div class="muted" style="font-size:11px">${i.accessClosedAt?'Report filed by':'Sent to'} ${esc(nameOf(i.assignedTo))}</div>`; return h; };
   const cards = openI.length ? '<div class="table-wrap"><table><thead><tr><th>Code</th><th>Tenant</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody>'+
-    openI.map(i=>`<tr><td><span class="code">${esc(i.clientCode)}</span></td><td>${esc(i.tenant)||'—'}</td><td>${fmtD(i.dueDate)}</td><td>${esc(i.inspectionStatus)||'—'}</td><td><a class="btn btn-ghost btn-sm" style="text-decoration:none" href="./inspect.html?type=Routine&code=${encodeURIComponent(i.clientCode||'')}&tenant=${encodeURIComponent(i.tenant||'')}">Inspect</a> <button class="btn btn-ghost btn-sm" onclick="editInspection('${esc(i.inspectionId)}')">Edit</button> <button class="btn btn-ghost btn-sm" onclick="markInspectionDone('${esc(i.inspectionId)}')">Done</button></td></tr>`).join('')+'</tbody></table></div>'
-    : '<div class="empty">No upcoming inspections logged yet. Add the inspections coming up.</div>';
-  main.innerHTML=`<div class="page-title">Inspections</div><div class="page-sub">Inspections coming up. ${openI.length} open · shown in Paul's 1pm digest.</div><button class="btn btn-primary" onclick="showInspectionForm()">+ Add inspection</button> <a class="btn btn-primary" href="./inspect.html" style="text-decoration:none">Start an inspection</a><div style="margin-top:14px">${cards}</div>`;
+    openI.map(i=>`<tr><td><span class="code">${esc(i.clientCode)}</span></td><td>${esc(i.tenant)||'—'}</td><td>${fmtD(i.dueDate)}</td><td>${stat(i)}</td><td>${btns(i)}</td></tr>`).join('')+'</tbody></table></div>'
+    : '<div class="empty">'+(cand?'No inspections for you at the moment.':'No upcoming inspections logged yet. Add the inspections coming up.')+'</div>';
+  main.innerHTML=`<div class="page-title">Inspections</div><div class="page-sub">${cand?'Inspections for you. '+openI.length+' open.':'Inspections coming up. '+openI.length+' open · shown in Paul\'s 1pm digest.'}</div>${cand?'':'<button class="btn btn-primary" onclick="showInspectionForm()">+ Add inspection</button> '}<a class="btn btn-primary" href="./inspect.html" style="text-decoration:none">Start an inspection</a><div style="margin-top:14px">${cards}</div>`;
+}
+// Paul only: send one inspection to a candidate with the tenant's name and phone (the registry holds no phones).
+function pbGuessTenantPhone(code, tname){
+  const n=String(tname||'').trim().toLowerCase();
+  const js=JOBS.filter(j=>String(j.clientCode||'').toUpperCase()===String(code||'').toUpperCase() && j.tenantPhone && (!n || String(j.tenantName||'').trim().toLowerCase()===n))
+    .sort((a,b)=>String(b.dateLogged||b.createdAt).localeCompare(String(a.dateLogged||a.createdAt)));
+  return js.length?js[0].tenantPhone:'';
+}
+function sendInspectionForm(id){
+  const i=INS.find(x=>x.inspectionId===id); if(!i) return;
+  const p=PROPS.find(x=>(x.clientCode||'').toUpperCase()===String(i.clientCode||'').toUpperCase());
+  if(p && String(p.portfolio||'').toUpperCase()==='G'){ alert('This is a trust property. It cannot be sent to a candidate.'); return; }
+  const tcy=p?TENCY[p.currentTenancyCode]:null, t=tcy?TEN[tcy.tenantId]:null;
+  const tname=i.tenant||(t&&t.name)||'';
+  const CANDS=STAFF.filter(x=>x.role==='candidate'&&x.active!==false);
+  main.innerHTML=`<span class="back" onclick="showInspections()">← Inspections</span><div class="page-title" style="margin-top:8px">Send this inspection</div>
+    <div class="page-sub">${esc(i.clientCode)} ${esc(p?p.address:'')}${i.dueDate?' · due '+fmtD(i.dueDate):''}</div>
+    <div class="form"><label>Send to</label><select id="s-to">${CANDS.map(c=>`<option value="${esc(c.email)}">${esc(c.displayName)}</option>`).join('')}</select>
+    <div class="row"><div><label>Tenant name</label><input id="s-tn" type="text" value="${esc(tname)}"></div>
+    <div><label>Tenant phone</label><input id="s-tp" type="text" value="${esc(i.tenantPhone||pbGuessTenantPhone(i.clientCode,tname))}" placeholder="Not on file. Please add it."></div></div>
+    <div class="note">He receives the address, this name and phone, and the due date by email. No owner details. His access closes when he submits the report.</div>
+    <div class="actions"><button class="btn btn-primary" id="s-save" onclick="sendInspection('${esc(id)}')">Send</button><button class="btn btn-ghost" onclick="showInspections()">Cancel</button></div></div>`;
+}
+async function sendInspection(id){
+  const to=document.getElementById('s-to').value, tn=document.getElementById('s-tn').value.trim(), tp=document.getElementById('s-tp').value.trim();
+  if(!tp && !confirm('No tenant phone entered. Send anyway?')) return;
+  const b=document.getElementById('s-save'); b.textContent='Sending…'; b.disabled=true;
+  const i=INS.find(x=>x.inspectionId===id); if(i){ i.assignedTo=to; i.tenant=tn; i.tenantPhone=tp; i.accessClosedAt=''; }
+  try{ await postApi('updateInspection',{inspectionId:id, assignedTo:to, tenant:tn, tenantPhone:tp, accessClosedAt:''}); }catch(e){ alert('Could not send. Retry.'); }
+  showInspections();
+}
+async function recallInspection(id){
+  if(!confirm('Take this inspection back? He will no longer see the property.')) return;
+  const i=INS.find(x=>x.inspectionId===id); if(i){ i.assignedTo=''; }
+  try{ await postApi('updateInspection',{inspectionId:id, assignedTo:''}); }catch(e){ alert('Could not update. Retry.'); }
+  showInspections();
 }
 function editInspection(id){ const rec=INS.find(x=>x.inspectionId===id); if(rec) showInspectionForm(rec.clientCode, rec); }
 function showInspectionForm(prefill, edit){

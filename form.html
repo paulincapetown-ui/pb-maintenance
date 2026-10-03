@@ -335,7 +335,18 @@
 <script>
 // ── CONFIG ──────────────────────────────────────────────────────
 const GAS_URL   = 'https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5jTsiMRgkv7QPDcmeqcNEAAhFXHW_OwR0-4o0qEtoCkCGjraSA/exec';
-const GAS_TOKEN = 'PBmaint2026';
+/* 03.10.2026 (POPIA access control): the shared code is retired. Every call to the platform
+   carries this person's own session id, issued at sign-in and checked on the server, which also
+   decides what each person may see. If the server says the session is no longer valid, the page
+   clears it and asks for a fresh sign-in. GAS_TOKEN now simply holds that session id. */
+function pbSid_(){ try{ var s=JSON.parse(localStorage.getItem('pb_session')||'null'); if(s && s.sid && (!s.expiry || Date.now() < s.expiry)) return s.sid; }catch(e){} return ''; }
+var GAS_TOKEN = pbSid_();
+function pbRole_(){ try{ var s=JSON.parse(localStorage.getItem('pb_session')||'null'); return String((s&&s.role)||'').toLowerCase(); }catch(e){ return ''; } }
+(function(){ var of=window.fetch; window.fetch=function(u,o){ var pr=of.apply(this,arguments);
+  try{ if(String(u).indexOf('script.google.com/macros')>-1 && !(o&&o.mode==='no-cors')){
+    pr.then(function(r){ try{ r.clone().json().then(function(j){ if(j&&j.authRequired) pbAuthExpired_(); }).catch(function(){}); }catch(e){} }).catch(function(){}); } }catch(e){}
+  return pr; }; })();
+function pbAuthExpired_(){ var had=false; try{ had=!!localStorage.getItem('pb_session'); localStorage.removeItem('pb_session'); }catch(e){} if(window.__pbAuthGone) return; window.__pbAuthGone=true; if(had){ location.reload(); } }
 // ────────────────────────────────────────────────────────────────
 
 // ══════════════════════════════════════════════════════════════
@@ -346,22 +357,24 @@ function getSession() {
     const s = localStorage.getItem('pb_session');
     if (!s) return null;
     const p = JSON.parse(s);
-    if (Date.now() > p.expiry) { localStorage.removeItem('pb_session'); return null; }
+    if (Date.now() > p.expiry || !p.sid) { localStorage.removeItem('pb_session'); return null; }
     return p;
   } catch(e) { return null; }
 }
-function saveSession(email, displayName, role) {
+function saveSession(email, displayName, role, sid) {
+  GAS_TOKEN = sid || '';
   // 29.09.2026: same rule as dashboard.html (26.09.2026). Paul's own login lasts 365 days,
   // tied to the email address itself. Every other email keeps the fixed 8-hour session.
   // Without this, signing in on this page overwrote Paul's year-long session with 8 hours.
   var isPaul = String(email||'').toLowerCase() === 'paul@propertybureau.co.za';
   var durationMs = isPaul ? (365 * 24 * 60 * 60 * 1000) : (8 * 60 * 60 * 1000);
   localStorage.setItem('pb_session', JSON.stringify({
-    email: email, displayName: displayName, role: role,
+    email: email, displayName: displayName, role: role, sid: sid || '',
     expiry: Date.now() + durationMs
   }));
 }
 function doLogout() {
+  try{ if(GAS_TOKEN) fetch(GAS_URL + '?action=logout&session=' + encodeURIComponent(GAS_TOKEN)); }catch(e){}
   localStorage.removeItem('pb_session');
   location.reload();
 }
@@ -454,8 +467,8 @@ async function loginSetPassword() {
     if (!data.success) {
       err.textContent = data.error || 'Failed to set password. Please try again.'; err.style.display = 'block'; return;
     }
-    saveSession(loginEmail, loginDisplayName, data.role || 'staff');
-    showMainContent(getSession());
+    saveSession(loginEmail, loginDisplayName, data.role || 'staff', data.session);
+    location.reload();   // 03.10.2026: reload so the code list loads with the new session
   } catch(e) {
     btn.textContent = 'Set Password & Sign In'; btn.disabled = false;
     err.textContent = pbConnErr('setting your password', e); err.style.display = 'block';
@@ -476,8 +489,8 @@ async function loginWithPassword() {
     if (!data.success) {
       err.textContent = 'Incorrect password. Please try again.'; err.style.display = 'block'; return;
     }
-    saveSession(loginEmail, data.displayName || loginDisplayName, data.role || 'staff');
-    showMainContent(getSession());
+    saveSession(loginEmail, data.displayName || loginDisplayName, data.role || 'staff', data.session);
+    location.reload();   // 03.10.2026: reload so the code list loads with the new session
   } catch(e) {
     btn.textContent = 'Sign In'; btn.disabled = false;
     err.textContent = pbConnErr('signing in', e); err.style.display = 'block';

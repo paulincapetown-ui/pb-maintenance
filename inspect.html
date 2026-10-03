@@ -204,7 +204,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.2</b> · 02.10.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.3</b> · 03.10.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -337,15 +337,39 @@ function buildRooms(tpl, garden){
 
 /* ================= Property registry (read-only autocomplete) ================= */
 var GAS_URL = 'https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5jTsiMRgkv7QPDcmeqcNEAAhFXHW_OwR0-4o0qEtoCkCGjraSA/exec';
-var GAS_TOKEN = 'PBmaint2026';
+/* 03.10.2026 (POPIA access control): the shared code is retired. Every call to the platform
+   carries this person's own session id, issued at sign-in and checked on the server, which also
+   decides what each person may see. If the server says the session is no longer valid, the page
+   clears it and asks for a fresh sign-in. GAS_TOKEN now simply holds that session id. */
+function pbSid_(){ try{ var s=JSON.parse(localStorage.getItem('pb_session')||'null'); if(s && s.sid && (!s.expiry || Date.now() < s.expiry)) return s.sid; }catch(e){} return ''; }
+var GAS_TOKEN = pbSid_();
+function pbRole_(){ try{ var s=JSON.parse(localStorage.getItem('pb_session')||'null'); return String((s&&s.role)||'').toLowerCase(); }catch(e){ return ''; } }
+(function(){ var of=window.fetch; window.fetch=function(u,o){ var pr=of.apply(this,arguments);
+  try{ if(String(u).indexOf('script.google.com/macros')>-1 && !(o&&o.mode==='no-cors')){
+    pr.then(function(r){ try{ r.clone().json().then(function(j){ if(j&&j.authRequired) pbAuthExpired_(); }).catch(function(){}); }catch(e){} }).catch(function(){}); } }catch(e){}
+  return pr; }; })();
+function pbAuthExpired_(){ var had=false; try{ had=!!localStorage.getItem('pb_session'); localStorage.removeItem('pb_session'); }catch(e){} if(window.__pbAuthGone) return; window.__pbAuthGone=true; if(had){ pbSignInBanner_('Your platform sign-in has ended. Sign in again to load property details. Work on this phone is kept.'); } }
+function pbSignInBanner_(msg){
+  try{ if(document.getElementById('pb-signin')) return;
+    var d=document.createElement('div'); d.id='pb-signin';
+    d.style.cssText='position:sticky;top:0;z-index:9999;background:#182048;color:#fff;font:14px Arial,sans-serif;padding:10px 14px;text-align:center';
+    d.innerHTML=msg+' <a href="./dashboard.html?next=inspect.html" style="color:#fff;font-weight:bold;text-decoration:underline">Sign in</a>';
+    document.body.insertBefore(d, document.body.firstChild);
+  }catch(e){}
+}
+if(!GAS_TOKEN){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ pbSignInBanner_('Sign in to the platform first so the app can load property and tenant details.'); }); else pbSignInBanner_('Sign in to the platform first so the app can load property and tenant details.'); }
+try{ ['getProperties','getTenants','getTenancies','getRenewals'].forEach(function(a){ localStorage.removeItem('pbRegCache_'+a); }); }catch(e){}
+function pbSessEmail_(){ try{ var s=JSON.parse(localStorage.getItem('pb_session')||'null'); return (s&&s.email)||''; }catch(e){ return ''; } }
 var PROPS=[], TENMAP={}, TENCY={}, TENLIST=[];
 /* v1.9.0: every read is kept on the phone, so with no signal the code, address and tenant look-ups still work */
 function regApi(action){
   return fetch(GAS_URL+'?token='+GAS_TOKEN+'&action='+action).then(function(r){return r.json();}).then(function(j){
-    try{ if(j && j.success!==false) localStorage.setItem('pbRegCache_'+action, JSON.stringify(j)); }catch(e){}
+    /* 03.10.2026: cache only a real answer (never a refusal), and per person, so one person's
+       registry is never shown to the next person who signs in on the same phone. */
+    try{ if(j && j.success===true) localStorage.setItem('pbRegCache_'+pbSessEmail_()+'_'+action, JSON.stringify(j)); }catch(e){}
     return j;
   }).catch(function(e){
-    var c=null; try{ c=JSON.parse(localStorage.getItem('pbRegCache_'+action)||'null'); }catch(x){}
+    var c=null; try{ c=JSON.parse(localStorage.getItem('pbRegCache_'+pbSessEmail_()+'_'+action)||'null'); }catch(x){}
     if(c) return c; throw e;
   });
 }
@@ -464,7 +488,7 @@ function spInit(){
     spUi(); spPump();
   }).catch(function(e){ var el=document.getElementById('spState'); if(el) el.textContent='Sign-in problem: '+e.message; });
 }
-function spConnect(){ if(!msalApp) return; msalApp.loginRedirect({scopes:['Files.ReadWrite.All'],loginHint:'paul@propertybureau.co.za'}); }
+function spConnect(){ if(!msalApp) return; msalApp.loginRedirect({scopes:['Files.ReadWrite.All'],loginHint:(pbSessEmail_()||'paul@propertybureau.co.za')}); }
 function spToken(){
   return msalApp.acquireTokenSilent({scopes:['Files.ReadWrite.All'],account:msAccount}).then(function(r){return r.accessToken;})
     .catch(function(){ msalApp.acquireTokenRedirect({scopes:['Files.ReadWrite.All']}); throw new Error('auth'); });
