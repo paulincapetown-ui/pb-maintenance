@@ -61,6 +61,12 @@
   .tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;display:inline-block}
   .tag.portfolio{background:var(--navy);color:#fff}.tag.agent{background:var(--purple-bg);color:var(--purple)}
   .tag.agent.none{background:#fff3cd;color:#92760a}
+  .tag.ended{background:#e5e7eb;color:#4b5563}
+  .ended-row td{color:#9ca3af}
+  .end-panel{background:#fafafa;border:1px solid var(--line);border-radius:9px;padding:12px 14px;margin-top:12px;max-width:620px}
+  .end-panel label{display:block;font-size:12px;font-weight:600;color:#374151;margin:8px 0 4px}
+  .end-panel input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;font-family:inherit}
+  .form .err{font-size:12px;color:var(--red);margin-top:6px}
   .muted{color:var(--muted)} .loading{padding:40px;text-align:center;color:var(--muted)}
   .btn{border:none;border-radius:7px;padding:9px 15px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
   .btn-primary{background:var(--navy);color:#fff}.btn-ghost{background:#fff;color:var(--navy);border:1px solid var(--line)}
@@ -182,7 +188,7 @@
   </nav>
   <main class="main" id="main"><div class="loading">Loading…</div></main>
 </div>
-<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Hub · build 28.09.2026 · leads, renewal link</div>
+<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Hub · build 03.10.2026 · add property, mark ended</div>
 
 <script>
 const GAS_URL   = "https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5jTsiMRgkv7QPDcmeqcNEAAhFXHW_OwR0-4o0qEtoCkCGjraSA/exec";
@@ -284,19 +290,24 @@ async function loadRest(){
 function openCount(){ return UA.filter(a=>(a.status||'').toLowerCase()!=='done').length; }
 function updateBadge(){ var b=document.getElementById('ua-badge'); var n=openCount(); if(n>0){ b.textContent=n; b.style.display='inline-block'; } else b.style.display='none'; }
 
+let SHOW_ENDED=false; /* Properties page: ended properties hidden unless asked for (03.10.2026) */
+function propEnded(p){ return /^ENDED\b/i.test(String((p&&p.notes)||'').trim()); }
+function toggleEnded(){ SHOW_ENDED=!SHOW_ENDED; const f=document.getElementById('flt'); showList(f?f.value:''); }
 function showList(filter){
   setNav('nav-props');
-  const rows = PROPS.filter(p=>{ if(!filter) return true; const q=filter.toLowerCase();
+  const endedN = PROPS.filter(propEnded).length;
+  const rows = PROPS.filter(p=>SHOW_ENDED||!propEnded(p)).filter(p=>{ if(!filter) return true; const q=filter.toLowerCase();
     return (p.clientCode||'').toLowerCase().includes(q)||(p.address||'').toLowerCase().includes(q)||(p.portfolioLabel||'').toLowerCase().includes(q)||(p.assignedAgent||'').toLowerCase().includes(q); });
   main.innerHTML = `
     <div class="page-title">Properties</div>
-    <div class="page-sub">${PROPS.length} properties. Type a code in the search bar above to jump straight to one.</div>
-    <div class="toolbar"><input id="flt" type="text" placeholder="Filter by code, address, portfolio or agent…" value="${esc(filter||'')}"></div>
+    <div class="page-sub">${PROPS.length-endedN} current properties${endedN?' · '+endedN+' ended':''}. Type a code in the search bar above to jump straight to one.</div>
+    <button class="btn btn-primary" id="btn-add-prop" onclick="showPropertyForm()">+ Add property</button>${endedN?` <button class="btn btn-ghost" onclick="toggleEnded()">${SHOW_ENDED?'Hide ended':'Show ended ('+endedN+')'}</button>`:''}
+    <div class="toolbar" style="margin-top:14px"><input id="flt" type="text" placeholder="Filter by code, address, portfolio or agent…" value="${esc(filter||'')}"></div>
     <div class="table-wrap"><table>
       <thead><tr><th>Code</th><th>Address</th><th>Portfolio</th><th>Agent</th><th>Tenancy</th></tr></thead>
       <tbody>${rows.map(p=>`
-        <tr class="clickable" onclick="openProfile('${p.clientCode}')">
-          <td><span class="code">${esc(p.clientCode)}</span></td>
+        <tr class="clickable${propEnded(p)?' ended-row':''}" onclick="openProfile('${p.clientCode}')">
+          <td><span class="code">${esc(p.clientCode)}</span>${propEnded(p)?' <span class="tag ended">Ended</span>':''}</td>
           <td>${esc(p.address)||'<span class="muted">—</span>'}</td>
           <td><span class="tag portfolio">${esc(p.portfolio)} ${esc(p.portfolioLabel)}</span></td>
           <td>${esc(p.assignedAgent)||'<span class="muted">Unassigned</span>'}</td>
@@ -334,15 +345,101 @@ function openProfile(code){
     <span class="back" onclick="showList()">← All properties</span>
     <div class="pp-head"><div class="pp-top">
       <div><div class="pp-code">${esc(prop.clientCode)}</div><div class="pp-addr">${esc(prop.address)}</div></div>
-      <div class="pp-tags"><span class="tag portfolio">PORTFOLIO · ${esc(prop.portfolio)} ${esc(prop.portfolioLabel)}</span>${agentTag}</div>
+      <div class="pp-tags">${propEnded(prop)?'<span class="tag ended">ENDED</span>':''}<span class="tag portfolio">PORTFOLIO · ${esc(prop.portfolio)} ${esc(prop.portfolioLabel)}</span>${agentTag}</div>
     </div>
-    <div style="margin-top:12px"><button class="btn btn-ghost btn-sm" onclick="showUAForm('${esc(prop.clientCode)}')">+ Flag urgent action for this property</button></div></div>
+    <div style="margin-top:12px"><button class="btn btn-ghost btn-sm" onclick="showUAForm('${esc(prop.clientCode)}')">+ Flag urgent action for this property</button>
+      ${propEnded(prop)?`<button class="btn btn-ghost btn-sm" id="btn-reinstate" onclick="reinstateProperty('${esc(prop.clientCode)}')">Reinstate as current</button>`:`<button class="btn btn-ghost btn-sm" id="btn-end" onclick="showEndPanel('${esc(prop.clientCode)}')">Mark as ended</button>`}</div>
+    ${propEnded(prop)?`<div class="note" style="font-style:normal">${esc(String(prop.notes).split('\n')[0])}</div>`:''}
+    <div id="end-panel"></div></div>
     <div class="grid">
       <div class="panel"><h4>Landlord(s)</h4>${llHtml}</div>
       <div class="panel"><h4>Current tenant</h4>${tenHtml}
         <div class="note">Only the current tenant is held. The next tenant becomes /02.</div></div>
       <div class="panel full"><h4>Linked jobs</h4>${jobsHtml}</div>
     </div>`;
+}
+
+// ── Add property / mark ended (03.10.2026) ──
+// The platform is the master property list. Writes use the existing backend
+// actions addProperty, addLandlord, addTenant, addTenancy and updateProperty.
+// IDs are made here (no-cors writes cannot read a reply), from the highest
+// existing number + 1, exactly as the backend would.
+function pbNextId(list, key, prefix){ let m=0; list.forEach(x=>{ const r=String(x[key]||'').match(new RegExp('^'+prefix+'(\\d+)$')); if(r) m=Math.max(m,parseInt(r[1],10)); }); return prefix+String(m+1).padStart(4,'0'); }
+function pbPortfolioFor(letter){
+  const same=PROPS.filter(p=>String(p.clientCode||'').toUpperCase().charAt(0)===letter);
+  const pick=k=>{ const c={}; same.forEach(p=>{ const v=String(p[k]||''); if(v) c[v]=(c[v]||0)+1; }); let best='',n=0; Object.keys(c).forEach(v=>{ if(c[v]>n){best=v;n=c[v];} }); return best; };
+  return { label: pick('portfolioLabel'), agent: pick('assignedAgent') };
+}
+function pbTodayZA(){ const d=new Date(); return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear(); }
+function showPropertyForm(){
+  setNav('nav-props');
+  main.innerHTML=`<span class="back" onclick="showList()">← All properties</span><div class="page-title" style="margin-top:8px">Add a property</div><div class="page-sub">Load a new property once, here. It then appears everywhere on the platform: the property list, the search bar, the code boxes and the Inspection App.</div>
+    <div class="form"><div class="row"><div><label>File code</label><input id="np-code" type="text" autocomplete="off" placeholder="e.g. L417"><div id="np-code-msg" class="err"></div></div>
+      <div><label>Agent</label><input id="np-agent" type="text" placeholder="e.g. Paul Grobler"></div></div>
+    <label>Address</label><input id="np-addr" type="text" placeholder="Unit, building, street number and name, suburb">
+    <div class="row"><div><label>Owner name</label><input id="np-own" type="text"></div><div><label>Owner email</label><input id="np-own-em" type="email"></div></div>
+    <div class="row"><div><label>Tenant name (if let)</label><input id="np-ten" type="text"></div><div><label>Tenant email</label><input id="np-ten-em" type="email"></div></div>
+    <label>Notes</label><textarea id="np-notes" placeholder="Anything the office should know"></textarea>
+    <div class="actions"><button class="btn btn-primary" id="np-save" onclick="submitProperty()">Save property</button><button class="btn btn-ghost" onclick="showList()">Cancel</button></div></div>`;
+  const c=document.getElementById('np-code');
+  c.addEventListener('input',()=>{ const v=c.value.trim().toUpperCase(), msg=document.getElementById('np-code-msg'), ag=document.getElementById('np-agent');
+    msg.textContent=''; if(!v) return;
+    if(!/^[A-Z]\d{3}$/.test(v)){ msg.textContent='A file code is one letter and three numbers, e.g. L417 or F062.'; return; }
+    const dup=PROPS.find(p=>String(p.clientCode||'').toUpperCase()===v);
+    if(dup){ msg.textContent=v+' is already used for '+dup.address+(propEnded(dup)?' (ended)':'')+'.'; return; }
+    const pf=pbPortfolioFor(v.charAt(0)); if(pf.agent && !ag.dataset.touched) ag.value=pf.agent; });
+  document.getElementById('np-agent').addEventListener('input',e=>{ e.target.dataset.touched='1'; });
+  c.focus();
+}
+async function submitProperty(){
+  const g=id=>document.getElementById(id).value.trim();
+  const code=g('np-code').toUpperCase(), addr=g('np-addr'), msg=document.getElementById('np-code-msg');
+  if(!/^[A-Z]\d{3}$/.test(code)){ msg.textContent='A file code is one letter and three numbers, e.g. L417 or F062.'; return; }
+  if(PROPS.some(p=>String(p.clientCode||'').toUpperCase()===code)){ msg.textContent=code+' is already on the platform.'; return; }
+  if(!addr){ alert('Please add the address.'); return; }
+  const b=document.getElementById('np-save'); b.textContent='Saving…'; b.disabled=true;
+  const pf=pbPortfolioFor(code.charAt(0)), who=(session&&(session.displayName||session.email))||'the office';
+  const propertyId=pbNextId(PROPS,'propertyId','P-');
+  const prop={propertyId:propertyId, clientCode:code, portfolio:code.charAt(0), portfolioLabel:pf.label||code.charAt(0), address:addr,
+    assignedAgent:g('np-agent'), landlordIds:'', currentTenancyCode:'', currentTenantId:'',
+    notes:(g('np-notes')?g('np-notes')+'\n':'')+'Added on the Hub by '+who+' on '+pbTodayZA()+'.'};
+  try{
+    if(g('np-own')){
+      const landlordId=pbNextId(Object.values(LL),'landlordId','LL-');
+      const ll={landlordId:landlordId, name:g('np-own'), email:g('np-own-em'), linkedProperties:code};
+      await postApi('addLandlord',ll); LL[landlordId]=ll; prop.landlordIds=landlordId;
+    }
+    if(g('np-ten')){
+      const tenantId=pbNextId(Object.values(TEN),'tenantId','TN-'), tenancyCode=code+'/01';
+      const tn={tenantId:tenantId, name:g('np-ten'), email:g('np-ten-em')};
+      const ty={tenancyCode:tenancyCode, propertyId:propertyId, tenantId:tenantId, current:'TRUE'};
+      await postApi('addTenant',tn); await postApi('addTenancy',ty);
+      TEN[tenantId]=tn; TENCY[tenancyCode]=ty; prop.currentTenancyCode=tenancyCode; prop.currentTenantId=tenantId;
+    }
+    await postApi('addProperty',prop);
+    PROPS.push(prop); openProfile(code);
+  }catch(e){ b.textContent='Save property'; b.disabled=false; alert('Could not save. Check the connection and try again.'); }
+}
+function showEndPanel(code){
+  const el=document.getElementById('end-panel'); if(!el) return;
+  el.innerHTML=`<div class="end-panel"><b>Mark ${esc(code)} as ended</b><div class="muted" style="font-size:12px;margin-top:2px">The property stays on the platform for its history, but drops off the current list.</div>
+    <label>Reason (optional)</label><input id="end-reason" type="text" placeholder="e.g. owner sold, mandate cancelled">
+    <div style="margin-top:10px;display:flex;gap:8px"><button class="btn btn-primary btn-sm" id="end-confirm" onclick="confirmEnded('${esc(code)}')">Confirm ended</button><button class="btn btn-ghost btn-sm" onclick="document.getElementById('end-panel').innerHTML=''">Cancel</button></div></div>`;
+}
+async function confirmEnded(code){
+  const p=PROPS.find(x=>String(x.clientCode||'').toUpperCase()===String(code).toUpperCase()); if(!p) return;
+  const who=(session&&(session.displayName||session.email))||'the office', reason=(document.getElementById('end-reason')||{}).value||'';
+  const notes='ENDED '+pbTodayZA()+(reason.trim()?': '+reason.trim():'')+' (marked on the Hub by '+who+').'+(p.notes?'\n'+p.notes:'');
+  const b=document.getElementById('end-confirm'); if(b){ b.textContent='Saving…'; b.disabled=true; }
+  try{ await postApi('updateProperty',{propertyId:p.propertyId, notes:notes}); p.notes=notes; openProfile(p.clientCode); }
+  catch(e){ if(b){ b.textContent='Confirm ended'; b.disabled=false; } alert('Could not save. Check the connection and try again.'); }
+}
+async function reinstateProperty(code){
+  const p=PROPS.find(x=>String(x.clientCode||'').toUpperCase()===String(code).toUpperCase()); if(!p) return;
+  const lines=String(p.notes||'').split('\n'); while(lines.length && /^ENDED\b/i.test(lines[0].trim())) lines.shift();
+  const notes=lines.join('\n');
+  try{ await postApi('updateProperty',{propertyId:p.propertyId, notes:notes}); p.notes=notes; openProfile(p.clientCode); }
+  catch(e){ alert('Could not save. Check the connection and try again.'); }
 }
 
 // ── Urgent Actions ──
