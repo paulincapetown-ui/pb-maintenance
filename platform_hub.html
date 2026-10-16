@@ -218,7 +218,7 @@ const PORT_LABEL = {L:"Managed",H:"Unmanaged",F:"Pat",C:"Leonard & Nolan",G:"G"}
 let PROPS=[], LL={}, TEN={}, TENCY={}, JOBS=[], UA=[], REN=[], INS=[], AL=[], REPLIES=[];
 let LEADS=null; /* lead register, loaded on first open of the Leads page (26.09.2026) */
 const LEAD_TYPES=['Buyer','Seller','Landlord','Tenant'];
-const LEAD_SOURCES=['Website form','Phone call','Email','Walk-in or board','Referral','Existing client','Property24','Google','Social media','Other'];
+const LEAD_SOURCES=['Google search','Google Maps or our reviews','ChatGPT or another AI assistant','Property24','LinkedIn','Facebook or Instagram','Recommended by someone','Existing client','Saw a board or our office','Other','Not asked']; /* 16.10.2026: where they FOUND us, not how they contacted us. Paul's decision. */
 const LEAD_OUTCOMES=['Open','Won','Lost','No response'];
 const main = document.getElementById('main');
 
@@ -690,7 +690,7 @@ function uaLeadFields(e){
   if(linked) return '<div class="resolved" style="margin-top:10px">Already in the lead register.</div>';
   return `<div class="row">
         <div><label>Is this a lead?</label><select id="f-lead" onchange="document.getElementById('f-source-wrap').style.display=this.value==='No'?'none':''"><option>No</option>${LEAD_TYPES.map(t=>'<option>'+t+'</option>').join('')}</select></div>
-        <div id="f-source-wrap" style="display:none"><label>How did they find us?</label><select id="f-source">${LEAD_SOURCES.map(t=>'<option>'+t+'</option>').join('')}</select></div>
+        <div id="f-source-wrap" style="display:none"><label>How did they find us?</label><select id="f-source"><option value="">Choose one (required)</option>${LEAD_SOURCES.map(t=>'<option>'+t+'</option>').join('')}</select></div>
       </div>`;
 }
 async function postLeadFor(ua){
@@ -707,6 +707,7 @@ async function submitUA(editId){
     contactPhone:document.getElementById('f-phone').value.trim(), flaggedBy:document.getElementById('f-by').value.trim(),
     issue:document.getElementById('f-issue').value.trim() };
   if(!data.issue){ alert('Please describe the issue / points to raise.'); return; }
+  { const lsel=document.getElementById('f-lead'), lsrc=document.getElementById('f-source'); if(lsel && lsel.value!=='No' && lsrc && !lsrc.value){ alert('Please choose how they found us. If you did not ask, choose "Not asked".'); return; } }
   if(cc.extra && data.issue.indexOf(cc.extra)===-1) data.issue+='\n(Entered with the code: '+cc.extra+')';
   const btn=document.getElementById('f-save'); btn.textContent='Saving…'; btn.disabled=true;
   if(editId){
@@ -752,7 +753,7 @@ async function showLeads(){
   }
   const rows=LEADS.slice().sort((a,b)=>String(b.dateLogged).localeCompare(String(a.dateLogged)));
   const count=(k,v)=>rows.filter(r=>r[k]===v).length;
-  const bySource=LEAD_SOURCES.map(s=>[s,count('source',s)]).filter(x=>x[1]>0).map(x=>esc(x[0])+' '+x[1]).join(' · ')||'none yet';
+  const bySource=[...new Set(rows.map(r=>r.source).filter(Boolean))].map(s=>[s,count('source',s)]).sort((a,b)=>b[1]-a[1]).map(x=>esc(x[0])+' '+x[1]).join(' · ')||'none yet';
   const table = rows.length ? '<div class="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Source</th><th>Contact</th><th>Code</th><th>What they want</th><th>Outcome</th></tr></thead><tbody>'+
     rows.map(l=>{ const ua=UA.find(a=>a.actionId===l.uaId)||{};
       const who=[ua.contactName,ua.contactPhone].filter(Boolean).map(esc).join(' · ')||'—';
