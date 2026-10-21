@@ -189,7 +189,7 @@
   </nav>
   <main class="main" id="main"><div class="loading">Loading…</div></main>
 </div>
-<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Hub · build 03.10.2026 · add property, mark ended, personal sign-in, candidate access</div>
+<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Hub · build 21.10.2026 · add property waits for the registry to load</div>
 
 <script>
 const GAS_URL   = "https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5jTsiMRgkv7QPDcmeqcNEAAhFXHW_OwR0-4o0qEtoCkCGjraSA/exec";
@@ -400,6 +400,8 @@ function openProfile(code){
 // actions addProperty, addLandlord, addTenant, addTenancy and updateProperty.
 // IDs are made here (no-cors writes cannot read a reply), from the highest
 // existing number + 1, exactly as the backend would.
+/* Guard (21.10.2026): Add property refuses to save until the registry has loaded; an empty list made IDs P-0001, LL-0001, TN-0001 clash with L002. */
+function pbRegistryLoaded_(){ return PROPS.length>0 && Object.keys(LL).length>0 && Object.keys(TEN).length>0 && Object.keys(TENCY).length>0; }
 function pbNextId(list, key, prefix){ let m=0; list.forEach(x=>{ const r=String(x[key]||'').match(new RegExp('^'+prefix+'(\\d+)$')); if(r) m=Math.max(m,parseInt(r[1],10)); }); return prefix+String(m+1).padStart(4,'0'); }
 function pbPortfolioFor(letter){
   const same=PROPS.filter(p=>String(p.clientCode||'').toUpperCase().charAt(0)===letter);
@@ -433,9 +435,11 @@ async function submitProperty(){
   if(!/^[A-Z]\d{3}$/.test(code)){ msg.textContent='A file code is one letter and three numbers, e.g. L417 or F062.'; return; }
   if(PROPS.some(p=>String(p.clientCode||'').toUpperCase()===code)){ msg.textContent=code+' is already on the platform.'; return; }
   if(!addr){ alert('Please add the address.'); return; }
+  if(!pbRegistryLoaded_()){ alert('The property list is still loading. Wait a few seconds and press Save again.'); return; }
   const b=document.getElementById('np-save'); b.textContent='Saving…'; b.disabled=true;
   const pf=pbPortfolioFor(code.charAt(0)), who=(session&&(session.displayName||session.email))||'the office';
   const propertyId=pbNextId(PROPS,'propertyId','P-');
+  if(PROPS.some(p=>p.propertyId===propertyId)){ b.textContent='Save property'; b.disabled=false; alert('Could not create a new property number. Refresh the page and try again.'); return; }
   const prop={propertyId:propertyId, clientCode:code, portfolio:code.charAt(0), portfolioLabel:pf.label||code.charAt(0), address:addr,
     assignedAgent:g('np-agent'), landlordIds:'', currentTenancyCode:'', currentTenantId:'',
     notes:(g('np-notes')?g('np-notes')+'\n':'')+'Added on the Hub by '+who+' on '+pbTodayZA()+'.'};
