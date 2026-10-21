@@ -65,6 +65,8 @@
   .ended-row td{color:#9ca3af}
   .end-panel{background:#fafafa;border:1px solid var(--line);border-radius:9px;padding:12px 14px;margin-top:12px;max-width:620px}
   .end-panel label{display:block;font-size:12px;font-weight:600;color:#374151;margin:8px 0 4px}
+  .end-panel .row2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}@media(max-width:640px){.end-panel .row2{grid-template-columns:1fr}}
+  .end-panel .hint{font-size:12px;color:#6b7280;margin-top:3px}
   .end-panel input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;font-family:inherit}
   .form .err{font-size:12px;color:var(--red);margin-top:6px}
   .muted{color:var(--muted)} .loading{padding:40px;text-align:center;color:var(--muted)}
@@ -189,7 +191,7 @@
   </nav>
   <main class="main" id="main"><div class="loading">Loading…</div></main>
 </div>
-<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Hub · build 21.10.2026 · add property waits for the registry to load</div>
+<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Hub · build 21.10.2026 · edit details on a property</div>
 
 <script>
 const GAS_URL   = "https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5jTsiMRgkv7QPDcmeqcNEAAhFXHW_OwR0-4o0qEtoCkCGjraSA/exec";
@@ -383,6 +385,7 @@ function openProfile(code){
       <div class="pp-tags">${propEnded(prop)?'<span class="tag ended">ENDED</span>':''}<span class="tag portfolio">PORTFOLIO · ${esc(prop.portfolio)} ${esc(prop.portfolioLabel)}</span>${agentTag}</div>
     </div>
     <div style="margin-top:12px"><button class="btn btn-ghost btn-sm" onclick="showUAForm('${esc(prop.clientCode)}')">+ Flag urgent action for this property</button>
+      ${isCandidate()?'':`<button class="btn btn-ghost btn-sm" id="btn-edit" onclick="showEditPanel('${esc(prop.clientCode)}')">Edit details</button>`}
       ${isCandidate()?'':propEnded(prop)?`<button class="btn btn-ghost btn-sm" id="btn-reinstate" onclick="reinstateProperty('${esc(prop.clientCode)}')">Reinstate as current</button>`:`<button class="btn btn-ghost btn-sm" id="btn-end" onclick="showEndPanel('${esc(prop.clientCode)}')">Mark as ended</button>`}</div>
     ${propEnded(prop)?`<div class="note" style="font-style:normal">${esc(String(prop.notes).split('\n')[0])}</div>`:''}
     <div id="end-panel"></div></div>
@@ -459,6 +462,92 @@ async function submitProperty(){
     await postApi('addProperty',prop);
     PROPS.push(prop); openProfile(code);
   }catch(e){ b.textContent='Save property'; b.disabled=false; alert('Could not save. Check the connection and try again.'); }
+}
+/* Edit details (21.10.2026, Paul): the office corrects a property it loaded wrongly.
+   Address, agent, owner and tenant use the existing update actions. A new file code goes
+   through renamePropertyCode (backend v27), which also renames the tenancy (CODE/NN) and the
+   owner link, and refuses if any history is filed under the old code. Rename is sent last. */
+function pbCodeHistory_(code){
+  const c=String(code||'').trim().toUpperCase(), m=x=>String((x&&(x.clientCode||x.code))||'').trim().toUpperCase()===c, out=[];
+  if(JOBS.some(m)) out.push('jobs'); if(INS.some(m)) out.push('inspections'); if(REN.some(m)) out.push('renewals');
+  if(UA.some(m)) out.push('urgent actions'); if(AL.some(m)) out.push('listings'); if(Array.isArray(LEADS)&&LEADS.some(m)) out.push('leads');
+  return out;
+}
+function showEditPanel(code){
+  const el=document.getElementById('end-panel'); if(!el) return;
+  const {prop,tcy}=resolve(code); if(!prop) return;
+  const own=String(prop.landlordIds||'').split(';').map(s=>s.trim()).filter(Boolean).map(id=>LL[id]).filter(Boolean)[0]||null;
+  const ten=tcy?TEN[tcy.tenantId]:null, v=x=>esc(x||'');
+  el.innerHTML=`<div class="end-panel" id="edit-panel"><b>Edit ${esc(prop.clientCode)}</b><div class="hint">Correct a mistake made when the property was loaded. A new tenant moving in is a new tenancy, not an edit.</div>
+    <div class="row2"><div><label>File code</label><input id="ed-code" type="text" autocomplete="off" value="${v(prop.clientCode)}"><div class="hint" id="ed-code-msg"></div></div>
+      <div><label>Agent</label><input id="ed-agent" type="text" value="${v(prop.assignedAgent)}"></div></div>
+    <label>Address</label><input id="ed-addr" type="text" value="${v(prop.address)}">
+    <div class="row2"><div><label>Owner name</label><input id="ed-own" type="text" value="${v(own&&own.name)}"></div><div><label>Owner email</label><input id="ed-own-em" type="email" value="${v(own&&own.email)}"></div></div>
+    <div class="row2"><div><label>Tenant name</label><input id="ed-ten" type="text" value="${v(ten&&ten.name)}"></div><div><label>Tenant email</label><input id="ed-ten-em" type="email" value="${v(ten&&ten.email)}"></div></div>
+    <div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-primary btn-sm" id="ed-save" onclick="saveEdit('${esc(prop.clientCode)}')">Save changes</button><button class="btn btn-ghost btn-sm" onclick="document.getElementById('end-panel').innerHTML=''">Cancel</button></div></div>`;
+  const c=document.getElementById('ed-code');
+  c.addEventListener('input',()=>{ document.getElementById('ed-code-msg').textContent=pbEditCodeProblem_(prop, c.value)||''; });
+}
+function pbEditCodeProblem_(prop, raw){
+  const v=String(raw||'').trim().toUpperCase(), old=String(prop.clientCode||'').toUpperCase();
+  if(v===old) return '';
+  if(!/^[A-Z]\d{3}$/.test(v)) return 'A file code is one letter and three numbers, e.g. L417 or F062.';
+  const dup=PROPS.find(p=>p!==prop&&String(p.clientCode||'').toUpperCase()===v); if(dup) return v+' is already used for '+dup.address+'.';
+  if(Object.keys(TENCY).some(k=>k.toUpperCase().indexOf(v+'/')===0)) return v+' already has a tenancy on the platform. Ask Paul.';
+  const h=pbCodeHistory_(old); if(h.length) return old+' already has '+h.join(', ')+' filed under it, so the code cannot be changed here. Ask Paul.';
+  return '';
+}
+async function pbReloadRegistry_(){
+  const b=await api('getBootstrap'); if(!(b&&b.success&&b.properties)) return false;
+  PROPS=b.properties||[]; LL={}; TEN={}; TENCY={};
+  (b.landlords||[]).forEach(x=>LL[x.landlordId]=x); (b.tenants||[]).forEach(x=>TEN[x.tenantId]=x); (b.tenancies||[]).forEach(x=>TENCY[x.tenancyCode]=x);
+  if(b.jobs) JOBS=b.jobs; if(b.inspections) INS=b.inspections; if(b.renewals) REN=b.renewals; if(b.urgentActions) UA=b.urgentActions; if(b.activeListings) AL=b.activeListings;
+  return true;
+}
+async function saveEdit(code){
+  if(!pbRegistryLoaded_()){ alert('The property list is still loading. Wait a few seconds and press Save again.'); return; }
+  const {prop,tcy}=resolve(code); if(!prop) return;
+  const g=id=>document.getElementById(id).value.trim();
+  const newCode=g('ed-code').toUpperCase(), oldCode=String(prop.clientCode||'').toUpperCase(), addr=g('ed-addr');
+  const prob=pbEditCodeProblem_(prop, newCode); if(prob){ document.getElementById('ed-code-msg').textContent=prob; return; }
+  if(!addr){ alert('Please add the address.'); return; }
+  const b=document.getElementById('ed-save'); b.textContent='Saving…'; b.disabled=true;
+  const who=(session&&(session.displayName||session.email))||'the office', changed=[];
+  const own=String(prop.landlordIds||'').split(';').map(s=>s.trim()).filter(Boolean).map(id=>LL[id]).filter(Boolean)[0]||null;
+  const ten=tcy?TEN[tcy.tenantId]:null;
+  try{
+    const pu={propertyId:prop.propertyId};
+    if(addr!==String(prop.address||'')){ pu.address=addr; changed.push('address'); }
+    if(g('ed-agent')!==String(prop.assignedAgent||'')){ pu.assignedAgent=g('ed-agent'); changed.push('agent'); }
+    if(own){
+      if(g('ed-own')!==String(own.name||'')||g('ed-own-em')!==String(own.email||'')){
+        await postApi('updateLandlord',{landlordId:own.landlordId, name:g('ed-own'), email:g('ed-own-em')}); changed.push('owner'); }
+    } else if(g('ed-own')){
+      const landlordId=pbNextId(Object.values(LL),'landlordId','LL-');
+      if(LL[landlordId]) throw new Error('id');
+      await postApi('addLandlord',{landlordId:landlordId, name:g('ed-own'), email:g('ed-own-em'), linkedProperties:oldCode});
+      pu.landlordIds=landlordId; changed.push('owner added');
+    }
+    if(ten){
+      if(g('ed-ten')!==String(ten.name||'')||g('ed-ten-em')!==String(ten.email||'')){
+        await postApi('updateTenant',{tenantId:ten.tenantId, name:g('ed-ten'), email:g('ed-ten-em')}); changed.push('tenant'); }
+    } else if(g('ed-ten')){
+      const tenantId=pbNextId(Object.values(TEN),'tenantId','TN-'), tenancyCode=oldCode+'/01';
+      if(TEN[tenantId]||TENCY[tenancyCode]) throw new Error('id');
+      await postApi('addTenant',{tenantId:tenantId, name:g('ed-ten'), email:g('ed-ten-em')});
+      await postApi('addTenancy',{tenancyCode:tenancyCode, propertyId:prop.propertyId, tenantId:tenantId, current:'TRUE'});
+      pu.currentTenancyCode=tenancyCode; pu.currentTenantId=tenantId; changed.push('tenant added');
+    }
+    if(newCode!==oldCode) changed.push('file code '+oldCode+' to '+newCode);
+    if(!changed.length){ document.getElementById('end-panel').innerHTML=''; return; }
+    pu.notes=String(prop.notes||'')+(prop.notes?'\n':'')+'Edited on the Hub by '+who+' on '+pbTodayZA()+': '+changed.join(', ')+'.';
+    await postApi('updateProperty',pu);
+    if(newCode!==oldCode) await postApi('renamePropertyCode',{propertyId:prop.propertyId, oldCode:oldCode, newCode:newCode});
+    await pbReloadRegistry_();
+    if(newCode!==oldCode && !PROPS.some(p=>String(p.clientCode||'').toUpperCase()===newCode)){
+      alert('The other details were saved, but the file code was not changed. Ask Paul.'); openProfile(oldCode); return; }
+    openProfile(newCode);
+  }catch(e){ b.textContent='Save changes'; b.disabled=false; alert('Could not save. Refresh the page and try again.'); }
 }
 function showEndPanel(code){
   const el=document.getElementById('end-panel'); if(!el) return;
