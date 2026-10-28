@@ -204,7 +204,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.4</b> · 28.10.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.5</b> · 28.10.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -684,7 +684,39 @@ function pbBuildReportPdfLegacy(el){
    limit → corrupt PDF). So render it ONE A4 PAGE AT A TIME at scale:2 — each canvas is
    only 1588 × ~2286 px (≈3.6M px), well inside the limit, and every photo lands at ~2x
    the pixels ≈ 200 DPI. Any failure falls straight back to the proven v1.6.5 path. */
+/* v1.9.5 (28.10.2026): the report is built and filed in the same instant, so the photos had not
+   loaded yet and measured 0 px tall. The PDF height was taken too short and the report stopped
+   part way (C016 ended at the kitchen stove). Wait for every image first, max 15 s. */
+function pbImagesReady(el){
+  var imgs=[].slice.call(el.querySelectorAll('img'));
+  var each=imgs.map(function(im){
+    if(im.complete && im.naturalHeight) return (im.decode? im.decode().catch(function(){}) : Promise.resolve());
+    return new Promise(function(res){ im.addEventListener('load',res,{once:true}); im.addEventListener('error',res,{once:true}); });
+  });
+  return Promise.race([Promise.all(each), new Promise(function(res){ setTimeout(res,15000); })]);
+}
+/* Page breaks: move each break up to the top of any photo or row it would cut through. */
+function pbPageBreaks(el,total,pageCss){
+  var top=el.getBoundingClientRect().top;
+  var blocks=[].slice.call(el.querySelectorAll('img,.rep-item,.rep-comment,.rep-kv,.rep-kpi,.rep-notes,h3,.rep-head')).map(function(n){
+    var b=n.getBoundingClientRect(); return [b.top-top, b.bottom-top];
+  });
+  var out=[], y=0;
+  while(y<total){
+    out.push(y);
+    var cut=y+pageCss;
+    if(cut>=total) break;
+    var nb=cut;
+    blocks.forEach(function(b){ if(b[0]<nb && b[1]>nb && b[0]>y+pageCss*0.4) nb=b[0]; });
+    if(nb!==cut) nb=Math.floor(nb)-4;
+    y=nb;
+  }
+  return out;
+}
 function pbBuildReportPdf(el){
+  return pbImagesReady(el).then(function(){ return pbBuildReportPdfNow(el); });
+}
+function pbBuildReportPdfNow(el){
   var H2C=window.html2canvas, JS=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
   if(typeof H2C!=='function'||typeof JS!=='function') return pbBuildReportPdfLegacy(el);
   var RW=794, SC=2, margin=6, cwMm=210-margin*2, chMm=297-margin*2;
@@ -698,13 +730,13 @@ function pbBuildReportPdf(el){
     var r=el.getBoundingClientRect();
     var total=Math.max(el.scrollHeight, Math.round(r.height));
     if(!total||total<10) throw new Error('no height');
-    var pages=[]; for(var y=0;y<total;y+=pageCss) pages.push(y);
+    var pages=pbPageBreaks(el,total,pageCss);
     if(pages.length>40) throw new Error('too many pages');
     var pdf=new JS({unit:'mm',format:'a4',compress:true});
     var chain=Promise.resolve(), first=true;
-    pages.forEach(function(off){
+    pages.forEach(function(off,i){
       chain=chain.then(function(){
-        var h=Math.min(pageCss,total-off);
+        var h=Math.min((i+1<pages.length? pages[i+1] : total)-off, total-off);
         /* windowHeight = full report height, so html2canvas never clips a slice to the phone's viewport */
         return H2C(el,{scale:SC,backgroundColor:'#ffffff',useCORS:true,logging:false,
                        windowWidth:RW,windowHeight:total,width:RW,height:h,x:0,y:off}).then(function(canvas){
