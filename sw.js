@@ -29,7 +29,8 @@ function pageNetFirst(req){
     var done=false;
     var fromCache=function(){ return caches.open(CACHE).then(function(c){ return c.match(PAGE); }); };
     var t=setTimeout(function(){ fromCache().then(function(m){ if(m && !done){ done=true; resolve(m); } }); }, 4000);
-    fetch(req).then(function(r){
+    /* 28.10.2026: no-cache, so the phone's HTTP cache (GitHub Pages keeps pages 10 min) never serves an old version */
+    fetch(req, {cache:'no-cache'}).then(function(r){
       if(r && r.ok){ var cp=r.clone(); caches.open(CACHE).then(function(c){ c.put(PAGE, cp); }); }
       if(!done){ done=true; clearTimeout(t); resolve(r); }
     }).catch(function(){
