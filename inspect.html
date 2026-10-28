@@ -241,6 +241,8 @@
         <label>Keys, remotes and tags</label>
         <div id="keysHost"></div>
         <span class="more" onclick="addKey()">+ Add a key, remote or tag</span>
+        <div class="mrow" style="margin-top:10px"><div><div class="small muted">Photo of the keys, remotes and tags</div></div><button class="addph" onclick="addMeterPh('keys')"><span class="ic">+</span>Photo</button></div>
+        <div class="ph-row" id="mph_keys"></div>
       </div>
       <label>Meters</label>
       <div class="mrow"><div><div class="small muted">Electricity meter reading</div><input type="text" id="mElec" inputmode="decimal" placeholder="reading" oninput="cur.meterE=this.value;save()"></div><button class="addph" onclick="addMeterPh('elec')"><span class="ic">+</span>Photo</button></div>
@@ -703,8 +705,9 @@ function pbBuildReportPdf(el){
     pages.forEach(function(off){
       chain=chain.then(function(){
         var h=Math.min(pageCss,total-off);
+        /* windowHeight = full report height, so html2canvas never clips a slice to the phone's viewport */
         return H2C(el,{scale:SC,backgroundColor:'#ffffff',useCORS:true,logging:false,
-                       windowWidth:RW,width:RW,height:h,x:0,y:off}).then(function(canvas){
+                       windowWidth:RW,windowHeight:total,width:RW,height:h,x:0,y:off}).then(function(canvas){
           var c=(off+h>=total)? pbTrimCanvas(canvas) : canvas;
           if(c.width<10||c.height<10) return;
           if(!first) pdf.addPage(); first=false;
@@ -1064,7 +1067,7 @@ function phScale(img, max, q){
 /* target: {ri,ii} for a room item, {m:'elec'|'pre'|'water'} for a meter */
 function phTargetInfo(t, x){
   x=x||cur;
-  if(t.m){ var ML={elec:'Electricity meter',pre:'Prepaid electricity',water:'Water meter'};
+  if(t.m){ var ML={elec:'Electricity meter',pre:'Prepaid electricity',water:'Water meter',keys:'Keys, remotes and tags'};
     if(!x.mph) x.mph={elec:[],pre:[],water:[]}; if(!x.mph[t.m]) x.mph[t.m]=[];
     return {arr:x.mph[t.m], room:'Meters', label:ML[t.m]}; }
   var it=x.rooms[t.ri].items[t.ii];
@@ -1098,7 +1101,7 @@ function addMeterPh(m){ phTarget = {m:m}; document.getElementById('phInput').cli
 function delPh(ri,ii,pi){ var a=cur.rooms[ri].items[ii].photos; phDelOne(a[pi]); a.splice(pi,1); save(); refreshItem(ri,ii,true); }
 function delMeterPh(m,pi){ var a=(cur.mph||{})[m]||[]; phDelOne(a[pi]); a.splice(pi,1); save(); renderMeterPh(); }
 function renderMeterPh(){
-  ['elec','pre','water'].forEach(function(m){
+  ['elec','pre','water','keys'].forEach(function(m){
     var host=document.getElementById('mph_'+m); if(!host) return;
     var a=(cur&&cur.mph&&cur.mph[m])||[], h='';
     a.forEach(function(p,pi){ h+='<div class="ph"><img src="'+phThumb(p)+'"><button class="del" onclick="delMeterPh(\''+m+'\','+pi+')">×</button></div>'; });
@@ -1118,7 +1121,8 @@ var KEY_ROWS=['Front door keys','Security gate / building keys','Remotes','Acces
 function handInit(x){
   if(!x.hand) x.hand={alarm:'',bin:'',carpet:'',fum:''};
   if(!x.keys) x.keys = inOut(x) ? KEY_ROWS.map(function(l){ return {label:l, iss:'', ret:''}; }) : [];
-  if(!x.mph) x.mph={elec:[],pre:[],water:[]};
+  if(!x.mph) x.mph={elec:[],pre:[],water:[],keys:[]};
+  if(!x.mph.keys) x.mph.keys=[];
 }
 function hSet(k,v){ if(!cur) return; handInit(cur); cur.hand[k]=v; save(); if(k==='carpet'||k==='fum') renderSegs(); }
 function renderSegs(){
@@ -1231,7 +1235,7 @@ function makeReport(){
   var K=(cur.keys||[]).filter(function(k){ return String(k.iss||'').trim()!=='' || String(k.ret||'').trim()!==''; });
   var H=cur.hand||{}, M=cur.mph||{};
   var meterPh=function(m){ var a=M[m]||[]; if(!a.length) return ''; var x='<div class="rep-phs">'; a.forEach(function(p){ var src=phFull(p); if(src) x+='<img src="'+src+'">'; }); return x+'</div>'; };
-  if(K.length || cur.meterE || cur.meterP || cur.meterW || H.alarm || H.bin || H.carpet || H.fum || (M.elec||[]).length || (M.pre||[]).length || (M.water||[]).length){
+  if(K.length || cur.meterE || cur.meterP || cur.meterW || H.alarm || H.bin || H.carpet || H.fum || (M.elec||[]).length || (M.pre||[]).length || (M.water||[]).length || (M.keys||[]).length){
     h += '<div class="rep-room"><h3>Handover and readings</h3>';
     if(K.length){
       var out=cur.type==='Outgoing';
@@ -1245,6 +1249,7 @@ function makeReport(){
     if(cur.meterE || (M.elec||[]).length){ h += '<div class="rep-item"><span>Electricity meter</span><b>'+esc(cur.meterE||'')+'</b></div>'+meterPh('elec'); }
     if(cur.meterP || (M.pre||[]).length){ h += '<div class="rep-item"><span>Prepaid electricity units</span><b>'+esc(cur.meterP||'')+'</b></div>'+meterPh('pre'); }
     if(cur.meterW || (M.water||[]).length){ h += '<div class="rep-item"><span>Water meter</span><b>'+esc(cur.meterW||'')+'</b></div>'+meterPh('water'); }
+    if((M.keys||[]).length){ h += '<div class="small muted" style="margin:8px 0 4px">Photo of the keys, remotes and tags</div>'+meterPh('keys'); }
     if(H.carpet) h += '<div class="rep-item"><span>Carpet cleaning receipt</span><b>'+esc(H.carpet)+'</b></div>';
     if(H.fum) h += '<div class="rep-item"><span>Fumigation receipt</span><b>'+esc(H.fum)+'</b></div>';
     if(H.alarm) h += '<div class="rep-item"><span>Alarm code</span><b>'+esc(H.alarm)+'</b></div>';
