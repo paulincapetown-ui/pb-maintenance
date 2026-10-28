@@ -204,7 +204,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.5</b> · 28.10.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.6</b> · 28.10.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -590,12 +590,20 @@ function spVerify(){
   var el=document.getElementById('repArch'); if(!el||!cur||!msAccount||!navigator.onLine) return;
   var want=counts(cur).ph;
   if(!want){ el.style.color='var(--muted)'; el.textContent='Photo archive: no photos on this inspection.'; return; }
+  /* v1.9.6 (28.10.2026): the office files photos into subfolders (e.g. "Incoming Oct 2026"), so count one level down too */
+  var pre=String(cur.date||'').split('-').reverse().join('.')+'_';
   spToken().then(function(tok){
-    var url='https://graph.microsoft.com/v1.0/drives/'+MSCONF.driveId+'/items/'+MSCONF.rootId+':/'+encodeURIComponent(spFolderName())+':/children?$select=name&$top=999';
-    return fetch(url,{headers:{Authorization:'Bearer '+tok}}).then(function(r){ if(!r.ok) throw new Error('list '+r.status); return r.json(); });
-  }).then(function(j){
-    var pre=String(cur.date||'').split('-').reverse().join('.')+'_';
-    var have=(j.value||[]).filter(function(f){ return f.name && f.name.indexOf(pre)===0; }).length;
+    var H={headers:{Authorization:'Bearer '+tok}}, G='https://graph.microsoft.com/v1.0/drives/'+MSCONF.driveId+'/items/';
+    var url=G+MSCONF.rootId+':/'+encodeURIComponent(spFolderName())+':/children?$select=id,name,folder&$top=999';
+    return fetch(url,H).then(function(r){ if(!r.ok) throw new Error('list '+r.status); return r.json(); }).then(function(j){
+      var all=j.value||[];
+      var subs=all.filter(function(f){ return f.folder; }).map(function(f){
+        return fetch(G+f.id+'/children?$select=name&$top=999',H).then(function(r){ return r.ok? r.json() : {value:[]}; }).then(function(s){ return s.value||[]; }).catch(function(){ return []; });
+      });
+      return Promise.all(subs).then(function(lists){ lists.forEach(function(l){ all=all.concat(l); }); return all; });
+    });
+  }).then(function(all){
+    var have=all.filter(function(f){ return f.name && !f.folder && f.name.indexOf(pre)===0 && !/\.pdf$/i.test(f.name); }).length;
     if(spQueueFails){ el.style.color='var(--amber)'; el.textContent='Photo archive: '+have+' of '+want+' filed — '+spQueueFails+' photo'+(spQueueFails>1?'s':'')+' failed to queue on this phone. Re-attach '+(spQueueFails>1?'them':'it')+' or file '+(spQueueFails>1?'them':'it')+' by hand.'; return; }
     if(have>=want){ el.style.color='var(--green)'; el.textContent='Photo archive: all '+want+' photo'+(want>1?'s':'')+' filed in MASTER docs / Inspection Photos.'; }
     else { el.style.color='var(--amber)'; el.textContent='Photo archive: only '+have+' of '+want+' photos filed — keep the app open on Wi-Fi; it will keep retrying.'; }
