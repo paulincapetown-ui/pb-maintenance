@@ -204,12 +204,17 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.7</b> · 29.10.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.8</b> · 29.10.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
   <section class="screen" id="s-inspect">
     <div class="prog noprint"><div class="bar"><div class="fill" id="progFill"></div></div><div class="txt" id="progTxt">0 / 0</div></div>
+    <div class="card noprint" id="typeCard" style="margin-top:12px">
+      <label style="margin-top:0">Inspection type</label>
+      <select id="typeSel" onchange="typeSwitch(this.value)"><option>Routine</option><option>Ingoing</option><option>Outgoing</option></select>
+      <div class="small muted" style="margin-top:4px">Picked the wrong type? Change it here. Ratings, comments, readings and photos stay. Then press Finish → Report again.</div>
+    </div>
     <div id="roomsHost" style="margin-top:12px"></div>
     <div class="card">
       <h2>Add a room</h2>
@@ -467,18 +472,25 @@ function padInit(canvasId, key, stateId){
   var P={c:c,x:x,draw:false,dirty:false,st:stateId}; PADS[key]=P;
   function pos(e){ var r=c.getBoundingClientRect(); var t=e.touches?e.touches[0]:e;
     return {x:(t.clientX-r.left)*(c.width/r.width), y:(t.clientY-r.top)*(c.height/r.height)}; }
-  function start(e){ e.preventDefault(); P.draw=true; var p=pos(e); x.beginPath(); x.moveTo(p.x,p.y); }
+  function start(e){ if(P.locked) return; clearTimeout(P.lt); e.preventDefault(); P.draw=true; var p=pos(e); x.beginPath(); x.moveTo(p.x,p.y); }
   function move(e){ if(!P.draw) return; e.preventDefault(); var p=pos(e); x.lineTo(p.x,p.y); x.stroke(); P.dirty=true; }
   function end(){ if(!P.draw) return; P.draw=false;
     if(P.dirty&&cur){ cur[key]=c.toDataURL('image/png'); save(); document.getElementById(stateId).textContent='Signature captured';
-      if(key==='sigBy'){ try{ localStorage.setItem('pbInspSigBy', cur[key]); }catch(e){} } } }
+      if(key==='sigBy'){ try{ localStorage.setItem('pbInspSigBy', cur[key]); }catch(e){} }
+      P.lt=setTimeout(function(){ padLock(key,true); },3000); } }
   c.addEventListener('touchstart',start); c.addEventListener('touchmove',move); c.addEventListener('touchend',end);
   c.addEventListener('mousedown',start); c.addEventListener('mousemove',move); window.addEventListener('mouseup',end);
 }
 function sigInit(){ padInit('sigPad','sig','sigState'); padInit('sigPad2','sigBy','sigState2'); }
-function clearSig(key){ key=key||'sig'; var P=PADS[key]; if(!P) return; P.x.clearRect(0,0,P.c.width,P.c.height); P.dirty=false; if(cur){ cur[key]=''; save(); } document.getElementById(P.st).textContent=''; sigSavedBtn(); }
-function sigDraw(key){ var P=PADS[key]; if(!P) return; P.x.clearRect(0,0,P.c.width,P.c.height); P.dirty=false; document.getElementById(P.st).textContent='';
-  if(cur&&cur[key]){ var im=new Image(); im.onload=function(){ P.x.drawImage(im,0,0); }; im.src=cur[key]; P.dirty=true; document.getElementById(P.st).textContent='Signature captured'; } }
+/* v1.9.8 (29.10.2026): a signed pad locks, so a finger scrolling past it moves the page instead of
+   drawing over the signature. It locks 3 seconds after the last stroke and whenever it is redrawn
+   (reopening, after Finish). Clear unlocks it. */
+function padLock(key,on){ var P=PADS[key]; if(!P) return; clearTimeout(P.lt); P.locked=on; P.draw=false;
+  P.c.style.touchAction=on?'pan-y':'none'; P.c.style.borderStyle=on?'solid':'dashed';
+  document.getElementById(P.st).textContent=on?'Signed and locked. Press Clear to sign again.':''; }
+function clearSig(key){ key=key||'sig'; var P=PADS[key]; if(!P) return; padLock(key,false); P.x.clearRect(0,0,P.c.width,P.c.height); P.dirty=false; if(cur){ cur[key]=''; save(); } sigSavedBtn(); }
+function sigDraw(key){ var P=PADS[key]; if(!P) return; padLock(key,false); P.x.clearRect(0,0,P.c.width,P.c.height); P.dirty=false;
+  if(cur&&cur[key]){ var im=new Image(); im.onload=function(){ P.x.drawImage(im,0,0); }; im.src=cur[key]; P.dirty=true; padLock(key,true); } }
 function sigSaved(){ try{ return localStorage.getItem('pbInspSigBy')||''; }catch(e){ return ''; } }
 function sigSavedBtn(){ var b=document.getElementById('sigUseSaved'); if(b) b.style.display=(sigSaved() && cur && !cur.sigBy)?'inline-block':'none'; }
 function sigUseSaved(){ var v=sigSaved(); if(!v||!cur) return; cur.sigBy=v; save(); sigDraw('sigBy'); sigSavedBtn(); }
@@ -926,6 +938,8 @@ function openInspect(){
   sumCount();
   document.getElementById('agName').value = cur.by||'';
   document.getElementById('agTel').value = cur.agentTel||'';
+  document.getElementById('typeCard').style.display = cur.type==='Renewal' ? 'none' : 'block';
+  document.getElementById('typeSel').value = cur.type;
   handFill();
   renFill();
   if(cur.from && !cur.fromShown){ cur.fromShown=true; save(); toast('Started from the '+cur.from.split(' ')[0]+' of '+fmtD(cur.from.split(' ')[1])+'. Check each room.'); }
@@ -1193,6 +1207,17 @@ function renderKeys(){
   host.innerHTML=h;
 }
 function addKey(){ var l=prompt('Key, remote or tag (e.g. Garage remote)'); if(!l||!cur) return; handInit(cur); cur.keys.push({label:l,iss:'',ret:''}); save(); renderKeys(); }
+/* v1.9.8 (29.10.2026): change the type of an inspection already started (Routine, Ingoing, Outgoing).
+   Everything recorded stays. Moving to Ingoing or Outgoing adds the standard key rows if there are none,
+   and the inspection must be finished again so the report is refiled under the new type. */
+function typeSwitch(t){
+  if(!cur || t===cur.type) return;
+  if(!confirm('Change this inspection from '+cur.type+' to '+t+'? Everything recorded stays. Press Finish → Report again afterwards.')){ document.getElementById('typeSel').value=cur.type; return; }
+  cur.type=t; cur.done=false;
+  if(inOut() && !(cur.keys||[]).length) cur.keys=KEY_ROWS.map(function(l){ return {label:l, iss:'', ret:''}; });
+  save(); flushSave(); openInspect();
+  toast('Now an '+t+' inspection. Check each room, then Finish → Report.');
+}
 function handFill(){
   handInit(cur);
   var io=inOut();
@@ -1241,6 +1266,7 @@ function makeReport(){
   var n = counts(cur);
   if(n.set===0){ toast('Rate at least one item first'); return; }
   cur.done = true; save(); flushSave();
+  ['sig','sigBy'].forEach(function(k){ if(cur[k]) padLock(k,true); });
   var io = inOut();
   var h = '<div class="rep-head"><div class="t">'+esc(cur.type)+' Inspection Report <span style="display:inline-block;font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px;vertical-align:middle;margin-left:8px;background:#2D297D;color:#fff">'+cur.tpl+(cur.tpl>=4?'+':'')+' BED</span></div>'+
     '<div class="s">'+esc(cur.addr)+(cur.code? ' · File '+esc(cur.code):'')+
