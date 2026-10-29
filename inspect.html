@@ -204,7 +204,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.8</b> · 29.10.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.9</b> · 29.10.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -286,7 +286,8 @@
         <button class="btn btn-ghost btn-sm" id="sigUseSaved" onclick="sigUseSaved()" style="display:none">Use my saved signature</button>
         <span class="small muted" style="align-self:center" id="sigState2"></span>
       </div>
-      <label>Tenant (optional)</label>
+      <label>Tenant name</label><input type="text" id="tenName" oninput="cur.tenant=this.value.trim();save()">
+      <label>Tenant to sign (optional)</label>
       <canvas id="sigPad" width="600" height="200" style="width:100%;height:150px;border:1.5px dashed var(--line);border-radius:9px;background:#fff;touch-action:none"></canvas>
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn btn-ghost btn-sm" onclick="clearSig('sig')">Clear</button>
@@ -611,6 +612,10 @@ function spVerify(){
   if(!want){ el.style.color='var(--muted)'; el.textContent='Photo archive: no photos on this inspection.'; return; }
   /* v1.9.6 (28.10.2026): the office files photos into subfolders (e.g. "Incoming Oct 2026"), so count one level down too */
   var pre=String(cur.date||'').split('-').reverse().join('.')+'_';
+  /* v1.9.9 (29.10.2026): a duplicate's copied photos are the outgoing photos, already filed under the
+     outgoing date. They are not uploaded again, so count photos filed under either date. */
+  var dd=cur.dupOf? (cur.dupDate || (allSaved()[cur.dupOf]||{}).date || '') : '';
+  var pre2=dd? String(dd).split('-').reverse().join('.')+'_' : '';
   spToken().then(function(tok){
     var H={headers:{Authorization:'Bearer '+tok}}, G='https://graph.microsoft.com/v1.0/drives/'+MSCONF.driveId+'/items/';
     var url=G+MSCONF.rootId+':/'+encodeURIComponent(spFolderName())+':/children?$select=id,name,folder&$top=999';
@@ -622,7 +627,7 @@ function spVerify(){
       return Promise.all(subs).then(function(lists){ lists.forEach(function(l){ all=all.concat(l); }); return all; });
     });
   }).then(function(all){
-    var have=all.filter(function(f){ return f.name && !f.folder && f.name.indexOf(pre)===0 && !/\.pdf$/i.test(f.name); }).length;
+    var have=all.filter(function(f){ return f.name && !f.folder && (f.name.indexOf(pre)===0 || (pre2 && f.name.indexOf(pre2)===0)) && !/\.pdf$/i.test(f.name); }).length;
     if(spQueueFails){ el.style.color='var(--amber)'; el.textContent='Photo archive: '+have+' of '+want+' filed — '+spQueueFails+' photo'+(spQueueFails>1?'s':'')+' failed to queue on this phone. Re-attach '+(spQueueFails>1?'them':'it')+' or file '+(spQueueFails>1?'them':'it')+' by hand.'; return; }
     if(have>=want){ el.style.color='var(--green)'; el.textContent='Photo archive: all '+want+' photo'+(want>1?'s':'')+' filed in MASTER docs / Inspection Photos.'; }
     else { el.style.color='var(--amber)'; el.textContent='Photo archive: only '+have+' of '+want+' photos filed — keep the app open on Wi-Fi; it will keep retrying.'; }
@@ -938,6 +943,7 @@ function openInspect(){
   sumCount();
   document.getElementById('agName').value = cur.by||'';
   document.getElementById('agTel').value = cur.agentTel||'';
+  document.getElementById('tenName').value = cur.tenant||'';
   document.getElementById('typeCard').style.display = cur.type==='Renewal' ? 'none' : 'block';
   document.getElementById('typeSel').value = cur.type;
   handFill();
@@ -1382,7 +1388,7 @@ function renderDupBox(){
     '<div class="small muted" style="margin-bottom:8px">This makes a full incoming inspection from this one: the meter and prepaid readings, the keys, alarm and bin day, every comment under each heading and every photo. Nothing is made until you press the button. This outgoing inspection is not changed.</div>'+
     '<div id="dupAsk" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" onclick="dupOpen()">Yes, make the incoming inspection</button><button class="btn btn-ghost" onclick="document.getElementById(\'dupBox\').style.display=\'none\'">No, not needed</button></div>'+
     '<div id="dupForm" style="display:none">'+
-      '<label>Incoming tenant</label><input type="text" id="dupTen" value="'+esc(cur.tenant)+'">'+
+      '<label>Incoming tenant</label><input type="text" id="dupTen" value="" placeholder="Name of the tenant moving in">'+
       '<label>Incoming inspection date</label><input type="date" id="dupDate">'+
       '<label>Agent name</label><input type="text" id="dupBy" value="'+esc(cur.by)+'">'+
       '<label>Agent contact (cell and email)</label><input type="text" id="dupTel" value="'+esc(cur.agentTel||'')+'">'+
@@ -1406,7 +1412,7 @@ function dupCreate(){
     var x={ id:'INS-'+new Date().getTime(), type:'Ingoing', tpl:src.tpl, code:src.code, addr:src.addr,
       tenant:ten, by:by, agentTel:tel, date:dt, rooms:[], notes:'', summary:'',
       meterE:src.meterE||'', meterW:src.meterW||'', meterP:src.meterP||'',
-      sig:'', sigBy:'', done:false, dupOf:src.id, fromShown:true };
+      sig:'', sigBy:'', done:false, dupOf:src.id, dupDate:src.date, fromShown:true };
     copyFrom(src, x);
     handInit(x);
     /* every photo, in its place: room items, then the meter and keys photos */
