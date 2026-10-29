@@ -204,7 +204,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.9</b> · 29.10.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.10</b> · 29.10.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -286,7 +286,7 @@
         <button class="btn btn-ghost btn-sm" id="sigUseSaved" onclick="sigUseSaved()" style="display:none">Use my saved signature</button>
         <span class="small muted" style="align-self:center" id="sigState2"></span>
       </div>
-      <label>Tenant name</label><input type="text" id="tenName" oninput="cur.tenant=this.value.trim();save()">
+      <label>Tenant name</label><input type="text" id="tenName" oninput="tenSet(this.value)" onchange="tenSet(this.value)" onblur="tenSet(this.value)">
       <label>Tenant to sign (optional)</label>
       <canvas id="sigPad" width="600" height="200" style="width:100%;height:150px;border:1.5px dashed var(--line);border-radius:9px;background:#fff;touch-action:none"></canvas>
       <div style="display:flex;gap:8px;margin-top:8px">
@@ -856,7 +856,8 @@ function flushSave(){
 window.addEventListener('pagehide', flushSave);
 document.addEventListener('visibilitychange', function(){ if(document.hidden) flushSave(); });
 function delSaved(id){
-  if(!confirm('Delete this inspection and its photos? This cannot be undone.')) return;
+  var x=allSaved()[id]||{};
+  if(!confirm('Delete '+(x.code? x.code+', ':'')+(x.type||'')+' inspection of '+fmtD(x.date)+(x.tenant? ' ('+x.tenant+')':'')+'?\n\nIt and its photos go from this phone only. Reports and photos already filed in SharePoint stay. This cannot be undone.')) return;
   delete inspCache[id];
   if(dirty && dirty.id===id) dirty=null;
   inspDelDb(id).catch(function(){});
@@ -933,9 +934,13 @@ function startInspection(){
 }
 function resume(id){ var x = allSaved()[id]; if(!x){toast('Could not load');return;}
   normItems(x); handInit(x); phLoad(x.id).then(function(){ cur=x; openInspect(); }); }
+/* v1.9.10 (29.10.2026): an iPhone keyboard suggestion or autofill can fill the box without an input
+   event, so the tenant name also saves on change and blur, and the top bar follows it at once. */
+function topSubSet(){ document.getElementById('topSub').textContent = cur.type+' inspection · '+fmtD(cur.date)+(cur.tenant?' · '+cur.tenant:''); }
+function tenSet(v){ if(!cur) return; v=String(v||'').trim(); if(v===(cur.tenant||'')) return; cur.tenant=v; save(); topSubSet(); }
 function openInspect(){
   document.getElementById('topTitle').textContent = (cur.code? cur.code+' — ':'') + (cur.addr||'Inspection');
-  document.getElementById('topSub').textContent = cur.type+' inspection · '+fmtD(cur.date)+(cur.tenant?' · '+cur.tenant:'');
+  topSubSet();
   document.getElementById('overallNotes').value = cur.notes||'';
   document.getElementById('mElec').value = cur.meterE||'';
   document.getElementById('mWater').value = cur.meterW||'';
@@ -1269,6 +1274,11 @@ function copyFrom(p, x){
 
 /* ================= Report ================= */
 function makeReport(){
+  /* v1.9.10: take the text boxes as they stand at Finish, in case a save event never fired */
+  tenSet(document.getElementById('tenName').value);
+  var ag=document.getElementById('agName').value, at=document.getElementById('agTel').value;
+  if(ag!==(cur.by||'')) cur.by=ag;
+  if(at!==(cur.agentTel||'')) cur.agentTel=at;
   var n = counts(cur);
   if(n.set===0){ toast('Rate at least one item first'); return; }
   cur.done = true; save(); flushSave();
