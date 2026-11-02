@@ -196,7 +196,32 @@
       </div>
       <button class="l-btn" id="ls2b-btn" onclick="loginWithPassword()">Sign In</button>
       <div class="l-err" id="ls2b-err"></div>
+      <button class="l-back" id="ls2b-forgot" onclick="loginForgot()">Forgot password?</button>
       <button class="l-back" onclick="resetLogin()">← Use a different email</button>
+    </div>
+
+    <!-- Step 2c: Forgot password, link sent (02.11.2026) -->
+    <div id="ls2c" style="display:none">
+      <div class="l-welcome">Check your email</div>
+      <div class="l-sub" id="ls2c-msg"></div>
+      <button class="l-back" onclick="resetLogin()">← Back to sign in</button>
+    </div>
+
+    <!-- Step 2d: Opened from the emailed link, new password (02.11.2026) -->
+    <div id="ls2d" style="display:none">
+      <div class="l-welcome">Choose a new password</div>
+      <div class="l-sub">This replaces your old password and signs you out on other devices.</div>
+      <div class="l-field">
+        <label>New Password</label>
+        <input type="password" id="l-p4" placeholder="At least 8 characters" autocomplete="new-password"/>
+      </div>
+      <div class="l-field">
+        <label>Confirm Password</label>
+        <input type="password" id="l-p5" autocomplete="new-password"/>
+      </div>
+      <button class="l-btn" id="ls2d-btn" onclick="loginResetPassword()">Save Password &amp; Sign In</button>
+      <div class="l-err" id="ls2d-err"></div>
+      <button class="l-back" onclick="resetLogin()">← Back to sign in</button>
     </div>
 
   </div>
@@ -419,7 +444,15 @@ function doLogout() {
   location.reload();
 }
 
+let pbResetToken = new URLSearchParams(location.search).get('reset') || '';   // 02.11.2026: emailed reset link
 (function initLogin() {
+  if (pbResetToken) {
+    document.getElementById('login-overlay').style.display = 'flex';
+    document.getElementById('ls1').style.display = 'none';
+    document.getElementById('ls2d').style.display = 'block';
+    setTimeout(() => document.getElementById('l-p4').focus(), 80);
+    return;
+  }
   const sess = getSession();
   if (sess) {
     showMainContent(sess);
@@ -541,7 +574,65 @@ async function loginWithPassword() {
   }
 }
 
+// 02.11.2026: Forgot password. The link goes to the address on file, never one typed here.
+async function loginForgot() {
+  const err = document.getElementById('ls2b-err');
+  const btn = document.getElementById('ls2b-forgot');
+  err.style.display = 'none';
+  btn.textContent = 'Sending…'; btn.disabled = true;
+  try {
+    const nx   = new URLSearchParams(location.search).get('next') || '';
+    const res  = await fetch(GAS_URL + '?action=forgotPassword&email=' + encodeURIComponent(loginEmail) + '&next=' + encodeURIComponent(nx), { redirect: 'follow' });
+    const data = await res.json();
+    btn.textContent = 'Forgot password?'; btn.disabled = false;
+    if (!data.success) {
+      err.textContent = data.error || 'Could not send the email. Please try again.'; err.style.display = 'block'; return;
+    }
+    document.getElementById('ls2c-msg').textContent = 'We have emailed a link to ' + loginEmail + '. It works once and lapses after 60 minutes. If it is not in your inbox, check Junk.';
+    document.getElementById('ls2b').style.display = 'none';
+    document.getElementById('ls2c').style.display = 'block';
+  } catch(e) {
+    btn.textContent = 'Forgot password?'; btn.disabled = false;
+    err.textContent = pbConnErr('sending the reset email', e); err.style.display = 'block';
+  }
+}
+
+function pbClearReset_() {
+  pbResetToken = '';
+  const q = new URLSearchParams(location.search); q.delete('reset');
+  const rest = q.toString();
+  history.replaceState(null, '', location.pathname + (rest ? '?' + rest : ''));
+}
+
+async function loginResetPassword() {
+  const pass1 = document.getElementById('l-p4').value;
+  const pass2 = document.getElementById('l-p5').value;
+  const err   = document.getElementById('ls2d-err');
+  const btn   = document.getElementById('ls2d-btn');
+  err.style.display = 'none';
+  if (pass1.length < 8) { err.textContent = 'Password must be at least 8 characters.'; err.style.display = 'block'; return; }
+  if (pass1 !== pass2)  { err.textContent = 'Passwords do not match.'; err.style.display = 'block'; return; }
+  btn.textContent = 'Saving…'; btn.disabled = true;
+  try {
+    const res  = await fetch(GAS_URL + '?action=resetPassword&resetToken=' + encodeURIComponent(pbResetToken) + '&password=' + encodeURIComponent(pass1), { redirect: 'follow' });
+    const data = await res.json();
+    btn.textContent = 'Save Password & Sign In'; btn.disabled = false;
+    if (!data.success) {
+      err.textContent = data.error || 'Could not save the password. Please try again.'; err.style.display = 'block'; return;
+    }
+    saveSession(data.email, data.displayName || data.email, data.role || 'staff', data.session);
+    pbClearReset_();
+    showMainContent(getSession()); refreshJobs();
+  } catch(e) {
+    btn.textContent = 'Save Password & Sign In'; btn.disabled = false;
+    err.textContent = pbConnErr('saving your password', e); err.style.display = 'block';
+  }
+}
+
 function resetLogin() {
+  if (pbResetToken) pbClearReset_();
+  document.getElementById('ls2c').style.display = 'none';
+  document.getElementById('ls2d').style.display = 'none';
   loginEmail = ''; loginDisplayName = '';
   document.getElementById('ls2a').style.display = 'none';
   document.getElementById('ls2b').style.display = 'none';
@@ -556,6 +647,7 @@ document.addEventListener('keydown', function(e) {
   if (document.getElementById('ls1').style.display  !== 'none') { loginStep1(); return; }
   if (document.getElementById('ls2a').style.display !== 'none') { loginSetPassword(); return; }
   if (document.getElementById('ls2b').style.display !== 'none') { loginWithPassword(); return; }
+  if (document.getElementById('ls2d').style.display !== 'none') { loginResetPassword(); return; }
 });
 // ══════════════════════════════════════════════════════════════
 
@@ -1108,6 +1200,6 @@ document.addEventListener('visibilitychange', function() {
   }
 });
 </script>
-<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Jobs · build 25.09.2026</div>
+<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Jobs · build 02.11.2026</div>
 </body>
 </html>
