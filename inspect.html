@@ -204,7 +204,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.10</b> · 29.10.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.11</b> · 02.11.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -498,7 +498,9 @@ function sigUseSaved(){ var v=sigSaved(); if(!v||!cur) return; cur.sigBy=v; save
 function sigRestore(){ sigDraw('sig'); sigDraw('sigBy'); sigSavedBtn(); }
 
 /* ================= SharePoint archive (v1.4) ================= */
-var MSCONF={clientId:'bacb0a06-013c-4a2c-b256-a269a80b35d5',tenantId:'515596ce-b14a-4e8a-bb12-eac214dbbde5',driveId:'b!Go1iWc9qkUuSYrVBBlsRtA0blynq7stGsw_e1wY-UoUm8F1UuRM_TZtzpTaBrdg5',rootId:'01OYEIJYSQKIPTLSYH65BJCEXOUKBJD6LU',repRootId:'01OYEIJYSDS2O5GS3BTZDLKXT5XJUGIFX6'};
+var MSCONF={clientId:'bacb0a06-013c-4a2c-b256-a269a80b35d5',tenantId:'515596ce-b14a-4e8a-bb12-eac214dbbde5',driveId:'b!Go1iWc9qkUuSYrVBBlsRtA0blynq7stGsw_e1wY-UoUm8F1UuRM_TZtzpTaBrdg5',rootId:'01OYEIJYSQKIPTLSYH65BJCEXOUKBJD6LU',repRootId:'01OYEIJYSDS2O5GS3BTZDLKXT5XJUGIFX6',
+  /* v1.9.11 (02.11.2026): candidates have no rights on the archive. Their photos and report PDF go to the Inspection Drop library (PHOTOS / REPORTS), and a Power Automate flow files them into MASTER docs. */
+  dropDriveId:'b!Go1iWc9qkUuSYrVBBlsRtA0blynq7stGsw_e1wY-UoV8tlt6M57zQ6W4Qfs38nQc'};
 var msalApp=null, msAccount=null, spBusy=false, spFolders={};
 function spInit(){
   if(typeof msal==='undefined'){ var el=document.getElementById('spState'); if(el) el.textContent='Archive module could not load — photos will queue on this phone.'; return; }
@@ -551,9 +553,22 @@ function spQueuePhoto(file, room, label){
   });
 }
 function spRootFor(item){ return item.root==='REP'? MSCONF.repRootId : MSCONF.rootId; }
+function spDrop(){ return pbRole_()==='candidate'; }
+function spMkDir_(driveId, parentPath, name, tok){
+  var url='https://graph.microsoft.com/v1.0/drives/'+driveId+(parentPath?'/root:/'+parentPath+':/children':'/root/children');
+  return fetch(url,{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},
+    body:JSON.stringify({name:name,folder:{},'@microsoft.graph.conflictBehavior':'fail'})
+  }).then(function(r){ if(r.ok||r.status===409) return; throw new Error('dropfolder '+r.status); });
+}
+function spDropRoot_(item){ return item.root==='REP'? 'REPORTS' : 'PHOTOS'; }
 function spEnsureFolder(name, tok, rootId){
   var key=rootId+'/'+name;
   if(spFolders[key]) return Promise.resolve();
+  if(spDrop()){
+    /* candidate: create PHOTOS or REPORTS, then the property folder, inside Inspection Drop */
+    var top=(rootId===MSCONF.repRootId)?'REPORTS':'PHOTOS';
+    return spMkDir_(MSCONF.dropDriveId,'',top,tok).then(function(){ return spMkDir_(MSCONF.dropDriveId,encodeURIComponent(top),name,tok); }).then(function(){ spFolders[key]=1; });
+  }
   return fetch('https://graph.microsoft.com/v1.0/drives/'+MSCONF.driveId+'/items/'+rootId+'/children',{
     method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},
     body:JSON.stringify({name:name,folder:{},'@microsoft.graph.conflictBehavior':'fail'})
@@ -561,7 +576,9 @@ function spEnsureFolder(name, tok, rootId){
 }
 function spUpload(item, tok){
   var body=item.buf||item.blob, size=item.buf? item.buf.byteLength : item.blob.size;
-  var base='https://graph.microsoft.com/v1.0/drives/'+MSCONF.driveId+'/items/'+spRootFor(item)+':/'+encodeURIComponent(item.folder)+'/'+encodeURIComponent(item.fname)+':';
+  var base=spDrop()
+    ? 'https://graph.microsoft.com/v1.0/drives/'+MSCONF.dropDriveId+'/root:/'+spDropRoot_(item)+'/'+encodeURIComponent(item.folder)+'/'+encodeURIComponent(item.fname)+':'
+    : 'https://graph.microsoft.com/v1.0/drives/'+MSCONF.driveId+'/items/'+spRootFor(item)+':/'+encodeURIComponent(item.folder)+'/'+encodeURIComponent(item.fname)+':';
   if(size<3800000){
     /* 25.09.2026 v1.8.2: report PDFs REPLACE the previous copy (re-finishing must not leave "... 1.pdf" duplicates);
      photos still RENAME on a clash, because an archived photo must never be overwritten (v1.6.4). */
@@ -600,6 +617,7 @@ function spUi(){
   var el=document.getElementById('spState'); if(!el) return;
   qAll().then(function(items){
     var q=items.length, btn=document.getElementById('spBtn');
+    if(btn && spDrop()) btn.textContent='Connect Microsoft ('+(pbSessEmail_()||'your work account')+')';
     var bn=document.getElementById('spBanner');
     if(bn){ if(!msAccount && q){ bn.textContent=q+' file'+(q>1?'s':'')+' waiting on this phone and NOT yet with the office. Scroll down to SharePoint photo archive and tap Connect Microsoft.'; bn.style.display='block'; } else bn.style.display='none'; }
     if(!msAccount){ el.textContent = q? q+' photo'+(q>1?'s':'')+' waiting — connect Microsoft to archive them.' : 'Not connected — photos will queue on this phone until you connect.'; if(btn) btn.style.display='inline-block'; }
@@ -609,6 +627,16 @@ function spUi(){
 function spVerify(){
   var el=document.getElementById('repArch'); if(!el||!cur||!msAccount||!navigator.onLine) return;
   var want=counts(cur).ph;
+  if(spDrop()){
+    if(!want){ el.style.color='var(--muted)'; el.textContent='Photos: none on this inspection.'; return; }
+    qAll().then(function(items){
+      var mine=items.filter(function(x){ return x.root!=='REP' && x.folder===spFolderName(); }).length;
+      if(spQueueFails){ el.style.color='var(--amber)'; el.textContent='Photos: '+spQueueFails+' failed to queue on this phone. Re-attach '+(spQueueFails>1?'them':'it')+'.'; }
+      else if(mine){ el.style.color='var(--amber)'; el.textContent='Photos: sending '+mine+' to the office. Keep the app open.'; }
+      else { el.style.color='var(--green)'; el.textContent='Photos: sent to the office. They are filed automatically within a few minutes.'; }
+    }).catch(function(){});
+    return;
+  }
   if(!want){ el.style.color='var(--muted)'; el.textContent='Photo archive: no photos on this inspection.'; return; }
   /* v1.9.6 (28.10.2026): the office files photos into subfolders (e.g. "Incoming Oct 2026"), so count one level down too */
   var pre=String(cur.date||'').split('-').reverse().join('.')+'_';
@@ -637,6 +665,7 @@ function spRepUi(){
   var el=document.getElementById('repArch'); if(!el) return;
   qAll().then(function(items){
     var q=items.length;
+    if(cb && spDrop()) cb.textContent='Connect Microsoft ('+(pbSessEmail_()||'your work account')+')';
     /* v1.8.4: say plainly whether the office has been told */
     var of=document.getElementById('repOffice'), cb=document.getElementById('repConnBtn');
     var mine=cur? items.filter(function(x){ return x.root==='REP' && x.folder===spFolderName(); }).length : 0;
