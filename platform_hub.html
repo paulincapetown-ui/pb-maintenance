@@ -36,6 +36,7 @@
   .res-meta{font-size:12.5px;color:#374151}.res-meta .sub{color:var(--muted);font-size:11.5px}
   .user{display:flex;align-items:center;gap:10px;font-size:13px;color:#cdd5e1;flex-shrink:0}
   .user .avatar{width:30px;height:30px;border-radius:50%;background:var(--navy-soft);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff}
+  .signout{background:transparent;color:#cdd5e1;border:1px solid rgba(255,255,255,.3);border-radius:7px;font-size:12px;font-family:inherit;padding:5px 11px;cursor:pointer;white-space:nowrap}
 
   .shell{display:flex;min-height:calc(100vh - 62px)}
   .sidebar{width:200px;background:#fff;border-right:1px solid var(--line);padding:14px 10px;flex-shrink:0}
@@ -131,6 +132,7 @@
     .brand .sub{display:none}
     .searchwrap{order:3;flex:1 1 100%;max-width:none}
     .user{margin-left:auto}
+    #userName{display:none}   /* the initials stay; leaves room for Sign out on the top row */
     /* Sidebar becomes a horizontal scroll strip so content gets the full width */
     .shell{flex-direction:column;min-height:auto}
     .sidebar{width:100%;display:flex;gap:6px;overflow-x:auto;padding:8px 10px;border-right:none;border-bottom:1px solid var(--line);-webkit-overflow-scrolling:touch}
@@ -169,7 +171,7 @@
     <input id="search" type="text" autocomplete="off" placeholder="Search a file code or name —  L002, F038, C051, Daniels…">
     <div class="results" id="results"></div>
   </div>
-  <div class="user"><span id="userName">—</span><div class="avatar" id="userAv">PB</div></div>
+  <div class="user"><span id="userName">—</span><div class="avatar" id="userAv">PB</div><button class="signout" id="signout-btn" onclick="doLogout()">Sign out</button></div>
 </div>
 
 <div class="shell">
@@ -191,7 +193,7 @@
   </nav>
   <main class="main" id="main"><div class="loading">Loading…</div></main>
 </div>
-<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Hub · build 21.10.2026 · edit details on a property</div>
+<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Hub · build 02.11.2026 · sign out</div>
 
 <script>
 const GAS_URL   = "https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5jTsiMRgkv7QPDcmeqcNEAAhFXHW_OwR0-4o0qEtoCkCGjraSA/exec";
@@ -215,6 +217,12 @@ function checkSession(){
 }
 const session = checkSession();
 if(!session){ location.href = './dashboard.html?next=platform_hub.html'; }
+// 02.11.2026: Sign out on the Hub, same as Jobs. keepalive so the server call survives leaving the page.
+function doLogout(){
+  try{ if(GAS_TOKEN) fetch(GAS_URL+'?action=logout&session='+encodeURIComponent(GAS_TOKEN),{keepalive:true}); }catch(e){}
+  localStorage.removeItem('pb_session');
+  location.href='./dashboard.html?next=platform_hub.html';
+}
 
 const PORT_LABEL = {L:"Managed",H:"Unmanaged",F:"Pat",C:"Leonard & Nolan",G:"G"};
 let PROPS=[], LL={}, TEN={}, TENCY={}, JOBS=[], UA=[], REN=[], INS=[], AL=[], REPLIES=[];
