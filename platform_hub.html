@@ -264,7 +264,8 @@ function isCandidate(){ return String((session&&session.role)||'').toLowerCase()
 let STAFF=[];
 function pbTruthy(v){ v=String(v||'').trim().toLowerCase(); return v==='true'||v==='yes'||v==='y'||v==='1'; }
 function pbApplyRole_(){
-  if(isAdmin()){ api('getStaffList').then(r=>{ STAFF=(r&&r.staff)||[]; }).catch(()=>{}); const sn=document.getElementById('nav-staff'); if(sn) sn.style.display=''; }
+  if(!isCandidate()) api('getStaffList').then(r=>{ STAFF=(r&&r.staff)||[]; }).catch(()=>{});
+  if(isAdmin()){ const sn=document.getElementById('nav-staff'); if(sn) sn.style.display=''; }
   if(!isCandidate()) return;
   ['nav-leads','nav-listings','nav-ren'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
   document.querySelectorAll('.nav-item[href="./reviews.html"]').forEach(el=>el.style.display='none');
@@ -402,7 +403,7 @@ function openProfile(code){
       <div class="panel"><h4>Current tenant</h4>${tenHtml}
         <div class="note">Only the current tenant is held. The next tenant becomes /02.</div></div>
       <div class="panel full"><h4>Linked jobs</h4>${jobsHtml}</div>
-      ${isAdmin()?pbAccessPanel(prop):''}
+      ${isCandidate()?'':pbAccessPanel(prop)}
     </div>`;
 }
 
@@ -579,13 +580,19 @@ async function reinstateProperty(code){
   catch(e){ alert('Could not save. Check the connection and try again.'); }
 }
 
-// Paul only: who the property is assigned to, and whether a candidate may see the owner.
+// Who the property is assigned to (Paul and staff, 06.11.2026), and whether a candidate may see the owner (Paul only).
 function pbAccessPanel(prop){
+  const adm=isAdmin();
   const names=[...new Set(PROPS.map(p=>String(p.assignedAgent||'').trim()).filter(Boolean)
     .concat(STAFF.filter(s=>s.role==='candidate'&&s.active!==false).map(s=>s.displayName)))].sort();
   const cur=String(prop.assignedAgent||'').trim();
   const opts=['<option value="">Unassigned</option>'].concat(names.map(n=>`<option${n===cur?' selected':''}>${esc(n)}</option>`)).join('');
   const isG=String(prop.portfolio||'').toUpperCase()==='G';
+  if(!adm) return `<div class="panel full"><h4>Assign to an agent</h4>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <label style="margin:0">Agent</label><select id="pp-agent" style="width:auto">${opts}</select>
+      <button class="btn btn-primary btn-sm" id="pp-save" onclick="saveAccess('${esc(prop.propertyId)}','${esc(prop.clientCode)}')">Save</button></div>
+    <div class="note">${isG?'This is a trust property. It is never shown to a candidate, whatever is set here.':'A candidate sees only the properties assigned to him. Owner details: '+(pbTruthy(prop.ownerVisible)?'shown':'hidden')+'. Only Paul switches them on, and they switch off when the agent changes.'}</div></div>`;
   return `<div class="panel full"><h4>Access · only you see this</h4>
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
       <label style="margin:0">Agent</label><select id="pp-agent" style="width:auto">${opts}</select>
@@ -594,9 +601,16 @@ function pbAccessPanel(prop){
     <div class="note">${isG?'This is a trust property. It is never shown to a candidate, whatever is set here.':'A candidate sees only the properties assigned to him. Owner details stay hidden until you tick the box.'}</div></div>`;
 }
 async function saveAccess(pid, code){
-  const agent=document.getElementById('pp-agent').value, owner=document.getElementById('pp-owner').checked?'TRUE':'';
+  const agent=document.getElementById('pp-agent').value, ob=document.getElementById('pp-owner');
   const b=document.getElementById('pp-save'); b.textContent='Saving…'; b.disabled=true;
-  const p=PROPS.find(x=>x.propertyId===pid); if(p){ p.assignedAgent=agent; p.ownerVisible=owner; }
+  const p=PROPS.find(x=>x.propertyId===pid);
+  if(!ob){ // staff: agent only; the server switches owner details off when the agent changes
+    const changed=!p||String(p.assignedAgent||'').trim().toLowerCase()!==agent.trim().toLowerCase();
+    try{ await postApi('updateProperty',{propertyId:pid, assignedAgent:agent}); if(p){ p.assignedAgent=agent; if(changed) p.ownerVisible=''; } }catch(e){ alert('Could not save. Retry.'); }
+    openProfile(code); return;
+  }
+  const owner=ob.checked?'TRUE':'';
+  if(p){ p.assignedAgent=agent; p.ownerVisible=owner; }
   try{ await postApi('updateProperty',{propertyId:pid, assignedAgent:agent, ownerVisible:owner}); }catch(e){ alert('Could not save. Retry.'); }
   openProfile(code);
 }
