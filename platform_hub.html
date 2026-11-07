@@ -383,8 +383,10 @@ function openProfile(code){
     <div class="ent"><div class="nm">${esc(l.name)} <span class="role ${i>0?'co':''}">${i>0?'Co-owner':'Owner'}</span></div>
       <div class="ct">${[l.email,l.email2,l.email3].filter(Boolean).map(esc).join(' · ')||'<span class="muted">no email on file</span>'}</div></div>`).join('')
     :'<div class="muted">No landlord linked.</div>';
+  const tenPhone=tenant?(tenant.phone||pbGuessTenantPhone(prop.clientCode,tenant.name)):'';
   const tenHtml=tenant?`<div class="ent"><div class="nm">${esc(tenant.name)||'Current tenant'} <span class="role ten">${esc(tcy.tenancyCode)}</span></div>
-      <div class="ct">${[tenant.email,tenant.email2,tenant.email3].filter(Boolean).map(esc).join(' · ')||'<span class="muted">no email on file</span>'}</div></div>`
+      <div class="ct">${[tenant.email,tenant.email2,tenant.email3].filter(Boolean).map(esc).join(' · ')||'<span class="muted">no email on file</span>'}</div>
+      ${tenPhone?`<div class="ct">${esc(tenPhone)}</div>`:''}</div>`
     :'<div class="muted">No current tenancy.</div>';
   const jobsHtml=jobs.length?jobs.map(j=>`<div class="act"><span>${esc(j.issueDescription||j.taskRequired||'Job')} <span class="muted">— ${esc(j.status)} ${esc(j.estCompletionDate)}</span></span></div>`).join(''):'<div class="muted">No linked jobs.</div>';
   main.innerHTML = `
@@ -400,7 +402,7 @@ function openProfile(code){
     <div id="end-panel"></div></div>
     <div class="grid">
       <div class="panel"><h4>Landlord(s)</h4>${(isCandidate()&&!pbTruthy(prop.ownerVisible))?'<div class="muted">Owner details are not shared yet.</div>':llHtml}</div>
-      <div class="panel"><h4>Current tenant</h4>${tenHtml}
+      <div class="panel"><h4>Current tenant</h4>${(isCandidate()&&prop.accessLevel!=='inspection'&&!pbTruthy(prop.tenantVisible))?'<div class="muted">Tenant details are not shared yet. Ask the office.</div>':tenHtml}
         <div class="note">Only the current tenant is held. The next tenant becomes /02.</div></div>
       <div class="panel full"><h4>Linked jobs</h4>${jobsHtml}</div>
       ${isCandidate()?'':pbAccessPanel(prop)}
@@ -580,38 +582,31 @@ async function reinstateProperty(code){
   catch(e){ alert('Could not save. Check the connection and try again.'); }
 }
 
-// Who the property is assigned to (Paul and staff, 06.11.2026), and whether a candidate may see the owner (Paul only).
+// Who the property is assigned to, and what a candidate agent may see of it. Paul and the office have
+// the same level here (Paul, 06.11.2026): tenant details and owner details are separate switches.
 function pbAccessPanel(prop){
-  const adm=isAdmin();
   const names=[...new Set(PROPS.map(p=>String(p.assignedAgent||'').trim()).filter(Boolean)
     .concat(STAFF.filter(s=>s.role==='candidate'&&s.active!==false).map(s=>s.displayName)))].sort();
   const cur=String(prop.assignedAgent||'').trim();
   const opts=['<option value="">Unassigned</option>'].concat(names.map(n=>`<option${n===cur?' selected':''}>${esc(n)}</option>`)).join('');
   const isG=String(prop.portfolio||'').toUpperCase()==='G';
-  if(!adm) return `<div class="panel full"><h4>Assign to an agent</h4>
+  const box=(id,on,label)=>`<label style="margin:0;display:flex;gap:6px;align-items:center"><input type="checkbox" id="${id}" style="width:auto" ${on?'checked':''}> ${label}</label>`;
+  return `<div class="panel full"><h4>Access for a candidate agent</h4>
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
       <label style="margin:0">Agent</label><select id="pp-agent" style="width:auto">${opts}</select>
+      ${box('pp-tenant',pbTruthy(prop.tenantVisible),'Show tenant details')}
+      ${box('pp-owner',pbTruthy(prop.ownerVisible),'Show owner details')}
       <button class="btn btn-primary btn-sm" id="pp-save" onclick="saveAccess('${esc(prop.propertyId)}','${esc(prop.clientCode)}')">Save</button></div>
-    <div class="note">${isG?'This is a trust property. It is never shown to a candidate, whatever is set here.':'A candidate sees only the properties assigned to him. Owner details: '+(pbTruthy(prop.ownerVisible)?'shown':'hidden')+'. Only Paul switches them on, and they switch off when the agent changes.'}</div></div>`;
-  return `<div class="panel full"><h4>Access · only you see this</h4>
-    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-      <label style="margin:0">Agent</label><select id="pp-agent" style="width:auto">${opts}</select>
-      <label style="margin:0;display:flex;gap:6px;align-items:center"><input type="checkbox" id="pp-owner" style="width:auto" ${pbTruthy(prop.ownerVisible)?'checked':''}> Show owner details to a candidate agent</label>
-      <button class="btn btn-primary btn-sm" id="pp-save" onclick="saveAccess('${esc(prop.propertyId)}','${esc(prop.clientCode)}')">Save</button></div>
-    <div class="note">${isG?'This is a trust property. It is never shown to a candidate, whatever is set here.':'A candidate sees only the properties assigned to him. Owner details stay hidden until you tick the box.'}</div></div>`;
+    <div class="note">${isG?'This is a trust property. It is never shown to a candidate, whatever is set here.':'A candidate sees only the properties assigned to him. Tenant details let him contact the tenant to arrange an inspection. Owner details stay hidden unless ticked, because the office writes to the owners.'}</div></div>`;
 }
 async function saveAccess(pid, code){
-  const agent=document.getElementById('pp-agent').value, ob=document.getElementById('pp-owner');
+  const agent=document.getElementById('pp-agent').value;
+  const tenant=(agent&&document.getElementById('pp-tenant').checked)?'TRUE':'', owner=(agent&&document.getElementById('pp-owner').checked)?'TRUE':'';   // Unassigned clears both
   const b=document.getElementById('pp-save'); b.textContent='Saving…'; b.disabled=true;
   const p=PROPS.find(x=>x.propertyId===pid);
-  if(!ob){ // staff: agent only; the server switches owner details off when the agent changes
-    const changed=!p||String(p.assignedAgent||'').trim().toLowerCase()!==agent.trim().toLowerCase();
-    try{ await postApi('updateProperty',{propertyId:pid, assignedAgent:agent}); if(p){ p.assignedAgent=agent; if(changed) p.ownerVisible=''; } }catch(e){ alert('Could not save. Retry.'); }
-    openProfile(code); return;
-  }
-  const owner=ob.checked?'TRUE':'';
-  if(p){ p.assignedAgent=agent; p.ownerVisible=owner; }
-  try{ await postApi('updateProperty',{propertyId:pid, assignedAgent:agent, ownerVisible:owner}); }catch(e){ alert('Could not save. Retry.'); }
+  try{ await postApi('updateProperty',{propertyId:pid, assignedAgent:agent, tenantVisible:tenant, ownerVisible:owner});
+    if(p){ p.assignedAgent=agent; p.tenantVisible=tenant; p.ownerVisible=owner; } }
+  catch(e){ alert('Could not save. Retry.'); }
   openProfile(code);
 }
 
@@ -933,7 +928,7 @@ function showInspections(){
     const insp=`<a class="btn btn-ghost btn-sm" style="text-decoration:none" href="./inspect.html?type=Routine&code=${encodeURIComponent(i.clientCode||'')}&tenant=${encodeURIComponent(i.tenant||'')}">Inspect</a>`;
     if(cand) return insp+` <button class="btn btn-ghost btn-sm" onclick="openProfile('${esc(i.clientCode)}')">Details</button>`;
     let h=insp+` <button class="btn btn-ghost btn-sm" onclick="editInspection('${esc(i.inspectionId)}')">Edit</button> <button class="btn btn-ghost btn-sm" onclick="markInspectionDone('${esc(i.inspectionId)}')">Done</button>`;
-    if(adm && CANDS.length) h+=(i.assignedTo && !i.accessClosedAt)
+    if(CANDS.length) h+=(i.assignedTo && !i.accessClosedAt)
       ? ` <button class="btn btn-ghost btn-sm" onclick="recallInspection('${esc(i.inspectionId)}')">Recall</button>`
       : ` <button class="btn btn-ghost btn-sm" onclick="sendInspectionForm('${esc(i.inspectionId)}')">Send to ${esc(CANDS.length===1?CANDS[0].displayName.split(' ')[0]:'candidate')}</button>`;
     return h;
@@ -944,7 +939,7 @@ function showInspections(){
     : '<div class="empty">'+(cand?'No inspections for you at the moment.':'No upcoming inspections logged yet. Add the inspections coming up.')+'</div>';
   main.innerHTML=`<div class="page-title">Inspections</div><div class="page-sub">${cand?'Inspections for you. '+openI.length+' open.':'Inspections coming up. '+openI.length+' open · shown in Paul\'s 1pm digest.'}</div>${cand?'':'<button class="btn btn-primary" onclick="showInspectionForm()">+ Add inspection</button> '}<a class="btn btn-primary" href="./inspect.html" style="text-decoration:none">Start an inspection</a><div style="margin-top:14px">${cards}</div>`;
 }
-// Paul only: send one inspection to a candidate with the tenant's name and phone (the registry holds no phones).
+// Paul and the office: send one inspection to a candidate with the tenant's name and phone (the registry holds no phones).
 function pbGuessTenantPhone(code, tname){
   const n=String(tname||'').trim().toLowerCase();
   const js=JOBS.filter(j=>String(j.clientCode||'').toUpperCase()===String(code||'').toUpperCase() && j.tenantPhone && (!n || String(j.tenantName||'').trim().toLowerCase()===n))
