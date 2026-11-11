@@ -116,6 +116,26 @@
   .addph .ic{font-size:20px;line-height:1}
   .more{font-size:12.5px;color:var(--blue);font-weight:700;cursor:pointer;margin-top:7px;display:inline-block}
   .additem{padding:12px 15px}
+  /* v1.9.12: video tiles, photo viewer, room title sheet */
+  .ph img{cursor:pointer}
+  .ph.vid{background:var(--navy);cursor:pointer}
+  .ph.vid .vtxt{position:absolute;left:7px;top:6px;color:#fff;font-size:10px;font-weight:800;letter-spacing:.06em;pointer-events:none}
+  .ph.vid .vplay{position:absolute;left:50%;top:50%;margin:-9px 0 0 -6px;width:0;height:0;border-style:solid;border-width:9px 0 9px 15px;border-color:transparent transparent transparent #fff;opacity:.95;pointer-events:none;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+  .ph.vid .vdur{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.62);color:#fff;font-size:10px;font-weight:700;text-align:center;padding:1px 0;pointer-events:none}
+  #phView{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(10,12,24,.95);z-index:60;display:none;flex-direction:column;align-items:center;justify-content:center;padding:12px;cursor:pointer}
+  #phView.on{display:flex}
+  #phView img{max-width:100%;max-height:calc(100% - 36px);object-fit:contain;border-radius:6px;background:#000}
+  #phView .cap{color:#cfd6e4;font-size:12.5px;margin-top:9px;text-align:center}
+  .room-h .rh-r{display:flex;align-items:center;gap:10px;flex-shrink:0;margin-left:10px}
+  .room-h .rnb{border:1px solid var(--line);background:#fff;color:var(--blue);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer}
+  #rnSheet{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(10,12,24,.55);z-index:61;display:none;align-items:flex-start;justify-content:center;padding:9vh 14px 14px;overflow:auto}
+  #rnSheet.on{display:flex}
+  #rnSheet .rn-card{background:#fff;border-radius:14px;padding:18px;width:100%;max-width:460px;box-shadow:0 18px 50px rgba(0,0,0,.35)}
+  .rn-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+  .rn-chip{border:1.5px solid var(--line);background:#fff;color:var(--navy);border-radius:20px;padding:8px 13px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer}
+  .rn-chip.sel{background:var(--navy);border-color:var(--navy);color:#fff}
+  .rn-prev{margin-top:14px;padding:10px 12px;background:#f8f9fb;border-radius:9px;font-size:13.5px}
+  .rep-vid{font-size:12.5px;color:#374151;background:#f8f9fb;border-left:3px solid var(--navy);padding:6px 10px;margin:4px 0 6px;border-radius:0 6px 6px 0;word-break:break-word}
   .actionbar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom));display:none;gap:10px;z-index:25}
   .actionbar.on{display:flex}
   .actionbar .btn{flex:1;padding:13px}
@@ -200,11 +220,11 @@
     </div>
     <div class="card">
       <h2>SharePoint photo archive</h2>
-      <div class="small muted" style="margin-bottom:8px">Photos file automatically into MASTER docs → Inspection Photos, and the finished report PDF into MASTER docs → Inspection reports — one folder per property. Only what you attach to an inspection — never your photo library.</div>
+      <div class="small muted" style="margin-bottom:8px">Photos file automatically into MASTER docs → Inspection Photos, and the finished report PDF into MASTER docs → Inspection reports — one folder per property. Only what you attach to an inspection — never your photo library. Short videos attached to an item file with the photos, after the photos and the report have gone.</div>
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.11</b> · 02.11.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.12</b> · 11.11.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -215,6 +235,7 @@
       <select id="typeSel" onchange="typeSwitch(this.value)"><option>Routine</option><option>Ingoing</option><option>Outgoing</option></select>
       <div class="small muted" style="margin-top:4px">Picked the wrong type? Change it here. Ratings, comments, readings and photos stay. Then press Finish → Report again.</div>
     </div>
+    <div id="nextRemind" class="noprint" style="display:none;margin-top:12px;padding:12px 14px;border-radius:10px;background:#fff7d6;border:1px solid #e8c45a;font-size:13.5px;line-height:1.55"></div>
     <div id="roomsHost" style="margin-top:12px"></div>
     <div class="card">
       <h2>Add a room</h2>
@@ -274,6 +295,11 @@
       <label>Notes</label>
       <textarea id="overallNotes" placeholder="General condition, tenant feedback, anything for the record…" oninput="cur.notes=this.value;save()"></textarea>
     </div>
+    <div class="card noprint" id="nextCard">
+      <h2>Note for the next inspection</h2>
+      <div class="small muted" style="margin-bottom:8px">For your eyes only. It is never printed in the report. It shows at the top of the next inspection of this property.</div>
+      <textarea id="nextNote" placeholder="e.g. 5% increase agreed, R11 950 to R12 548 from 1 Feb 2027. Below the market, go higher next year." oninput="cur.nextNote=this.value;save()"></textarea>
+    </div>
     <div class="card">
       <h2>Sign-off</h2>
       <div class="small muted" style="margin-bottom:8px">Both signatures appear on the report. Sign with a finger.</div>
@@ -321,13 +347,27 @@
 </div>
 
 <input type="file" id="phInput" accept="image/*" style="display:none" multiple>
+<input type="file" id="vidInput" accept="video/*" style="display:none">
+<div id="phView" class="noprint" onclick="phViewClose()"><img id="phViewImg" alt=""><div class="cap" id="phViewCap">Tap to close</div></div>
+<div id="rnSheet" class="noprint" onclick="if(event.target===this) rnClose()">
+  <div class="rn-card">
+    <h2 style="margin-top:0">Room title</h2>
+    <label style="margin-top:4px">Room</label>
+    <input type="text" id="rnBase" autocomplete="off" oninput="rnPrev()">
+    <label>Description, shown in brackets <span class="muted" style="text-transform:none;font-weight:600">(optional)</span></label>
+    <input type="text" id="rnTag" autocomplete="off" autocapitalize="none" placeholder="e.g. main, en suite, to the left" oninput="rnPrev()">
+    <div class="rn-chips" id="rnChips"></div>
+    <div class="rn-prev">Title will read: <b id="rnOut"></b></div>
+    <div style="display:flex;gap:8px;margin-top:14px"><button class="btn btn-ghost" onclick="rnClose()">Cancel</button><button class="btn btn-primary" style="flex:1" onclick="rnSave()">Save title</button></div>
+  </div>
+</div>
 <div id="toast"></div>
 
 <script>
 /* ================= Room / item templates ================= */
 var STD_ROOM = ['Walls, ceiling & paintwork','Flooring / carpets','Windows, latches & glass','Doors, locks & handles','Lights, switches & plugs','Curtains / blinds & rails'];
 function bedRoom(n){ return {name:'Bedroom '+n, items:STD_ROOM.concat(['Built-in cupboards'])}; }
-function bathRoom(n){ return {name:'Bathroom'+(n>1?' '+n:''), items:['Toilet & cistern','Basin, taps & plumbing','Bath / shower & screen','Tiles, seals, grouting & mould','Extractor / ventilation','Towel rails & fittings','Lights & switches']}; }
+function bathRoom(n,of){ return {name:'Bathroom'+((of>1||n>1)?' '+n:''), items:['Toilet & cistern','Basin, taps & plumbing','Bath / shower & screen','Tiles, seals, grouting & mould','Extractor / ventilation','Towel rails & fittings','Lights & switches']}; }
 var KITCHEN = {name:'Kitchen', items:['Sink, taps & plumbing','Stove, oven & extractor','Cupboards & drawers','Countertops & tiling','Appliances present & working','Walls, ceiling & paintwork','Flooring','Lights, switches & plugs']};
 var LIVING  = {name:'Living / Dining', items:STD_ROOM};
 var ENTR    = {name:'Entrance & Passage', items:['Front door, locks & keys','Walls, ceiling & paintwork','Flooring','Lights & switches']};
@@ -341,7 +381,7 @@ function buildRooms(tpl, garden){
   var r = garden ? [EXT, ENTR, LIVING, KITCHEN] : [ENTR, LIVING, KITCHEN];
   var beds = tpl, baths = tpl>=3 ? 2 : 1;
   for(var i=1;i<=beds;i++) r.push(bedRoom(i));
-  for(var b=1;b<=baths;b++) r.push(bathRoom(b));
+  for(var b=1;b<=baths;b++) r.push(bathRoom(b,baths));
   if(tpl>=3) r.push(GARAGE);
   r.push(SAFETY);
   if(!garden) r.push(EXT);
@@ -392,6 +432,7 @@ function loadRegistry(){
   var settle=function(p){return p.catch(function(){return {};});};
   Promise.all([settle(regApi('getProperties')),settle(regApi('getTenants')),settle(regApi('getTenancies'))]).then(function(res){
     PROPS=res[0].properties||[];
+    pbRegState=PROPS.length? 'ok' : 'none';   /* v1.9.12 */
     (res[1].tenants||[]).forEach(function(t){TENMAP[t.tenantId]=t;});
     (res[2].tenancies||[]).forEach(function(t){TENCY[t.tenancyCode]=t;});
     var hc='',ha='',ht='';
@@ -404,13 +445,15 @@ function loadRegistry(){
     document.getElementById('dlCode').innerHTML=hc;
     document.getElementById('dlAddr').innerHTML=ha;
     document.getElementById('dlTen').innerHTML=ht;
+    /* v1.9.12: a code typed before the list arrived is looked up again now that it has */
+    if(!PRE.code && !cur && document.getElementById('fCode').value.trim()) lkCode();
     if(PRE.code){ var pc=document.getElementById('fCode').value.trim().toUpperCase();
       if(PROPS.some(function(x){return (x.clientCode||'').toUpperCase()===pc;})) lkCode();
       else if(PRE.full){ document.getElementById('fCode').value=''; document.getElementById('fAddr').value=PRE.full; } /* not a real file code after all: keep the whole text as the address */
     }
   });
 }
-function hint(p){ document.getElementById('lkHint').textContent = p? ('✓ '+(p.clientCode||'')+' — '+(p.address||'')) : ''; }
+function hint(p){ var el=document.getElementById('lkHint'); el.style.color='var(--green)'; el.removeAttribute('data-miss'); el.textContent = p? ('✓ '+(p.clientCode||'')+' — '+(p.address||'')) : ''; }
 function fillFrom(p, skip){
   if(!p) return;
   if(skip!=='code') document.getElementById('fCode').value=p.clientCode||'';
@@ -428,7 +471,7 @@ function pbSplitCode(s){
   var n=m[2]; while(n.length<3) n='0'+n;
   return {code:(m[1].toUpperCase()+n), rest:m[3].trim()};
 }
-function lkCode(){ var q=(pbSplitCode(document.getElementById('fCode').value).code||document.getElementById('fCode').value.trim().toUpperCase()); var p=PROPS.find(function(x){return (x.clientCode||'').toUpperCase()===q;}); if(p) fillFrom(p,'code'); updLastHint(); }
+function lkCode(){ var q=(pbSplitCode(document.getElementById('fCode').value).code||document.getElementById('fCode').value.trim().toUpperCase()); var p=PROPS.find(function(x){return (x.clientCode||'').toUpperCase()===q;}); if(p) fillFrom(p,'code'); else lkMiss_(q); updLastHint(); }
 function lkAddr(){ var q=document.getElementById('fAddr').value.trim().toLowerCase(); if(q.length<4) return; var p=PROPS.find(function(x){return (x.address||'').toLowerCase()===q;}); if(p) fillFrom(p,'addr'); }
 function lkTen(){ var q=document.getElementById('fTen').value.trim().toLowerCase(); if(q.length<3) return; var m=TENLIST.find(function(x){return x.name.toLowerCase()===q;}); if(m) fillFrom(m.p,'ten'); }
 
@@ -575,6 +618,7 @@ function spEnsureFolder(name, tok, rootId){
   }).then(function(r){ if(r.ok||r.status===409){ spFolders[key]=1; return; } throw new Error('folder '+r.status); });
 }
 function spUpload(item, tok){
+  if(item.vid) return spUploadVideo(item, tok, spBase_(item));   /* v1.9.12 */
   var body=item.buf||item.blob, size=item.buf? item.buf.byteLength : item.blob.size;
   var base=spDrop()
     ? 'https://graph.microsoft.com/v1.0/drives/'+MSCONF.dropDriveId+'/root:/'+spDropRoot_(item)+'/'+encodeURIComponent(item.folder)+'/'+encodeURIComponent(item.fname)+':'
@@ -602,14 +646,29 @@ function spPump(){
   spBusy=true;
   qAll().then(function(items){
     if(!items.length){ spBusy=false; spUi(); return; }
+    /* v1.9.12: videos go last so a long clip never holds up photos, the report PDF or the office notice.
+       If a photo or report is queued while videos are sending, the pass stops after the clip in hand and
+       a new pass starts, which again takes photos and reports first. */
+    var seen=items.map(function(x){ return x.qid; }), stop=false;
+    items=items.filter(function(x){ return !x.vid; }).concat(items.filter(function(x){ return x.vid; }));
     spToken().then(function(tok){
       var p=Promise.resolve();
       items.forEach(function(it){
-        p=p.then(function(){ return spEnsureFolder(it.folder,tok,spRootFor(it)).then(function(){ return spUpload(it,tok); }).then(function(){ return qDel(it.qid); })
+        p=p.then(function(){
+          if(stop) return;
+          var pre=!it.vid? Promise.resolve() : qAll().then(function(now){ if(now.some(function(x){ return !x.vid && seen.indexOf(x.qid)<0; })) stop=true; }).catch(function(){});
+          return pre.then(function(){
+            if(stop) return;
+            return spEnsureFolder(it.folder,tok,spRootFor(it)).then(function(){ return spUpload(it,tok); }).then(function(){ return qDel(it.qid); })
+          .then(function(){ if(it.vid){ vidMark(it,'sent'); return vqDel(it.vid); } })
           /* v1.8.4: the office notice travels with the report PDF and goes only once the PDF is in SharePoint */
-          .then(function(){ if(it.root==='REP' && it.notice) return pbNotifyOffice(it.notice, it.folder); }).catch(function(e){ spFails++; }); });
+          .then(function(){ if(it.root==='REP' && it.notice) return pbNotifyOffice(it.notice, it.folder); }).catch(function(e){ spFails++;
+            if(it.vid && e && e.message==='vmissing') return qDel(it.qid).then(function(){ vidMark(it,'lost'); toast('A video could not be read from this phone and was NOT filed. Attach it again.'); }).catch(function(){}); });
+          });
+        });
       });
-      p.then(function(){ spBusy=false; spUi(); spRepUi(); });
+      p.then(function(){ spBusy=false; spVidNote=''; spUi(); spRepUi();
+        qAll().then(function(now){ if(now.some(function(x){ return seen.indexOf(x.qid)<0; })) spPump(); }).catch(function(){}); });
     }).catch(function(){ spBusy=false; spUi(); });
   }).catch(function(){ spBusy=false; });
 }
@@ -620,15 +679,15 @@ function spUi(){
     if(btn && spDrop()) btn.textContent='Connect Microsoft ('+(pbSessEmail_()||'your work account')+')';
     var bn=document.getElementById('spBanner');
     if(bn){ if(!msAccount && q){ bn.textContent=q+' file'+(q>1?'s':'')+' waiting on this phone and NOT yet with the office. Scroll down to SharePoint photo archive and tap Connect Microsoft.'; bn.style.display='block'; } else bn.style.display='none'; }
-    if(!msAccount){ el.textContent = q? q+' photo'+(q>1?'s':'')+' waiting — connect Microsoft to archive them.' : 'Not connected — photos will queue on this phone until you connect.'; if(btn) btn.style.display='inline-block'; }
-    else { el.textContent = q? 'Uploading — '+q+' photo'+(q>1?'s':'')+' in the queue…' : 'Connected as '+(msAccount.username||'')+' — photo archive active.'; if(btn) btn.style.display='none'; }
+    if(!msAccount){ el.textContent = q? spQW(items)+' waiting — connect Microsoft to archive them.' : 'Not connected — photos will queue on this phone until you connect.'; if(btn) btn.style.display='inline-block'; }
+    else { el.textContent = q? 'Uploading — '+spQW(items)+' in the queue…'+spVidNote : 'Connected as '+(msAccount.username||'')+' — photo archive active.'; if(btn) btn.style.display='none'; }
   });
 }
 function spVerify(){
   var el=document.getElementById('repArch'); if(!el||!cur||!msAccount||!navigator.onLine) return;
-  var want=counts(cur).ph;
+  var want=counts(cur).ph, wantV=counts(cur).vid;
   if(spDrop()){
-    if(!want){ el.style.color='var(--muted)'; el.textContent='Photos: none on this inspection.'; return; }
+    if(!want && !wantV){ el.style.color='var(--muted)'; el.textContent='Photos: none on this inspection.'; return; }
     qAll().then(function(items){
       var mine=items.filter(function(x){ return x.root!=='REP' && x.folder===spFolderName(); }).length;
       if(spQueueFails){ el.style.color='var(--amber)'; el.textContent='Photos: '+spQueueFails+' failed to queue on this phone. Re-attach '+(spQueueFails>1?'them':'it')+'.'; }
@@ -637,7 +696,7 @@ function spVerify(){
     }).catch(function(){});
     return;
   }
-  if(!want){ el.style.color='var(--muted)'; el.textContent='Photo archive: no photos on this inspection.'; return; }
+  if(!want && !wantV){ el.style.color='var(--muted)'; el.textContent='Photo archive: no photos on this inspection.'; return; }
   /* v1.9.6 (28.10.2026): the office files photos into subfolders (e.g. "Incoming Oct 2026"), so count one level down too */
   var pre=String(cur.date||'').split('-').reverse().join('.')+'_';
   /* v1.9.9 (29.10.2026): a duplicate's copied photos are the outgoing photos, already filed under the
@@ -655,10 +714,17 @@ function spVerify(){
       return Promise.all(subs).then(function(lists){ lists.forEach(function(l){ all=all.concat(l); }); return all; });
     });
   }).then(function(all){
-    var have=all.filter(function(f){ return f.name && !f.folder && (f.name.indexOf(pre)===0 || (pre2 && f.name.indexOf(pre2)===0)) && !/\.pdf$/i.test(f.name); }).length;
-    if(spQueueFails){ el.style.color='var(--amber)'; el.textContent='Photo archive: '+have+' of '+want+' filed — '+spQueueFails+' photo'+(spQueueFails>1?'s':'')+' failed to queue on this phone. Re-attach '+(spQueueFails>1?'them':'it')+' or file '+(spQueueFails>1?'them':'it')+' by hand.'; return; }
-    if(have>=want){ el.style.color='var(--green)'; el.textContent='Photo archive: all '+want+' photo'+(want>1?'s':'')+' filed in MASTER docs / Inspection Photos.'; }
+    var mine=all.filter(function(f){ return f.name && !f.folder && (f.name.indexOf(pre)===0 || (pre2 && f.name.indexOf(pre2)===0)) && !/\.pdf$/i.test(f.name); });
+    /* v1.9.12: a video is not a photo. Count them apart, or a filed clip would hide a missing photo. */
+    var have=mine.filter(function(f){ return !VID_RE.test(f.name); }).length, haveV=mine.filter(function(f){ return VID_RE.test(f.name); }).length;
+    var vfin=function(){ if(!wantV) return;
+      el.textContent+=(haveV>=wantV? ' Videos: all '+wantV+' filed.' : ' Videos: '+haveV+' of '+wantV+' filed so far. Keep the app open on Wi-Fi.');
+      if(haveV<wantV) el.style.color='var(--amber)'; };
+    if(spQueueFails){ el.style.color='var(--amber)'; el.textContent='Photo archive: '+have+' of '+want+' filed — '+spQueueFails+' photo'+(spQueueFails>1?'s':'')+' failed to queue on this phone. Re-attach '+(spQueueFails>1?'them':'it')+' or file '+(spQueueFails>1?'them':'it')+' by hand.'; vfin(); return; }
+    if(!want){ el.style.color='var(--green)'; el.textContent='Photo archive: no photos on this inspection.'; }
+    else if(have>=want){ el.style.color='var(--green)'; el.textContent='Photo archive: all '+want+' photo'+(want>1?'s':'')+' filed in MASTER docs / Inspection Photos.'; }
     else { el.style.color='var(--amber)'; el.textContent='Photo archive: only '+have+' of '+want+' photos filed — keep the app open on Wi-Fi; it will keep retrying.'; }
+    vfin();
   }).catch(function(){ el.style.color='var(--muted)'; el.textContent='Photo archive: could not verify right now.'; });
 }
 function spRepUi(){
@@ -676,7 +742,7 @@ function spRepUi(){
       else if(cur && cur.notifiedAt){ of.style.color='var(--green)'; of.textContent='Report filed in SharePoint. Office notice queued (arrives about 5 minutes later).'; }
       else { of.textContent=''; }
     }
-    if(q){ el.style.color='var(--amber)'; el.textContent='SharePoint archive: '+q+' photo'+(q>1?'s':'')+' still uploading — keep the app open on Wi-Fi or data.'; return; }
+    if(q){ el.style.color='var(--amber)'; el.textContent='SharePoint archive: '+spQW(items)+' still uploading — keep the app open on Wi-Fi or data.'+spVidNote; return; }
     if(!msAccount){ el.style.color='var(--amber)'; el.textContent='SharePoint archive: not connected — photos are queued safely on this phone.'; return; }
     el.style.color='var(--muted)'; el.textContent='Photo archive: checking…';
     spVerify();
@@ -759,7 +825,7 @@ function pbImagesReady(el){
 /* Page breaks: move each break up to the top of any photo or row it would cut through. */
 function pbPageBreaks(el,total,pageCss){
   var top=el.getBoundingClientRect().top;
-  var blocks=[].slice.call(el.querySelectorAll('img,.rep-item,.rep-comment,.rep-kv,.rep-kpi,.rep-notes,h3,.rep-head')).map(function(n){
+  var blocks=[].slice.call(el.querySelectorAll('img,.rep-item,.rep-comment,.rep-vid,.rep-kv,.rep-kpi,.rep-notes,h3,.rep-head')).map(function(n){
     var b=n.getBoundingClientRect(); return [b.top-top, b.bottom-top];
   });
   var out=[], y=0;
@@ -982,6 +1048,7 @@ function openInspect(){
   document.getElementById('typeSel').value = cur.type;
   handFill();
   renFill();
+  nextFill();   /* v1.9.12 */
   if(cur.from && !cur.fromShown){ cur.fromShown=true; save(); toast('Started from the '+cur.from.split(' ')[0]+' of '+fmtD(cur.from.split(' ')[1])+'. Check each room.'); }
   renderRooms(); show('inspect'); updProg(); sigRestore();
 }
@@ -1019,7 +1086,7 @@ function renderRooms(){
   var host = document.getElementById('roomsHost'); host.innerHTML='';
   cur.rooms.forEach(function(room, ri){
     var div = document.createElement('div'); div.className='room'+(ri===0?' open':''); div.id='room'+ri;
-    div.innerHTML = '<div class="room-h" onclick="togRoom('+ri+')"><span class="rn">'+esc(room.name)+'</span><span class="rc" id="rc'+ri+'"></span></div>'+
+    div.innerHTML = '<div class="room-h" onclick="togRoom('+ri+')"><span class="rn">'+esc(room.name)+'</span><span class="rh-r"><button type="button" class="rnb" onclick="event.stopPropagation();rnOpen('+ri+')">Rename</button><span class="rc" id="rc'+ri+'"></span></span></div>'+
       '<div class="room-body" id="rb'+ri+'">'+roomBody(ri)+'</div>';
     host.appendChild(div);
   });
@@ -1033,10 +1100,13 @@ function roomBody(ri){
   return body;
 }
 function itemHtml(ri, ii, it){
-  var exp = (it.comment || it.photos.length || it.status==='poor') ? ' expanded' : '';
+  var exp = (it.comment || it.photos.length || (it.videos&&it.videos.length) || it.status==='poor') ? ' expanded' : '';
   var phs = '';
   it.photos.forEach(function(p, pi){
-    phs += '<div class="ph"><img src="'+phThumb(p)+'"><button class="del" onclick="delPh('+ri+','+ii+','+pi+')">×</button></div>';
+    phs += '<div class="ph"><img src="'+phThumb(p)+'" onclick="phViewOpen('+ri+','+ii+','+pi+')"><button class="del" onclick="delPh('+ri+','+ii+','+pi+')">×</button></div>';
+  });
+  (it.videos||[]).forEach(function(v, vi){
+    phs += '<div class="ph vid" onclick="vidInfo('+ri+','+ii+','+vi+')">'+(v.thumb? '<img src="'+v.thumb+'">' : '<span class="vtxt">VIDEO</span>')+'<span class="vplay"></span><span class="vdur">'+(v.st==='lost'?'NOT FILED':(v.dur? vidDur(v.dur) : (v.mb? v.mb+' MB' : 'video')))+'</span><button class="del" onclick="event.stopPropagation();delVid('+ri+','+ii+','+vi+')">×</button></div>';
   });
   var b=function(k,lab){ return '<button class="st '+k+(it.status===k?' sel':'')+'" onclick="setSt('+ri+','+ii+',\''+k+'\')">'+lab+'</button>'; };
   var c=function(k,lab){ return '<button class="clb '+k+(it.clean===k?' sel':'')+'" onclick="setCl('+ri+','+ii+',\''+k+'\')">'+lab+'</button>'; };
@@ -1048,7 +1118,7 @@ function itemHtml(ri, ii, it){
       '<button class="actb'+(it.act?' sel':'')+'" onclick="togAct('+ri+','+ii+')">'+(it.act?'Office to action':'Flag for office')+'</button></div>'+
     '<div class="item-extra">'+
       '<textarea placeholder="Comment (tap the microphone on the keyboard to dictate)" oninput="cur.rooms['+ri+'].items['+ii+'].comment=this.value;save()">'+esc(it.comment)+'</textarea>'+
-      '<div class="ph-row">'+phs+'<button class="addph" onclick="addPh('+ri+','+ii+')"><span class="ic">+</span>Photo</button></div>'+
+      '<div class="ph-row">'+phs+'<button class="addph" onclick="addPh('+ri+','+ii+')"><span class="ic">+</span>Photo</button><button class="addph" onclick="addVid('+ri+','+ii+')"><span class="ic">+</span>Video</button></div>'+
     '</div></div>';
 }
 function togRoom(ri){ document.getElementById('room'+ri).classList.toggle('open'); }
@@ -1114,16 +1184,16 @@ function normItems(x){
   return x;
 }
 function counts(x){
-  var total=0,set=0,att=0,good=0,fair=0,poor=0,na=0,ph=0,clean=0,dirty=0;
+  var total=0,set=0,att=0,good=0,fair=0,poor=0,na=0,ph=0,clean=0,dirty=0,vid=0;
   x.rooms.forEach(function(r){ r.items.forEach(function(i){
     var s=i.status==='att'?'poor':(i.status==='qry'?'fair':i.status), a=i.act||i.status==='att'||i.status==='qry';
     total++; if(s)set++; if(a)att++;
     if(s==='good')good++; if(s==='fair')fair++; if(s==='poor')poor++; if(s==='na')na++;
     if(i.clean==='clean')clean++; if(i.clean==='dirty')dirty++;
-    ph+=i.photos.length; }); });
+    ph+=i.photos.length; vid+=vidLive(i).length; }); });
   var M=x.mph||{}; ['elec','pre','water'].forEach(function(k){ ph+=(M[k]||[]).length; });
   /* att = items flagged for the office (the backend notice calls them "needing attention"); qry is retired */
-  return {total:total,set:set,att:att,good:good,fair:fair,poor:poor,na:na,ph:ph,qry:0,clean:clean,dirty:dirty};
+  return {total:total,set:set,att:att,good:good,fair:fair,poor:poor,na:na,ph:ph,qry:0,clean:clean,dirty:dirty,vid:vid};
 }
 function updProg(){
   var n = counts(cur);
@@ -1209,7 +1279,7 @@ function renderMeterPh(){
   ['elec','pre','water','keys'].forEach(function(m){
     var host=document.getElementById('mph_'+m); if(!host) return;
     var a=(cur&&cur.mph&&cur.mph[m])||[], h='';
-    a.forEach(function(p,pi){ h+='<div class="ph"><img src="'+phThumb(p)+'"><button class="del" onclick="delMeterPh(\''+m+'\','+pi+')">×</button></div>'; });
+    a.forEach(function(p,pi){ h+='<div class="ph"><img src="'+phThumb(p)+'" onclick="phViewOpenM(\''+m+'\','+pi+')"><button class="del" onclick="delMeterPh(\''+m+'\','+pi+')">×</button></div>'; });
     host.innerHTML=h;
   });
 }
@@ -1219,6 +1289,270 @@ function refreshItem(ri,ii,forceOpen){
   var tmp = document.createElement('div'); tmp.innerHTML = itemHtml(ri,ii,cur.rooms[ri].items[ii]);
   el.replaceWith(tmp.firstChild);
   if(wasOpen||forceOpen) document.getElementById('it'+ri+'_'+ii).classList.add('expanded');
+}
+
+/* ================= v1.9.12 (11.11.2026): short videos, photo viewer, room titles =================
+   VIDEOS. A clip is attached to a room item like a photo, but it never rides in the inspection record
+   or in the report PDF. It is cut into 6553600 byte slices as it is read (so a long clip never sits in
+   memory whole), the slices wait in the "phs" store under keys starting "vq|", and the queue row holds
+   only the name and size. spPump sends videos last, one slice per upload-session chunk, so a clip never
+   holds up the photos, the report PDF or the office notice. File name: DD.MM.YYYY_Room_Item_VIDEO_<id>.
+   The item keeps {f:file name, dur:seconds, mb, thumb, st} and the report prints one line per clip. */
+var VID_RE=/\.(mov|mp4|m4v|webm|3gp)$/i, VID_MAX=314572800, VID_CH=6553600, spVidNote='', vidTarget=null;
+function vidLive(i){ return (i.videos||[]).filter(function(v){ return v.st!=='lost'; }); }
+function vidDur(s){ s=Math.round(s||0); return Math.floor(s/60)+':'+('0'+(s%60)).slice(-2); }
+function vqKey(uid,i){ return 'vq|'+uid+'|'+('0000'+i).slice(-5); }
+function vqGet(key){ return idb().then(function(db){ return new Promise(function(res,rej){
+  var rq=db.transaction('phs','readonly').objectStore('phs').get(key);
+  rq.onsuccess=function(){ res(rq.result&&rq.result.buf); }; rq.onerror=function(){ rej(rq.error); }; }); }); }
+function vqDel(uid){ return idb().then(function(db){ return new Promise(function(res){
+  try{ var tx=db.transaction('phs','readwrite'); tx.objectStore('phs').delete(IDBKeyRange.bound('vq|'+uid+'|','vq|'+uid+'|￿')); tx.oncomplete=res; tx.onerror=function(){ res(); }; }catch(e){ res(); }
+}); }).catch(function(){}); }
+function spQW(items){
+  var v=items.filter(function(x){ return x.vid; }).length, p=items.length-v, a=[];
+  if(p) a.push(p+' photo'+(p>1?'s':'')); if(v) a.push(v+' video'+(v>1?'s':''));
+  return a.join(' and ');
+}
+function spBase_(item){ return spDrop()
+  ? 'https://graph.microsoft.com/v1.0/drives/'+MSCONF.dropDriveId+'/root:/'+spDropRoot_(item)+'/'+encodeURIComponent(item.folder)+'/'+encodeURIComponent(item.fname)+':'
+  : 'https://graph.microsoft.com/v1.0/drives/'+MSCONF.driveId+'/items/'+spRootFor(item)+':/'+encodeURIComponent(item.folder)+'/'+encodeURIComponent(item.fname)+':'; }
+/* reads the clip slice by slice into the phone's store, then adds one light row to the upload queue */
+function spQueueVideo(file, room, label, owner){
+  var ext=(file.name&&file.name.indexOf('.')>-1)? file.name.split('.').pop().toLowerCase() : '';
+  if(!/^(mov|mp4|m4v|webm|3gp)$/.test(ext)) ext=/quicktime/.test(file.type||'')?'mov':'mp4';
+  var uid=spUid(), d=owner.date? owner.date.split('-').reverse().join('.') : '';
+  var fname=spSan(d+'_'+room+'_'+label)+'_VIDEO_'+uid+'.'+ext;
+  var folder=spSan((owner.code? owner.code+' - ':'')+(owner.addr||''))||'Unfiled';
+  var size=file.size, n=Math.max(1,Math.ceil(size/VID_CH)), i=0;
+  function step(){
+    if(i>=n) return Promise.resolve();
+    var a=i*VID_CH, b=Math.min(a+VID_CH,size);
+    return file.slice(a,b).arrayBuffer().then(function(buf){ return phPut({k:vqKey(uid,i), buf:buf}); }).then(function(){ i++; return step(); });
+  }
+  spQueued++;
+  return step().then(function(){ return qAdd({folder:folder, fname:fname, mime:file.type||'video/quicktime', vid:uid, size:size, parts:n, insp:owner.id}); })
+    .then(function(){ spUi(); spPump(); return fname; }, function(e){ vqDel(uid); throw e; });
+}
+function spUploadVideo(item, tok, base){
+  if(item.size<3800000){
+    return vqGet(vqKey(item.vid,0)).then(function(buf){
+      if(!buf) throw new Error('vmissing');
+      return fetch(base+'/content?@microsoft.graph.conflictBehavior=rename',{method:'PUT',headers:{Authorization:'Bearer '+tok,'Content-Type':item.mime||'application/octet-stream'},body:buf});
+    }).then(function(r){ if(!r.ok) throw new Error('put '+r.status); });
+  }
+  return vqGet(vqKey(item.vid,0)).then(function(first){
+    if(!first) throw new Error('vmissing');
+    return fetch(base+'/createUploadSession',{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({item:{'@microsoft.graph.conflictBehavior':'rename'}})});
+  }).then(function(r){ if(!r.ok) throw new Error('session '+r.status); return r.json(); })
+    .then(function(s){
+      var i=0, pos=0;
+      function next(){
+        if(i>=item.parts) return Promise.resolve();
+        return vqGet(vqKey(item.vid,i)).then(function(buf){
+          if(!buf) throw new Error('vmissing');
+          var end=pos+buf.byteLength;
+          return fetch(s.uploadUrl,{method:'PUT',headers:{'Content-Range':'bytes '+pos+'-'+(end-1)+'/'+item.size},body:buf})
+            .then(function(r){ if(!(r.ok||r.status===202)) throw new Error('chunk '+r.status);
+              pos=end; i++; spVidNote=' Video '+Math.min(100,Math.round(pos/item.size*100))+'% sent.'; spUi(); spRepUi(); return next(); });
+        });
+      }
+      return next();
+    });
+}
+/* marks a clip as sent or lost on the inspection it belongs to, whichever inspection is open */
+function vidMark(item, state){
+  var x=inspCache[item.insp]; if(!x||!x.rooms) return;
+  x.rooms.forEach(function(r,ri){ (r.items||[]).forEach(function(it,ii){ (it.videos||[]).forEach(function(v){
+    if(v.f!==item.fname) return;
+    v.st=state;
+    if(cur===x){ save(); refreshItem(ri,ii); } else { inspPut(x).catch(function(){}); }
+  }); }); });
+}
+/* length and a small still from the clip. Never blocks the attach: after 6 seconds it carries on without a still */
+function vidProbe(file){
+  return new Promise(function(res){
+    var v=document.createElement('video'), url=URL.createObjectURL(file), done=false, out={dur:0,thumb:''};
+    var fin=function(){ if(done) return; done=true; clearTimeout(t); try{ v.pause(); v.removeAttribute('src'); v.load(); }catch(e){} try{ URL.revokeObjectURL(url); }catch(e){} res(out); };
+    var t=setTimeout(fin,6000);
+    var grab=function(){
+      try{ var w=v.videoWidth, h=v.videoHeight;
+        if(w&&h){ var k=Math.min(1,200/Math.max(w,h)), c=document.createElement('canvas'); c.width=Math.round(w*k); c.height=Math.round(h*k);
+          c.getContext('2d').drawImage(v,0,0,c.width,c.height); out.thumb=c.toDataURL('image/jpeg',0.65); } }catch(e){}
+      fin();
+    };
+    v.muted=true; v.playsInline=true; v.setAttribute('playsinline',''); v.setAttribute('muted',''); v.preload='auto';
+    v.onloadedmetadata=function(){ if(isFinite(v.duration)) out.dur=v.duration; };
+    v.onloadeddata=function(){ try{ v.currentTime=Math.min(0.5,(isFinite(v.duration)?v.duration:1)/4); }catch(e){ grab(); } };
+    v.onseeked=grab; v.onerror=fin;
+    v.src=url;
+    try{ var pr=v.play(); if(pr&&pr.then) pr.then(function(){ try{ v.pause(); }catch(e){} },function(){}); }catch(e){}
+  });
+}
+function addVid(ri,ii){ vidTarget={ri:ri, ii:ii}; document.getElementById('vidInput').click(); }
+document.getElementById('vidInput').addEventListener('change', function(){
+  var f=this.files&&this.files[0]; this.value='';
+  if(!f||!vidTarget||!cur) return;
+  var t=vidTarget, owner=cur;
+  if(!((f.type||'').indexOf('video/')===0 || VID_RE.test(f.name||''))){ toast('That file is not a video.'); return; }
+  if(f.size>VID_MAX){ toast('That clip is '+Math.round(f.size/1048576)+' MB, too big for the app. Keep clips to a minute or two.'); return; }
+  var info=phTargetInfo(t, owner);
+  toast('Saving the video on this phone…');
+  vidProbe(f).then(function(meta){
+    return spQueueVideo(f, info.room, info.label, owner).then(function(fname){
+      var it=owner.rooms[t.ri].items[t.ii]; if(!it.videos) it.videos=[];
+      it.videos.push({f:fname, dur:Math.round(meta.dur||0), mb:Math.round(f.size/104857.6)/10, thumb:meta.thumb||'', st:'wait'});
+      inspCache[owner.id]=owner;
+      if(cur===owner){ save(); refreshItem(t.ri,t.ii,true); } else { inspPut(owner).catch(function(){}); }
+      toast('Video added. It files to SharePoint after the photos and the report.');
+    });
+  }).catch(function(){ toast('The video could not be saved on this phone. Free some space and try again.'); });
+});
+function vidInfo(ri,ii,vi){
+  var v=((cur.rooms[ri].items[ii].videos)||[])[vi]; if(!v) return;
+  var st=v.st==='sent'? 'Filed in SharePoint.' : (v.st==='lost'? 'NOT filed: it could not be read from this phone. Remove it and attach it again.' : 'Waiting to upload. Keep the app open.');
+  toast('Video '+(v.dur? vidDur(v.dur)+', ':'')+(v.mb? v.mb+' MB. ':'')+st);
+}
+function delVid(ri,ii,vi){
+  var a=cur.rooms[ri].items[ii].videos||[], v=a[vi]; if(!v) return;
+  if(!confirm('Remove this video from the inspection?'+(v.st==='sent'?'\n\nIt is already filed in SharePoint and stays there.':''))) return;
+  a.splice(vi,1); save(); refreshItem(ri,ii,true);
+  if(v.dup||v.st==='sent') return;      /* a duplicate only points at the original clip */
+  qAll().then(function(items){ items.forEach(function(x){
+    if(x.vid && x.fname===v.f) qDel(x.qid).then(function(){ return vqDel(x.vid); }).then(function(){ spUi(); }).catch(function(){});
+  }); }).catch(function(){});
+}
+
+/* PHOTO VIEWER. Tap an attached photo to see it full size, tap again to go back. */
+function phViewShow(src, cap){
+  if(!src) return;
+  document.getElementById('phViewImg').src=src;
+  document.getElementById('phViewCap').textContent=(cap? cap+' · ':'')+'Tap to close';
+  document.getElementById('phView').classList.add('on');
+}
+function phViewOpen(ri,ii,pi){
+  var it=cur&&cur.rooms[ri]&&cur.rooms[ri].items[ii]; if(!it) return;
+  var p=it.photos[pi]; phViewShow(phFull(p)||phThumb(p), cur.rooms[ri].name+', '+it.label);
+}
+function phViewOpenM(m,pi){
+  var a=(cur&&cur.mph&&cur.mph[m])||[], ML={elec:'Electricity meter',pre:'Prepaid electricity',water:'Water meter',keys:'Keys, remotes and tags'};
+  phViewShow(phFull(a[pi])||phThumb(a[pi]), ML[m]||'');
+}
+function phViewClose(){ document.getElementById('phView').classList.remove('on'); document.getElementById('phViewImg').removeAttribute('src'); }
+
+/* ROOM TITLES. The Rename button on a room heading opens a small sheet: the room name, plus an optional
+   description that shows in brackets, e.g. "Bedroom 1 (main)" or "Bathroom (en suite)". The title is the
+   room's name everywhere after that: the report, new photo and video file names, and the next inspection
+   started from this one. Photos already taken keep the file name they were given. */
+var RN_TAGS=['main','second','third','small','en suite','guest','to the left','to the right','upstairs','downstairs','front','back'], rnRi=-1;
+function rnSplit(name){
+  var m=/^(.*?)\s*\(([^()]*)\)\s*$/.exec(String(name||''));
+  return (m&&m[1].trim())? {base:m[1].trim(), tag:m[2].trim()} : {base:String(name||'').trim(), tag:''};
+}
+function rnJoin(base, tag){
+  base=String(base||'').replace(/\s+/g,' ').trim();
+  tag=String(tag||'').replace(/[()]/g,' ').replace(/\s+/g,' ').trim();
+  return base+(tag? ' ('+tag+')':'');
+}
+function rnOpen(ri){
+  if(!cur||!cur.rooms[ri]) return;
+  rnRi=ri;
+  var s=rnSplit(cur.rooms[ri].name);
+  document.getElementById('rnBase').value=s.base;
+  document.getElementById('rnTag').value=s.tag;
+  rnPrev();
+  document.getElementById('rnSheet').classList.add('on');
+}
+function rnPrev(){
+  var tag=document.getElementById('rnTag').value.replace(/[()]/g,' ').replace(/\s+/g,' ').trim().toLowerCase(), h='';
+  RN_TAGS.forEach(function(t,i){ h+='<button type="button" class="rn-chip'+(t===tag?' sel':'')+'" onclick="rnPick('+i+')">'+esc(t)+'</button>'; });
+  document.getElementById('rnChips').innerHTML=h;
+  document.getElementById('rnOut').textContent=rnJoin(document.getElementById('rnBase').value, document.getElementById('rnTag').value)||'(empty)';
+}
+function rnPick(i){
+  var el=document.getElementById('rnTag'), t=RN_TAGS[i];
+  el.value=(el.value.trim().toLowerCase()===t)? '' : t;
+  rnPrev();
+}
+function rnClose(){ document.getElementById('rnSheet').classList.remove('on'); rnRi=-1; }
+function rnSave(){
+  if(!cur||rnRi<0||!cur.rooms[rnRi]){ rnClose(); return; }
+  var base=document.getElementById('rnBase').value.replace(/\s+/g,' ').trim();
+  if(!base){ toast('Enter the room name'); return; }
+  var name=rnJoin(base, document.getElementById('rnTag').value), ri=rnRi;
+  var clash=cur.rooms.some(function(r,i){ return i!==ri && String(r.name||'').toLowerCase()===name.toLowerCase(); });
+  if(clash){ toast('Another room already has that title. Add a description to tell them apart.'); return; }
+  cur.rooms[ri].name=name; save();
+  var el=document.querySelector('#room'+ri+' .rn'); if(el) el.textContent=name;
+  rnClose(); toast('Title saved: '+name);
+}
+
+/* NOTE FOR THE NEXT INSPECTION (Paul, 11.11.2026). A box on every inspection that is never printed. It
+   stays on the inspection on this phone and, where the property has a renewal row on the platform, a copy
+   is added to that row's notes ("NEXT INSPECTION: ..."), the same route the renewal note has used since
+   v1.8.3. The next inspection of the same file code shows every earlier note in a box above the rooms,
+   with the terms of any earlier Renewal inspection (%, new rent, old rent, date). */
+function nextLines(x){
+  var out=[], head=(x.type||'Inspection')+', '+fmtD(x.date)+': ', R=x.ren||{};
+  if(x.type==='Renewal' && (R.pct||R.nw)){
+    var t=[];
+    if(R.pct) t.push(String(R.pct).replace(/%/g,'')+'% increase');
+    if(R.nw) t.push('new rent '+renMoney(R.nw)+(R.cur? ' (was '+renMoney(R.cur)+')':''));
+    if(R.eff) t.push('from '+fmtD(R.eff));
+    out.push(head+t.join(', '));
+  }
+  if(R.next && String(R.next).trim()) out.push(head+String(R.next).replace(/\s*\n\s*/g,' ').trim());
+  if(x.nextNote && String(x.nextNote).trim()) out.push(head+String(x.nextNote).replace(/\s*\n\s*/g,' ').trim());
+  return out;
+}
+function nextFill(){
+  if(!cur) return;
+  var card=document.getElementById('nextCard'), ta=document.getElementById('nextNote');
+  if(card) card.style.display=(cur.type==='Renewal')? 'none' : 'block';   /* a Renewal has its own note box in Renewal terms */
+  if(ta) ta.value=cur.nextNote||'';
+  nextRemind();
+}
+function nextRemind(){
+  var box=document.getElementById('nextRemind'); if(!box||!cur) return;
+  var code=String(cur.code||'').toUpperCase(), found=[], me=cur;
+  if(!code){ box.style.display='none'; box.innerHTML=''; return; }
+  var all=allSaved(), prev=[];
+  Object.keys(all).forEach(function(id){ var x=all[id]; if(x && x.id!==me.id && String(x.code||'').toUpperCase()===code) prev.push(x); });
+  prev.sort(function(a,b){ return String(b.date||'').localeCompare(String(a.date||'')) || String(b.id).localeCompare(String(a.id)); });
+  prev.forEach(function(x){ nextLines(x).forEach(function(l){ found.push(l); }); });
+  var paint=function(){
+    if(cur!==me) return;
+    if(!found.length){ box.style.display='none'; box.innerHTML=''; return; }
+    box.innerHTML='<b>Notes from earlier inspections of this property</b> <span class="muted">(not printed)</span><br>'+found.slice(0,8).map(esc).join('<br>');
+    box.style.display='block';
+  };
+  paint();
+  regApi('getRenewals').then(function(d){
+    ((d&&d.renewals)||[]).forEach(function(r){
+      if(pbSplitCode(r.clientCode||'').code!==code) return;
+      String(r.notes||'').split('\n').forEach(function(l){
+        var m=/(NEXT INSPECTION|NEXT RENEWAL):\s*(.*)$/.exec(l), txt='';
+        if(m){ txt=m[2].replace(/\s*\([^()]*\)\s*$/,'').trim(); if(!txt) return;
+          if(found.some(function(f){ return f.indexOf(txt)>-1; })) return;
+          found.push((m[1]==='NEXT RENEWAL'?'Renewal note':'Note')+' on the platform: '+m[2].trim()); return; }
+        var t=/^Inspection (\d{1,2} \w{3} \d{4}): (.*)$/.exec(l.trim());
+        if(t && !found.some(function(f){ return f.indexOf('Renewal, '+t[1]+':')===0; })) found.push('Renewal, '+t[1]+' (platform): '+t[2].replace(/\s*\([^()]*via PB Inspections\)\s*$/,''));
+      });
+    });
+    paint();
+  }).catch(function(){});
+}
+/* FRONT PAGE: say so when a file code cannot fill in, instead of staying silent (Paul, 11.11.2026) */
+var pbRegState='loading';
+function lkMiss_(q){
+  var el=document.getElementById('lkHint'); if(!el) return;
+  /* only once the whole code is typed (a letter and three digits): "L4" on the way to "L401" stays quiet */
+  var raw=document.getElementById('fCode').value.replace(/\s+/g,'').toUpperCase();
+  if(!/^[LHFCG]\d{3}$/.test(raw)){ if(el.getAttribute('data-miss')){ el.textContent=''; el.removeAttribute('data-miss'); } return; }
+  el.setAttribute('data-miss','1'); el.style.color='#374151';
+  el.textContent = PROPS.length
+    ? 'No property with file code '+q+' is on the platform list, so nothing can fill in. Type the address and tenant by hand, and ask the office to add '+q+' on the Hub.'
+    : (pbRegState==='loading' ? 'The property list is still loading.'
+      : 'The property list did not load on this phone, so nothing can fill in. Check that you are signed in to the platform (a dark bar at the top of this page says when you are not) and that you have signal. You can still type the details by hand.');
 }
 
 /* ================= Handover (v1.9.0) ================= */
@@ -1326,6 +1660,7 @@ function makeReport(){
       '<div class="rep-kpi" style="cursor:pointer" onclick="jumpTo(\'attSection\')"><div class="n" style="color:var(--red)">'+n.att+'</div><div class="l">For office ›</div></div>'+
       (io? '<div class="rep-kpi"><div class="n" style="color:var(--amber)">'+n.dirty+'</div><div class="l">Needs cleaning</div></div>' : '')+
       '<div class="rep-kpi"><div class="n">'+n.ph+'</div><div class="l">Photos</div></div>'+
+      (n.vid? '<div class="rep-kpi"><div class="n">'+n.vid+'</div><div class="l">Videos</div></div>' : '')+
     '</div>';
   if(cur.type==='Renewal' && cur.ren && (cur.ren.cur||cur.ren.nw||cur.ren.pct||cur.ren.eff||cur.ren.agreed)){
     var R=cur.ren;
@@ -1387,6 +1722,7 @@ function makeReport(){
       h += '<div class="rep-item"><span>'+esc(i.label)+(i.act?'<span class="rep-tag act">Office</span>':'')+'</span><span>'+cleanOf(i)+' '+pillOf(i.status)+'</span></div>';
       if(i.comment) h += '<div class="rep-comment">'+esc(i.comment)+'</div>';
       if(i.photos.length){ h += '<div class="rep-phs">'; i.photos.forEach(function(p){ var src=phFull(p); if(src) h += '<img src="'+src+'">'; }); h += '</div>'; }
+      vidLive(i).forEach(function(v){ h += '<div class="rep-vid"><b>Video on file with The Property Bureau</b>'+(v.dur? ' ('+vidDur(v.dur)+')':'')+': '+esc(v.f)+'</div>'; });
     });
     h += '</div>';
   });
@@ -1458,6 +1794,9 @@ function dupCreate(){
     var pairs=[];
     src.rooms.forEach(function(r,ri){ r.items.forEach(function(it,ii){ pairs.push({s:it.photos||[], t:x.rooms[ri].items[ii].photos}); }); });
     ['elec','pre','water','keys'].forEach(function(m){ pairs.push({s:(src.mph&&src.mph[m])||[], t:x.mph[m]}); });
+    /* v1.9.12: videos are not copied or sent again; the duplicate lists the clips already filed under the outgoing date */
+    src.rooms.forEach(function(r,ri){ r.items.forEach(function(it,ii){ var vv=vidLive(it);
+      if(vv.length) x.rooms[ri].items[ii].videos=vv.map(function(v){ return {f:v.f, dur:v.dur, mb:v.mb, thumb:v.thumb, st:v.st, dup:1}; }); }); });
     var chain=Promise.resolve(), made=0;
     pairs.forEach(function(pr){ pr.s.forEach(function(p){ chain=chain.then(function(){
       var k=phId(p);
@@ -1485,8 +1824,10 @@ function dupCreate(){
    works from the same figure as the report. Row = the renewal the inspection was opened from
    (rid), else the one open renewal with the same file code. Fire-and-forget like every write. */
 function pbSaveRenewal(){
-  if(!cur || cur.type!=='Renewal' || !cur.ren) return;
-  var R=cur.ren; if(!(R.nw||R.pct||R.next)) return;
+  if(!cur) return;
+  var isRen=(cur.type==='Renewal' && !!cur.ren), R=isRen? cur.ren : {};
+  var NN=isRen? '' : String(cur.nextNote||'').replace(/\s*\n\s*/g,' ').trim();   /* v1.9.12: note for the next inspection */
+  if(!(R.nw||R.pct||R.next||NN)) return;
   var el=document.getElementById('repRenSync');
   regApi('getRenewals').then(function(d){
     var rows=(d&&d.renewals)||[], row=null;
@@ -1495,14 +1836,18 @@ function pbSaveRenewal(){
       var m=rows.filter(function(x){ return pbSplitCode(x.clientCode||'').code===cur.code && String(x.status||'').toLowerCase()!=='done'; });
       if(m.length===1) row=m[0];
     }
+    /* v1.9.12: a note on its own carries no rent, so it may sit on any renewal row for this property, open or done */
+    if(!row && !isRen && cur.code){ var any=rows.filter(function(x){ return pbSplitCode(x.clientCode||'').code===cur.code; }); row=any.length? any[any.length-1] : null; }
+    if(!row && !isRen){ if(el){ el.style.color='var(--muted)'; el.textContent='Note for the next inspection: kept on this phone. This property has no renewal on the platform to hold a copy.'; } return; }
     if(!row){ if(el){ el.style.color='var(--amber)'; el.textContent='Renewal terms: no matching renewal on the platform. Add them on the Hub Renewals page.'; } return; }
     var line='Inspection '+fmtD(cur.date)+': '+(R.pct?String(R.pct).replace(/%/g,'')+'% ':'')+(R.nw?'new rent '+renMoney(R.nw):'')+(R.eff?', from '+fmtD(R.eff):'')+(R.agreed?', agreed with '+R.agreed:'')+' ('+(cur.by||'agent')+', via PB Inspections)';
     var notes=String(row.notes||''); if((R.nw||R.pct) && notes.indexOf(line)===-1) notes=(notes?notes+'\n':'')+line;
     if(R.next){ var nl='NEXT RENEWAL: '+String(R.next).replace(/\s*\n\s*/g,' ').trim()+' ('+fmtD(cur.date)+')'; if(notes.indexOf(nl)===-1) notes=(notes?notes+'\n':'')+nl; }
+    if(NN){ var il='NEXT INSPECTION: '+NN+' ('+cur.type+', '+fmtD(cur.date)+')'; if(notes.indexOf(il)===-1) notes=(notes?notes+'\n':'')+il; }
     var body={ token:GAS_TOKEN, action:'updateRenewal', renewalId:row.renewalId, notes:notes };
     if(R.nw){ body.rentProposed=renMoney(R.nw); } if(R.nw||R.pct){ body.renewalStatus='Under negotiation'; }
     try{ fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)}); }catch(e){}
-    if(el){ el.style.color='var(--muted)'; el.textContent='Renewal terms sent to the platform ('+(row.clientCode||'')+').'; }
+    if(el){ el.style.color='var(--muted)'; el.textContent=(isRen? 'Renewal terms sent to the platform (' : 'Note for the next inspection saved to the platform (')+(row.clientCode||'')+').'; }
   }).catch(function(){ if(el){ el.style.color='var(--amber)'; el.textContent='Renewal terms: platform not reachable. Add them on the Hub Renewals page.'; } });
 }
 
@@ -1524,7 +1869,7 @@ function pbNoticeBody(){
 function pbNotifyOffice(body, folder){
   if(!body) return Promise.resolve();
   return qAll().then(function(items){
-    var waiting=items.filter(function(x){ return x.root!=='REP' && x.folder===folder; }).length;
+    var waiting=items.filter(function(x){ return x.root!=='REP' && !x.vid && x.folder===folder; }).length;
     body.photos=Math.max(0,(parseInt(body.photos,10)||0)-waiting);
   }).catch(function(){}).then(function(){
     try{ fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)}); }catch(e){}
@@ -1559,7 +1904,6 @@ function renSet(k,v){
 }
 function renFill(){
   var on = cur && cur.type==='Renewal';
-  if(on) renRemind();
   document.getElementById('renCard').style.display = on?'block':'none';
   if(!on) return; var R=cur.ren||{};
   document.getElementById('rCur').value=R.cur||''; document.getElementById('rNew').value=R.nw||'';
@@ -1567,25 +1911,8 @@ function renFill(){
   document.getElementById('rWith').value=R.agreed||'';
   document.getElementById('rNext').value=R.next||'';
 }
-/* v1.8.3: last year's "note for next renewal" for this property, from this phone and the platform */
-function renRemind(){
-  var box=document.getElementById('renRemind'); if(!box||!cur) return;
-  var code=cur.code, found=[];
-  if(!code){ box.style.display='none'; return; }
-  var all=allSaved(); Object.keys(all).forEach(function(id){ var x=all[id];
-    if(x&&x.id!==cur.id&&x.code===code&&x.ren&&x.ren.next) found.push(fmtD(x.date)+': '+x.ren.next); });
-  var paint=function(){ if(!found.length){ box.style.display='none'; return; }
-    box.innerHTML='<b>Reminder from a previous renewal</b><br>'+found.map(esc).join('<br>'); box.style.display='block'; };
-  paint();
-  regApi('getRenewals').then(function(d){
-    ((d&&d.renewals)||[]).forEach(function(r){
-      if(pbSplitCode(r.clientCode||'').code!==code || (cur.rid && String(r.renewalId)===String(cur.rid))) return;
-      String(r.notes||'').split('\n').forEach(function(l){ var i=l.indexOf('NEXT RENEWAL:');
-        if(i>-1){ var t=l.slice(i).trim(); if(!found.some(function(f){return f.indexOf(t.slice(14))>-1;})) found.push(t); } });
-    });
-    paint();
-  }).catch(function(){});
-}
+/* v1.9.12: replaced by nextRemind(), which shows these notes above the rooms on every inspection type */
+function renRemind(){ nextRemind(); }
 function applyPrefill(){
   if(PRE.type){ var sel=document.getElementById('fType'); for(var i=0;i<sel.options.length;i++){ if(sel.options[i].text.toLowerCase()===PRE.type.toLowerCase()) sel.selectedIndex=i; } }
   if(PRE.code){ var sp=pbSplitCode(PRE.code);
