@@ -224,7 +224,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.12</b> · 11.11.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.13</b> · 11.11.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -1713,13 +1713,17 @@ function makeReport(){
     if(H.bin) h += '<div class="rep-item"><span>Bin collection day</span><b>'+esc(H.bin)+'</b></div>';
     h += '</div>';
   }
+  /* v1.9.13 (11.11.2026): nothing recorded is left out. An item with a photo, a video, a comment or an
+     office flag prints even when it was never rated, marked "Not rated". Before this the tiles counted
+     every photo and video but the report printed only those on rated items. */
+  var recOf=function(i){ return !!(i.status || i.act || i.photos.length || vidLive(i).length || String(i.comment||'').trim()); };
   cur.rooms.forEach(function(r,ri){
-    var any = r.items.some(function(i){ return i.status; });
+    var any = r.items.some(recOf);
     if(!any) return;
     h += '<div class="rep-room" id="repRoom'+ri+'"><h3>'+esc(r.name)+'</h3>';
     r.items.forEach(function(i){
-      if(!i.status) return;
-      h += '<div class="rep-item"><span>'+esc(i.label)+(i.act?'<span class="rep-tag act">Office</span>':'')+'</span><span>'+cleanOf(i)+' '+pillOf(i.status)+'</span></div>';
+      if(!recOf(i)) return;
+      h += '<div class="rep-item"><span>'+esc(i.label)+(i.act?'<span class="rep-tag act">Office</span>':'')+'</span><span>'+cleanOf(i)+' '+(i.status? pillOf(i.status) : '<span class="pill grey">Not rated</span>')+'</span></div>';
       if(i.comment) h += '<div class="rep-comment">'+esc(i.comment)+'</div>';
       if(i.photos.length){ h += '<div class="rep-phs">'; i.photos.forEach(function(p){ var src=phFull(p); if(src) h += '<img src="'+src+'">'; }); h += '</div>'; }
       vidLive(i).forEach(function(v){ h += '<div class="rep-vid"><b>Video on file with The Property Bureau</b>'+(v.dur? ' ('+vidDur(v.dur)+')':'')+': '+esc(v.f)+'</div>'; });
