@@ -224,7 +224,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.13</b> · 11.11.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.14</b> · 12.11.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -992,7 +992,7 @@ function show(s){
   document.getElementById('bar').classList.toggle('on', s==='inspect');
   window.scrollTo(0,0);
 }
-function goHome(){ save(); flushSave(); cur=null; PHC={}; renderSaved(); updLastHint(); show('home');
+function goHome(){ save(); flushSave(); cur=null; PHC={}; PHR={}; renderSaved(); updLastHint(); show('home');
   document.getElementById('topTitle').textContent='Inspections';
   document.getElementById('topSub').textContent='The Property Bureau — on-site inspection tool'; }
 function backToInspect(){ show('inspect'); }
@@ -1231,6 +1231,26 @@ function phDelOne(p){
   var k=phId(p); if(!k||!cur) return;
   var key=cur.id+'|'+k;
   idb().then(function(db){ var tx=db.transaction('phs','readwrite'); tx.objectStore('phs').delete(key); }).catch(function(){});
+}
+/* v1.9.14 (12.11.2026): the report uses a smaller copy of each photo (600px). With 75 full size photos
+   the in-app browser on an iPhone ran out of memory and the report (and its PDF) never built (L417).
+   The photo viewer and the SharePoint photo archive still use the full size photo. */
+var PHR = {};
+function phRep(p){ var k=phId(p)||p, r=PHR[k]; return (r && r.src===phFull(p)) ? r.rep : phFull(p); }
+function phRepPrep(list, done){
+  var i=0;
+  (function next(){
+    if(i>=list.length){ done(); return; }
+    var p=list[i++], k=phId(p)||p, src=phFull(p);
+    if(!src || (PHR[k] && PHR[k].src===src)){ next(); return; }
+    var img=new Image(), fin=false;
+    var go=function(ok){ if(fin) return; fin=true;
+      if(ok){ try{ PHR[k]={src:src, rep:phScale(img, 600, 0.72)}; }catch(e){} }
+      img.onload=img.onerror=null; img.src=''; setTimeout(next, 0); };
+    img.onload=function(){ go(true); }; img.onerror=function(){ go(false); };
+    setTimeout(function(){ go(false); }, 8000);
+    img.src=src;
+  })();
 }
 function phScale(img, max, q){
   var w = img.width, h = img.height;
@@ -1644,6 +1664,16 @@ function makeReport(){
   if(at!==(cur.agentTel||'')) cur.agentTel=at;
   var n = counts(cur);
   if(n.set===0){ toast('Rate at least one item first'); return; }
+  if(repBusy) return;
+  var c=cur, list=[];
+  c.rooms.forEach(function(r){ r.items.forEach(function(i){ list=list.concat(i.photos||[]); }); });
+  var Mx=c.mph||{}; ['elec','pre','water','keys'].forEach(function(m){ list=list.concat(Mx[m]||[]); });
+  repBusy=true; if(list.length) toast('Preparing the report...');
+  phRepPrep(list, function(){ repBusy=false; if(cur===c) makeReportNow(); });
+}
+var repBusy=false;
+function makeReportNow(){
+  var n = counts(cur);
   cur.done = true; save(); flushSave();
   ['sig','sigBy'].forEach(function(k){ if(cur[k]) padLock(k,true); });
   var io = inOut();
@@ -1691,7 +1721,7 @@ function makeReport(){
   /* handover */
   var K=(cur.keys||[]).filter(function(k){ return String(k.iss||'').trim()!=='' || String(k.ret||'').trim()!==''; });
   var H=cur.hand||{}, M=cur.mph||{};
-  var meterPh=function(m){ var a=M[m]||[]; if(!a.length) return ''; var x='<div class="rep-phs">'; a.forEach(function(p){ var src=phFull(p); if(src) x+='<img src="'+src+'">'; }); return x+'</div>'; };
+  var meterPh=function(m){ var a=M[m]||[]; if(!a.length) return ''; var x='<div class="rep-phs">'; a.forEach(function(p){ var src=phRep(p); if(src) x+='<img src="'+src+'">'; }); return x+'</div>'; };
   if(K.length || cur.meterE || cur.meterP || cur.meterW || H.alarm || H.bin || H.carpet || H.fum || (M.elec||[]).length || (M.pre||[]).length || (M.water||[]).length || (M.keys||[]).length){
     h += '<div class="rep-room"><h3>Handover and readings</h3>';
     if(K.length){
@@ -1725,7 +1755,7 @@ function makeReport(){
       if(!recOf(i)) return;
       h += '<div class="rep-item"><span>'+esc(i.label)+(i.act?'<span class="rep-tag act">Office</span>':'')+'</span><span>'+cleanOf(i)+' '+(i.status? pillOf(i.status) : '<span class="pill grey">Not rated</span>')+'</span></div>';
       if(i.comment) h += '<div class="rep-comment">'+esc(i.comment)+'</div>';
-      if(i.photos.length){ h += '<div class="rep-phs">'; i.photos.forEach(function(p){ var src=phFull(p); if(src) h += '<img src="'+src+'">'; }); h += '</div>'; }
+      if(i.photos.length){ h += '<div class="rep-phs">'; i.photos.forEach(function(p){ var src=phRep(p); if(src) h += '<img src="'+src+'">'; }); h += '</div>'; }
       vidLive(i).forEach(function(v){ h += '<div class="rep-vid"><b>Video on file with The Property Bureau</b>'+(v.dur? ' ('+vidDur(v.dur)+')':'')+': '+esc(v.f)+'</div>'; });
     });
     h += '</div>';
