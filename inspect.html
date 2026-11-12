@@ -224,7 +224,7 @@
       <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
       <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.14</b> · 12.11.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.15</b> · 12.11.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
@@ -330,6 +330,7 @@
     </div>
     <div class="noprint small" id="repArch" style="margin:0 0 10px;font-weight:600"></div>
     <div class="noprint small" id="repOffice" style="margin:0 0 10px;font-weight:600"></div>
+    <button class="noprint btn btn-primary btn-sm" id="repRetryBtn" onclick="spFileReport(pbNoticeBody())" style="display:none;margin:0 0 12px">Try the report PDF again</button>
     <button class="noprint btn btn-primary btn-sm" id="repConnBtn" onclick="spConnect()" style="display:none;margin:0 0 12px">Connect Microsoft (paul@propertybureau.co.za)</button>
     <div class="noprint small" id="repRenSync" style="margin:0 0 10px;font-weight:600"></div>
     <div class="noprint card" id="dupBox" style="display:none"></div>
@@ -736,8 +737,11 @@ function spRepUi(){
     var of=document.getElementById('repOffice'), cb=document.getElementById('repConnBtn');
     var mine=cur? items.filter(function(x){ return x.root==='REP' && x.folder===spFolderName(); }).length : 0;
     if(cb) cb.style.display = msAccount ? 'none' : 'inline-block';
+    var rp=(cur && pbRepPdf.insp===cur.id && pbRepPdf.state && !mine)? pbRepPdf : null;
+    var rb=document.getElementById('repRetryBtn'); if(rb) rb.style.display=(rp && rp.state==='failed')?'inline-block':'none';
     if(of){
-      if(!msAccount){ of.style.color='var(--amber)'; of.textContent='Office NOT told yet. This app is not connected to Microsoft, so the report and photos are waiting safely on this phone. Tap Connect Microsoft below; the office is told automatically once the report is filed.'; }
+      if(rp){ of.style.color=(rp.state==='failed')?'var(--red)':'var(--amber)'; of.textContent=rp.msg; }
+      else if(!msAccount){ of.style.color='var(--amber)'; of.textContent='Office NOT told yet. This app is not connected to Microsoft, so the report and photos are waiting safely on this phone. Tap Connect Microsoft below; the office is told automatically once the report is filed.'; }
       else if(mine){ of.style.color='var(--amber)'; of.textContent='Filing the report to SharePoint. The office is told automatically once it is there. Keep the app open.'; }
       else if(cur && cur.notifiedAt){ of.style.color='var(--green)'; of.textContent='Report filed in SharePoint. Office notice queued (arrives about 5 minutes later).'; }
       else { of.textContent=''; }
@@ -752,6 +756,24 @@ function spRepUi(){
    trailing whitespace, then paginate manually into jsPDF. Fixes the html2pdf
    auto-pagination blank-page bug (it over-measured the report height and cut
    the empty tail into blank pages). scale:1 keeps iPhone canvas memory safe. */
+/* v1.9.15 (12.11.2026): L417 (75 photos) never filed from Toafeeq's iPhone and the only sign was a
+   3 second toast. Now: the build says on screen which page it is on and stays there if it fails, each
+   page has a time limit, every page canvas is freed as soon as it is in the PDF (iOS caps the total
+   canvas memory), long reports render at a lower scale, a second pass at scale 1 page by page runs
+   before the old whole report fallback, and that fallback only runs when its one canvas fits on a phone. */
+var pbRepPdf={insp:null,state:'',msg:''};
+function pbRepPdfSay(state,msg){
+  pbRepPdf={insp:(cur?cur.id:null),state:state||'',msg:msg||''};
+  var of=document.getElementById('repOffice'), rb=document.getElementById('repRetryBtn');
+  if(rb) rb.style.display=(state==='failed')?'inline-block':'none';
+  if(of && state){ of.style.color=(state==='failed')?'var(--red)':'var(--amber)'; of.textContent=msg; }
+}
+function pbWithin(p,ms,why){
+  var t;
+  return Promise.race([p, new Promise(function(_,rej){ t=setTimeout(function(){ rej(new Error(why)); },ms); })])
+    .then(function(v){ clearTimeout(t); return v; },function(e){ clearTimeout(t); throw e; });
+}
+function pbFreeCanvas(c){ try{ if(c && c.getContext){ c.width=0; c.height=0; } }catch(e){} }
 function pbTrimCanvas(canvas){
   try{
     var w=canvas.width,h=canvas.height,ctx=canvas.getContext('2d');
@@ -780,9 +802,9 @@ function pbCanvasToPdfBlob(canvas,JS){
     var tmp=document.createElement('canvas'); tmp.width=canvas.width; tmp.height=sh;
     var c=tmp.getContext('2d'); c.fillStyle='#ffffff'; c.fillRect(0,0,tmp.width,sh);
     c.drawImage(canvas,0,y,canvas.width,sh,0,0,canvas.width,sh);
-    var img=tmp.toDataURL('image/jpeg',0.85);
+    var img=tmp.toDataURL('image/jpeg',0.85); pbFreeCanvas(tmp);
     if(!first) pdf.addPage();
-    pdf.addImage(img,'JPEG',margin,margin,cw,sh/pxPerMm);
+    pdf.addImage(img,'JPEG',margin,margin,cw,sh/pxPerMm); img=null;
     first=false; y+=sh;
   }
   return pdf.output('blob');
@@ -799,9 +821,13 @@ function pbBuildReportPdfLegacy(el){
   var pW=el.style.width,pMax=el.style.maxWidth,pMin=el.style.minWidth;
   el.style.width=RW+'px'; el.style.maxWidth=RW+'px'; el.style.minWidth=RW+'px';
   function restore(){ el.style.width=pW; el.style.maxWidth=pMax; el.style.minWidth=pMin; }
-  return H2C(el,{scale:1,backgroundColor:'#ffffff',useCORS:true,logging:false,windowWidth:RW,width:RW}).then(function(canvas){
+  var tall=Math.max(el.scrollHeight, Math.round(el.getBoundingClientRect().height));
+  if(RW*tall>16000000){ restore(); return Promise.reject(new Error('report too long for one canvas')); }
+  pbRepPdfSay('building','Building the report PDF the simple way. Keep the app open.');
+  return pbWithin(H2C(el,{scale:1,backgroundColor:'#ffffff',useCORS:true,logging:false,windowWidth:RW,width:RW}),120000,'simple build timed out').then(function(canvas){
     restore();
-    return pbCanvasToPdfBlob(pbTrimCanvas(canvas),JS);
+    var t=pbTrimCanvas(canvas); if(t!==canvas) pbFreeCanvas(canvas);
+    var b=pbCanvasToPdfBlob(t,JS); pbFreeCanvas(t); return b;
   },function(err){ restore(); throw err; });
 }
 /* v1.7 — the grain fix.
@@ -841,12 +867,15 @@ function pbPageBreaks(el,total,pageCss){
   return out;
 }
 function pbBuildReportPdf(el){
-  return pbImagesReady(el).then(function(){ return pbBuildReportPdfNow(el); });
+  pbRepPdfSay('building','Getting the photos ready for the report PDF. Keep the app open.');
+  return pbImagesReady(el).then(function(){ return pbBuildReportPdfNow(el,0); });
 }
-function pbBuildReportPdfNow(el){
+function pbBuildReportPdfNow(el,pass){
+  pass=pass||0;
   var H2C=window.html2canvas, JS=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
   if(typeof H2C!=='function'||typeof JS!=='function') return pbBuildReportPdfLegacy(el);
-  var RW=794, SC=2, margin=6, cwMm=210-margin*2, chMm=297-margin*2;
+  function fallback(){ return pass===0 ? pbBuildReportPdfNow(el,1) : pbBuildReportPdfLegacy(el); }
+  var RW=794, SC=2, Q=0.92, margin=6, cwMm=210-margin*2, chMm=297-margin*2;
   var pxPerMm=RW/cwMm, pageCss=Math.floor(chMm*pxPerMm);   /* ≈1143 CSS px per page */
   var pW=el.style.width,pMax=el.style.maxWidth,pMin=el.style.minWidth;
   var sx=window.pageXOffset||0, sy=window.pageYOffset||0;
@@ -859,18 +888,22 @@ function pbBuildReportPdfNow(el){
     if(!total||total<10) throw new Error('no height');
     var pages=pbPageBreaks(el,total,pageCss);
     if(pages.length>40) throw new Error('too many pages');
+    if(pass>0){ SC=1; Q=0.85; } else if(pages.length>12){ SC=1.5; Q=0.88; }
     var pdf=new JS({unit:'mm',format:'a4',compress:true});
     var chain=Promise.resolve(), first=true;
     pages.forEach(function(off,i){
       chain=chain.then(function(){
+        pbRepPdfSay('building',(pass>0?'Building the report PDF again at a lower quality, page ':'Building the report PDF, page ')+(i+1)+' of '+pages.length+'. Keep the app open.');
         var h=Math.min((i+1<pages.length? pages[i+1] : total)-off, total-off);
         /* windowHeight = full report height, so html2canvas never clips a slice to the phone's viewport */
-        return H2C(el,{scale:SC,backgroundColor:'#ffffff',useCORS:true,logging:false,
-                       windowWidth:RW,windowHeight:total,width:RW,height:h,x:0,y:off}).then(function(canvas){
+        return pbWithin(H2C(el,{scale:SC,backgroundColor:'#ffffff',useCORS:true,logging:false,
+                       windowWidth:RW,windowHeight:total,width:RW,height:h,x:0,y:off}),60000,'page '+(i+1)+' timed out').then(function(canvas){
           var c=(off+h>=total)? pbTrimCanvas(canvas) : canvas;
-          if(c.width<10||c.height<10) return;
+          if(c!==canvas) pbFreeCanvas(canvas);
+          if(c.width<10||c.height<10){ pbFreeCanvas(c); return; }
+          var img=c.toDataURL('image/jpeg',Q), ch=c.height; pbFreeCanvas(c);
           if(!first) pdf.addPage(); first=false;
-          pdf.addImage(c.toDataURL('image/jpeg',0.92),'JPEG',margin,margin,cwMm,(c.height/SC)/pxPerMm);
+          pdf.addImage(img,'JPEG',margin,margin,cwMm,(ch/SC)/pxPerMm); img=null;
         });
       });
     });
@@ -881,11 +914,12 @@ function pbBuildReportPdfNow(el){
     }).then(function(blob){
       if(!blob||blob.size<2000) throw new Error('thin pdf');
       return blob;
-    }).catch(function(){ restore(); return pbBuildReportPdfLegacy(el); });
-  }catch(e){ restore(); return pbBuildReportPdfLegacy(el); }
+    }).catch(function(){ restore(); return fallback(); });
+  }catch(e){ restore(); return fallback(); }
 }
 function spFileReport(notice){
   if(!cur) return;
+  if(pbRepPdf.state==='building' && pbRepPdf.insp===cur.id) return;
   var el=document.getElementById('reportHost');
   toast('Filing report PDF to SharePoint…');
   pbBuildReportPdf(el).then(function(blob){
@@ -900,9 +934,14 @@ function spFileReport(notice){
           items.forEach(function(x){ if(x.root==='REP' && x.folder===folder && x.fname===fname) p=p.then(function(){ return qDel(x.qid); }); });
           return p;
         }).then(function(){ return qAdd({root:'REP', folder:folder, fname:fname, buf:buf, mime:'application/pdf', notice:notice||null, insp:cur.id}); });
-      }).then(function(){ spUi(); spRepUi(); spPump(); });
+      }).then(function(){ pbRepPdfSay('',''); spUi(); spRepUi(); spPump(); });
     });
-  }).catch(function(e){ toast('Could not build the PDF on this phone, so the office was NOT told. Use Print / Save as PDF instead.'); });
+  }).catch(function(e){
+    var why=String((e && e.message) || 'unknown').slice(0,60);
+    pbRepPdfSay('failed','Could not build the report PDF on this phone ('+why+'), so the office was NOT told. The inspection is saved on this phone. Tap Try the report PDF again, or phone the office.');
+    spRepUi();
+    toast('Could not build the PDF on this phone, so the office was NOT told.',8000);
+  });
 }
 window.addEventListener('online', function(){ spPump(); });
 
@@ -1967,9 +2006,9 @@ function fmtD(d){
   return parseInt(p[2],10)+' '+m[parseInt(p[1],10)-1]+' '+p[0];
 }
 var toastT;
-function toast(msg){
+function toast(msg,ms){
   var t = document.getElementById('toast'); t.textContent = msg; t.style.display='block';
-  clearTimeout(toastT); toastT = setTimeout(function(){ t.style.display='none'; }, 3000);
+  clearTimeout(toastT); toastT = setTimeout(function(){ t.style.display='none'; }, ms||3000);
 }
 
 /* ================= Init ================= */
