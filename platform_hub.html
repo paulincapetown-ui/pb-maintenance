@@ -124,6 +124,24 @@
   .resolved{font-size:12px;color:var(--green);margin-top:6px}
   .empty{background:#fff;border:1px dashed var(--line);border-radius:10px;padding:28px;text-align:center;color:var(--muted)}
 
+  /* Leads page (version 32, 14.11.2026): traffic lights by stage */
+  .lead-card{border-left-color:#9ca3af}
+  .lead-card.lead-green{border-left-color:var(--green)}.lead-card.lead-yellow{border-left-color:var(--amber)}.lead-card.lead-red{border-left-color:var(--red)}
+  .lead-pill{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap;display:inline-block;height:fit-content;color:#4b5563;background:#e5e7eb}
+  .lead-pill.lead-green{color:var(--green);background:var(--green-bg)}.lead-pill.lead-yellow{color:var(--amber);background:var(--amber-bg)}.lead-pill.lead-red{color:var(--red);background:var(--red-bg)}
+  .lead-pill.lead-over{color:#fff;background:var(--red)}
+  .lead-line{font-size:13.5px;font-weight:600;margin-top:2px}
+  .lead-side{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .lead-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .lead-strip{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .lead-note{background:var(--amber-bg);color:var(--ink);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px}
+  .lead-closed-head{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:22px 0 10px}
+  .lead-closed-head select{padding:6px 9px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;font-family:inherit}
+  .lead-panel{background:#fafafa;border:1px solid var(--line);border-radius:9px;padding:12px 14px;margin-top:12px;max-width:620px}
+  .lead-panel label{display:block;font-size:12px;font-weight:600;color:#374151;margin:8px 0 4px}
+  .lead-panel input,.lead-panel select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;font-family:inherit}
+  .lead-panel .row2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+
   /* ===== Phone layout (added 03.07.2026 — readable Urgent Actions on iPhone) ===== */
   @media(max-width:640px){
     body{font-size:15px}
@@ -153,6 +171,11 @@
     .reply-msg{font-size:15px}
     .reply-head{font-size:12.5px}
     .reply-box textarea{font-size:15px}
+    .lead-line{font-size:15.5px}
+    .lead-side{justify-content:flex-start}
+    .lead-btns .btn{flex:1;padding:11px 14px;font-size:14px}
+    .lead-panel .row2{grid-template-columns:1fr}
+    .lead-panel input,.lead-panel select{font-size:15px}
     /* Any wide table (Renewals/Inspections/Listings/Properties) scrolls sideways instead of crushing */
     .table-wrap{overflow-x:auto}
     table{min-width:520px}
@@ -178,7 +201,7 @@
   <nav class="sidebar">
     <div class="nav-group-label">Daily</div>
     <a class="nav-item" id="nav-urgent" onclick="showUrgent()">Urgent Actions <span class="badge" id="ua-badge" style="display:none">0</span></a>
-    <a class="nav-item" id="nav-leads" onclick="showLeads()">Leads</a>
+    <a class="nav-item" id="nav-leads" onclick="showLeads()">Leads <span class="badge" id="lead-badge" style="display:none">0</span></a>
     <a class="nav-item active" id="nav-props" onclick="showList()">Properties</a>
     <a class="nav-item" id="nav-listings" onclick="showListings()">Active Listings</a>
     <a class="nav-item" href="./dashboard.html">Jobs</a>
@@ -193,7 +216,7 @@
   </nav>
   <main class="main" id="main"><div class="loading">Loading…</div></main>
 </div>
-<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Hub · build 02.11.2026 · sign out</div>
+<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Hub · build 14.11.2026 · sign out</div>
 
 <script>
 const GAS_URL   = "https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5jTsiMRgkv7QPDcmeqcNEAAhFXHW_OwR0-4o0qEtoCkCGjraSA/exec";
@@ -286,7 +309,7 @@ async function init(){
       (b.landlords||[]).forEach(x=>LL[x.landlordId]=x);
       (b.tenants||[]).forEach(x=>TEN[x.tenantId]=x);
       (b.tenancies||[]).forEach(x=>TENCY[x.tenancyCode]=x);
-      JOBS=b.jobs||[]; REN=b.renewals||[]; INS=b.inspections||[]; AL=b.activeListings||[];
+      JOBS=b.jobs||[]; REN=b.renewals||[]; INS=b.inspections||[]; AL=b.activeListings||[]; pbLeadsBoot_();
       updateBadge(); showUrgent();
       return;
     }
@@ -294,7 +317,7 @@ async function init(){
   // Legacy two-stage load (kept as fallback)
   try{
     const [u,rep] = await Promise.all([ api('getUrgentActions'), api('getActionReplies') ]);
-    UA=(u.urgentActions||[]); REPLIES=(rep&&rep.replies)||[];
+    UA=(u.urgentActions||[]); REPLIES=(rep&&rep.replies)||[]; pbLeadsBoot_();
     updateBadge(); showUrgent();
   }catch(e){
     main.innerHTML = '<div class="loading">Could not reach the platform just now. <a onclick="location.reload()" style="color:var(--blue);cursor:pointer;text-decoration:underline">Tap to retry</a>.</div>';
@@ -807,8 +830,9 @@ async function postLeadFor(ua){
   const sel=document.getElementById('f-lead'); if(!sel || sel.value==='No') return;
   const lead={ leadId:'LD-'+Date.now(), dateLogged:new Date().toISOString(), leadType:sel.value,
     source:document.getElementById('f-source').value, clientCode:ua.clientCode||'', uaId:ua.actionId,
-    summary:String(ua.issue||'').slice(0,200), loggedBy:ua.flaggedBy||'', outcome:'Open' };
-  try{ await postApi('addLead', lead); if(Array.isArray(LEADS)) LEADS.push(lead); }catch(err){ /* the urgent action is saved; the weekly check catches a missed lead */ }
+    summary:String(ua.issue||'').slice(0,200), loggedBy:ua.flaggedBy||'', outcome:'Open', stage:'New enquiry' };
+  { const t=pbSastNow(); lead.nextStepDate=pbLeadDefaultDue('New enquiry',t.today,t.hhmm,'',''); lead.stageAt=t.today+' '+t.hhmm; }
+  try{ LEAD_SEQ++; await postApi('addLead', lead); if(Array.isArray(LEADS)){ LEADS.push(lead); updateLeadBadge(); } }catch(err){ /* the urgent action is saved; the weekly check catches a missed lead */ }
 }
 async function submitUA(editId){
   const cc=pbCleanCode(document.getElementById('f-code').value);
@@ -847,37 +871,367 @@ async function addReply(id, alsoDone){
     await postApi('addActionReply', {actionId:id, author:author, authorRole:role, message:msg});
     if(alsoDone) await postApi('updateUrgentAction', {actionId:id, status:'Done', completedAt:new Date().toISOString()});
   }catch(e){ alert('Saved on screen but could not reach the server — please refresh to confirm.'); }
+  if(alsoDone) pbLeadAfterDone_(id);
 }
 async function markDone(id){
   const a=UA.find(x=>x.actionId===id); if(a) a.status='Done'; updateBadge(); showUrgent();
   try{ await postApi('updateUrgentAction', {actionId:id, status:'Done', completedAt:new Date().toISOString()}); }catch(e){ alert('Could not update — please refresh.'); }
+  pbLeadAfterDone_(id);
 }
 
 // ── Renewals ──
-/* Leads page (26.09.2026): the lead register. Rows arrive from the urgent action form. */
+/* PB-LEAD-SHARED-START (the same block sits in platform_hub.html; change both together) */
+var PB_LEAD_STAGES = ['New enquiry','Contacted','Meeting set','Site visit done','Position sent','Chased once','Chased twice','Parked','Won','Lost','Not going ahead'];
+var PB_LEAD_CLOSED = ['Won','Lost','Not going ahead'];
+var PB_LEAD_GREEN  = ['New enquiry','Contacted','Meeting set','Site visit done'];
+var PB_LEAD_STEP   = {'New enquiry':'Contact','Contacted':'Reply','Site visit done':'Valuation','Position sent':'First chase','Chased once':'Second chase','Chased twice':'Close or keep: your call'};
+var PB_LEAD_DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function pbPad2(n){ return (n<10?'0':'')+n; }
+function pbYmd(v){
+  v=String(v==null?'':v).trim(); if(!v) return '';
+  var m=v.match(/^(\d{4})-(\d{2})-(\d{2})/); if(m) return m[1]+'-'+m[2]+'-'+m[3];
+  var d=new Date(v); if(isNaN(d.getTime())) return '';
+  return d.getFullYear()+'-'+pbPad2(d.getMonth()+1)+'-'+pbPad2(d.getDate());
+}
+function pbHm(v){
+  v=String(v==null?'':v).trim(); if(!v) return '';
+  var m=v.match(/^\d{4}-\d{2}-\d{2}[T ](\d{2}):(\d{2})/); if(m) return m[1]+':'+m[2];
+  if(/^\d{4}-\d{2}-\d{2}$/.test(v)) return '';
+  var d=new Date(v); if(isNaN(d.getTime())) return '';
+  return pbPad2(d.getHours())+':'+pbPad2(d.getMinutes());
+}
+function pbDayNum(ymd){ var p=ymd.split('-'); return Math.round(Date.UTC(+p[0],+p[1]-1,+p[2])/86400000); }
+function pbFromDayNum(n){ var d=new Date(n*86400000); return d.getUTCFullYear()+'-'+pbPad2(d.getUTCMonth()+1)+'-'+pbPad2(d.getUTCDate()); }
+function pbDow(ymd){ return new Date(pbDayNum(ymd)*86400000).getUTCDay(); }
+function pbAddDays(ymd,n){ return pbFromDayNum(pbDayNum(ymd)+n); }
+function pbIsWorkDay(ymd){ var w=pbDow(ymd); return w!==0&&w!==6; }
+function pbAddWorkDays(ymd,n){ var d=ymd; while(n>0){ d=pbAddDays(d,1); if(pbIsWorkDay(d)) n--; } return d; }
+function pbDmy(ymd){ var p=ymd.split('-'); return p[2]+'.'+p[1]+'.'+p[0]; }
+function pbDayWord(ymd,today){
+  var diff=pbDayNum(ymd)-pbDayNum(today);
+  if(diff===0) return 'today'; if(diff===1) return 'tomorrow'; if(diff===-1) return 'yesterday';
+  if(diff>1&&diff<7) return PB_LEAD_DAYS[pbDow(ymd)];
+  return pbDmy(ymd);
+}
+function pbStageFromOutcome(o){ return o==='Won'?'Won':(o==='Lost'||o==='No response')?'Lost':'Contacted'; }
+function pbOutcomeFromStage(s){ return s==='Won'?'Won':(s==='Lost'||s==='Not going ahead')?'Lost':'Open'; }
+/* The date a step is due when nobody types one. Working days skip weekends only. */
+function pbLeadDefaultDue(stage,today,hhmm,visitAt,parkedUntil){
+  if(stage==='New enquiry'){ if(hhmm>='16:00'||!pbIsWorkDay(today)) return pbAddWorkDays(today,1); return today; }
+  if(stage==='Contacted') return pbAddWorkDays(today,1);
+  if(stage==='Meeting set') return pbYmd(visitAt);
+  if(stage==='Site visit done') return pbAddWorkDays(today,2);
+  if(stage==='Position sent'){ var d=pbAddDays(today,4); while(pbDow(d)!==4) d=pbAddDays(d,1); return d; }
+  if(stage==='Chased once'||stage==='Chased twice') return pbAddDays(today,7);
+  if(stage==='Parked') return pbYmd(parkedUntil);
+  return '';
+}
+/* One lead's position today: colour, the step line, and whether it is overdue. */
+function pbLeadState(l,today,hhmm){
+  var stage=l.stage||pbStageFromOutcome(l.outcome);
+  var s={stage:stage,closed:false,colour:'green',overdue:false,daysLate:0,due:'',line:'',visitUnmarked:false,needsDate:false,backFromParked:false};
+  if(PB_LEAD_CLOSED.indexOf(stage)>-1){
+    s.closed=true; s.colour=stage==='Won'?'grey':'red';
+    s.line=stage+(l.reason?': '+l.reason:''); return s;
+  }
+  var due=pbYmd(l.nextStepDate);
+  if(stage==='Parked'){
+    var until=pbYmd(l.parkedUntil)||due; s.due=until;
+    if(!until){ s.colour='yellow'; s.needsDate=true; s.line='Parked, no date set'; return s; }
+    if(until>today){ s.colour='yellow'; s.line='Parked until '+pbDmy(until); return s; }
+    s.backFromParked=true; s.line='Back from Parked: decide the next step';
+    if(until<today){ s.overdue=true; s.daysLate=pbDayNum(today)-pbDayNum(until); }
+    return s;
+  }
+  if(stage==='Meeting set'){
+    var vd=pbYmd(l.visitAt)||due, vt=pbHm(l.visitAt); s.due=vd;
+    if(!vd){ s.needsDate=true; s.line='Visit, no date set'; return s; }
+    if(vd<today||(vd===today&&hhmm>='17:00')){
+      s.overdue=true; s.visitUnmarked=true; s.daysLate=pbDayNum(today)-pbDayNum(vd);
+      s.line='Visit '+pbDayWord(vd,today)+(vt?' '+vt:'')+' not marked done. Contact the owner and set a new date';
+      return s;
+    }
+    s.line='Visit '+pbDayWord(vd,today)+(vt?' '+vt:''); return s;
+  }
+  s.colour=PB_LEAD_GREEN.indexOf(stage)>-1?'green':'yellow'; s.due=due;
+  var step=PB_LEAD_STEP[stage]||stage;
+  if(!due){ s.needsDate=true; s.line=step+': no next step date'; return s; }
+  if(due<today){ s.overdue=true; s.daysLate=pbDayNum(today)-pbDayNum(due); s.line=step+' was due '+pbDayWord(due,today); return s; }
+  s.line=step+' due '+pbDayWord(due,today); return s;
+}
+/* PB-LEAD-SHARED-END */
+/* Leads page (version 32, 14.11.2026): every lead carries a stage and a next step date.
+   Green = our move, yellow = waiting on the owner, red = closed lost or not going ahead, grey = won.
+   The shared block above is the same code the backend runs (Pipeline.js), so the page and the
+   overdue email always agree. Contact details stay on the urgent action, never on the lead. */
+const LEAD_REASONS={'Not going ahead':['Outside our area','Property does not suit us','Owner expectations do not fit','Other'],
+  'Lost':['Went to another agent','Sold or let it themselves','No reply after two chases','Other']};
+let LEAD_OPEN_ID=null, LEAD_PRESET=null, LEAD_SHOW_CLOSED=false, LEAD_CLOSED_FILTER='all', LEAD_NOTE='', LEAD_SEQ=0;
+
+function pbSastNow(){
+  const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Johannesburg',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date());
+  const g=t=>(p.find(x=>x.type===t)||{}).value||''; let h=g('hour'); if(h==='24') h='00';
+  return {today:g('year')+'-'+g('month')+'-'+g('day'), hhmm:h+':'+g('minute')};
+}
+function leadOverdueCount(){
+  if(!Array.isArray(LEADS)) return 0; const t=pbSastNow();
+  return LEADS.filter(l=>pbLeadState(l,t.today,t.hhmm).overdue).length;
+}
+function updateLeadBadge(){
+  const b=document.getElementById('lead-badge'); if(!b) return; const n=leadOverdueCount();
+  if(n>0){ b.textContent=n; b.style.display='inline-block'; } else b.style.display='none';
+}
+async function pbLoadLeads_(){
+  const seq=LEAD_SEQ; const r=await api('getLeads');
+  if(!r||!Array.isArray(r.leads)) throw new Error('no leads');
+  if(seq!==LEAD_SEQ) return false;            /* something was saved while this was in the air: keep the screen */
+  LEADS=r.leads; updateLeadBadge(); return true;
+}
+function leadsOnScreen(){ return !!document.getElementById('lead-list'); }
+/* After a save: read the register back quietly so the screen matches the server. */
+function leadReconcile_(){
+  pbLoadLeads_().then(ok=>{ if(ok && leadsOnScreen() && !LEAD_OPEN_ID) renderLeads(); }).catch(()=>{});
+}
+
 async function showLeads(){
   setNav('nav-leads');
   if(!Array.isArray(LEADS)){
     main.innerHTML='<div class="loading">Loading leads…</div>';
-    try{ const r=await api('getLeads'); LEADS=(r&&r.leads)||[]; }catch(e){ main.innerHTML='<div class="loading">Could not load leads just now. <a onclick="showLeads()" style="color:var(--blue);cursor:pointer;text-decoration:underline">Retry</a>.</div>'; return; }
+    try{ await pbLoadLeads_(); if(!Array.isArray(LEADS)) throw new Error('no leads'); }
+    catch(e){ main.innerHTML='<div class="loading">Could not load leads just now. <a onclick="showLeads()" style="color:var(--blue);cursor:pointer;text-decoration:underline">Retry</a>.</div>'; return; }
   }
-  const rows=LEADS.slice().sort((a,b)=>String(b.dateLogged).localeCompare(String(a.dateLogged)));
-  const count=(k,v)=>rows.filter(r=>r[k]===v).length;
-  const bySource=[...new Set(rows.map(r=>r.source).filter(Boolean))].map(s=>[s,count('source',s)]).sort((a,b)=>b[1]-a[1]).map(x=>esc(x[0])+' '+x[1]).join(' · ')||'none yet';
-  const table = rows.length ? '<div class="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Source</th><th>Contact</th><th>Code</th><th>What they want</th><th>Outcome</th></tr></thead><tbody>'+
-    rows.map(l=>{ const ua=UA.find(a=>a.actionId===l.uaId)||{};
-      const who=[ua.contactName,ua.contactPhone].filter(Boolean).map(esc).join(' · ')||'—';
-      const opts=LEAD_OUTCOMES.map(o=>'<option'+(o===(l.outcome||'Open')?' selected':'')+'>'+o+'</option>').join('');
-      return `<tr><td>${fmtD(l.dateLogged)}</td><td>${esc(l.leadType)}</td><td>${esc(l.source)}</td><td>${who}</td><td><span class="code">${esc(l.clientCode)||'—'}</span></td><td>${esc(l.summary)}</td><td><select onchange="setLeadOutcome('${esc(l.leadId)}',this.value)">${opts}</select></td></tr>`; }).join('')+
-    '</tbody></table></div>'
-    : '<div class="empty">No leads yet. When you log an urgent action that is an enquiry, set "Is this a lead?" and it appears here.</div>';
-  main.innerHTML=`<div class="page-title">Leads</div><div class="page-sub">Every new enquiry, where it came from, and what became of it. ${rows.length} logged · open ${count('outcome','Open')} · won ${count('outcome','Won')} · lost ${count('outcome','Lost')}.<br>By source: ${bySource}</div>${table}`;
+  renderLeads();
 }
-async function setLeadOutcome(id, outcome){
-  const l=(LEADS||[]).find(x=>x.leadId===id); if(l) l.outcome=outcome;
-  try{ await postApi('updateLead', {leadId:id, outcome:outcome}); }catch(e){ alert('Could not save. Please retry.'); }
+function leadRows_(){
+  const t=pbSastNow();
+  return LEADS.map(l=>({l:l, s:pbLeadState(l,t.today,t.hhmm)}));
+}
+function leadSort_(a,b){
+  const rank=r=>r.s.overdue?0:(r.s.colour==='green'?1:2);
+  return (rank(a)-rank(b)) || (b.s.daysLate-a.s.daysLate) || String(a.s.due||'9999').localeCompare(String(b.s.due||'9999')) || String(b.l.dateLogged).localeCompare(String(a.l.dateLogged));
+}
+function renderLeads(){
+  const rows=leadRows_();
+  const open=rows.filter(r=>!r.s.closed).sort(leadSort_);
+  const closedAll=rows.filter(r=>r.s.closed).sort((a,b)=>String(b.l.dateOutcome||b.l.dateLogged).localeCompare(String(a.l.dateOutcome||a.l.dateLogged)));
+  const n=f=>open.filter(f).length;
+  const over=n(r=>r.s.overdue), green=n(r=>!r.s.overdue&&r.s.colour==='green'), yellow=n(r=>!r.s.overdue&&r.s.colour==='yellow');
+  const count=(k,v)=>LEADS.filter(r=>r[k]===v).length;
+  const bySource=[...new Set(LEADS.map(r=>r.source).filter(Boolean))].map(s=>[s,count('source',s)]).sort((a,b)=>b[1]-a[1]).map(x=>esc(x[0])+' '+x[1]).join(' · ')||'none yet';
+  const strip=`<div class="lead-strip">
+      <span class="lead-pill lead-over">${over} overdue</span>
+      <span class="lead-pill lead-green">${green} our move</span>
+      <span class="lead-pill lead-yellow">${yellow} waiting on the owner</span>
+      <span class="lead-pill lead-grey">${closedAll.length} closed</span></div>`;
+  const cards=open.length ? open.map(leadCard).join('') : '<div class="empty">No open leads. Use "Log a lead", or set "Is this a lead?" on an urgent action.</div>';
+  const closed=closedAll.filter(r=>LEAD_CLOSED_FILTER==='all'||r.s.stage===LEAD_CLOSED_FILTER);
+  const fopt=(v,t)=>'<option value="'+v+'"'+(LEAD_CLOSED_FILTER===v?' selected':'')+'>'+t+'</option>';
+  const closedHtml=!closedAll.length ? '' : (LEAD_SHOW_CLOSED
+    ? `<div class="lead-closed-head"><a class="back" style="margin:0" onclick="LEAD_SHOW_CLOSED=false;renderLeads()">Hide closed</a>
+        <select onchange="LEAD_CLOSED_FILTER=this.value;renderLeads()">${fopt('all','All closed')}${fopt('Won','Won only')}${fopt('Lost','Lost only')}${fopt('Not going ahead','Not going ahead only')}</select></div>
+       ${closed.length?closed.map(leadCard).join(''):'<div class="empty">None in this group.</div>'}`
+    : `<div class="lead-closed-head"><a class="back" style="margin:0" onclick="LEAD_SHOW_CLOSED=true;renderLeads()">Show closed (${closedAll.length})</a></div>`);
+  const note=LEAD_NOTE?`<div class="lead-note">${esc(LEAD_NOTE)}</div>`:''; LEAD_NOTE='';
+  main.innerHTML=`<div class="page-title">Leads</div>
+    <div class="page-sub">Every enquiry, where it stands and what happens next. Overdue first. ${LEADS.length} logged · won ${count('stage','Won')} · lost ${count('stage','Lost')} · not going ahead ${count('stage','Not going ahead')}.<br>By source: ${bySource}</div>
+    <button class="btn btn-primary" onclick="showLeadForm()">+ Log a lead</button>
+    <div style="margin-top:14px">${strip}${note}</div>
+    <div id="lead-list">${cards}</div>${closedHtml}`;
+  updateLeadBadge(); leadPanelSync();
+  if(LEAD_OPEN_ID){ const el=document.getElementById('lead-'+LEAD_OPEN_ID); if(el&&el.scrollIntoView) el.scrollIntoView({block:'center'}); }
+}
+function leadBtn_(id,text,call,primary){ return `<button class="btn ${primary?'btn-primary':'btn-ghost'} btn-sm" onclick="${call}">${text}</button>`; }
+function leadButtons(l,s){
+  const id=esc(l.leadId), mv=(st)=>`leadMove('${id}','${st}')`, pn=(st)=>`leadOpenPanel('${id}','${st}')`;
+  let b='';
+  if(s.closed) b=leadBtn_(id,'Reopen',pn('Contacted'));
+  else if(s.stage==='New enquiry') b=leadBtn_(id,'Contacted',mv('Contacted'),true);
+  else if(s.stage==='Contacted') b=leadBtn_(id,'Book visit',pn('Meeting set'),true)+leadBtn_(id,'No visit needed',`leadSkipVisit('${id}')`);
+  else if(s.stage==='Meeting set') b=leadBtn_(id,'Visit done',mv('Site visit done'),true)+leadBtn_(id,'Move visit',pn('Meeting set'));
+  else if(s.stage==='Site visit done') b=leadBtn_(id,'Valuation sent',mv('Position sent'),true);
+  else if(s.stage==='Position sent') b=leadBtn_(id,'Chased',mv('Chased once'),true);
+  else if(s.stage==='Chased once') b=leadBtn_(id,'Chased again',mv('Chased twice'),true);
+  else if(s.stage==='Chased twice') b=leadBtn_(id,'Close',pn('Lost'),true);
+  else if(s.stage==='Parked'&&s.backFromParked) b=leadBtn_(id,'Decide next step',pn('Contacted'),true);
+  if(!s.closed) b+=leadBtn_(id,'Change',pn(''));
+  return b;
+}
+function leadCard(r){
+  const l=r.l, s=r.s, id=esc(l.leadId);
+  const ua=UA.find(a=>a.actionId===l.uaId)||{};
+  const who=[ua.contactName,ua.contactPhone].filter(Boolean).map(esc).join(' · ');
+  const title=esc(l.label||String(l.summary||'').slice(0,70)||l.leadId);
+  const meta=[esc(l.leadType),esc(l.source),l.clientCode?'<span class="code">'+esc(l.clientCode)+'</span>':'',who].filter(Boolean).join(' · ');
+  const late=s.overdue&&s.daysLate>0?', '+s.daysLate+(s.daysLate===1?' day late':' days late'):'';
+  const panel=(LEAD_OPEN_ID===l.leadId)?leadPanel(l,s):'';
+  return `<div class="ua-card lead-card lead-${s.colour}" id="lead-${id}"><div class="ua-top">
+      <div>
+        <div class="ua-call">${title}</div>
+        <div class="ua-meta">${meta}</div>
+        <div class="lead-line">${esc(s.line)}${late}</div>
+        ${l.label&&l.summary?`<div class="ua-issue" style="margin-top:6px">${esc(l.summary)}</div>`:''}
+        <div class="ua-foot">Logged ${fmtD(l.dateLogged)}${l.loggedBy?' by '+esc(l.loggedBy):''}${l.notes?' · '+esc(l.notes):''}</div>
+      </div>
+      <div class="lead-side">${s.overdue?'<span class="lead-pill lead-over">OVERDUE</span>':''}<span class="lead-pill lead-${s.colour}">${esc(s.stage)}</span></div>
+    </div><div class="lead-btns">${leadButtons(l,s)}</div>${panel}</div>`;
+}
+
+/* The Change panel: any stage, with only the fields that stage needs. */
+function leadOpenPanel(id,preset){ LEAD_OPEN_ID=id; LEAD_PRESET=preset||null; renderLeads(); }
+function leadClosePanel(){ LEAD_OPEN_ID=null; LEAD_PRESET=null; renderLeads(); }
+function leadPanel(l,s){
+  const id=esc(l.leadId), cur=LEAD_PRESET||s.stage;
+  const opts=PB_LEAD_STAGES.map(x=>'<option'+(x===cur?' selected':'')+'>'+x+'</option>').join('');
+  const vd=pbYmd(l.visitAt), vt=pbHm(l.visitAt);
+  return `<div class="lead-panel" id="lead-panel">
+      <label>Where does this lead stand?</label><select id="lp-stage" onchange="leadPanelSync()">${opts}</select>
+      <div id="lp-visit" class="row2"><div><label>Visit date</label><input type="date" id="lp-vdate" value="${esc(vd)}"></div><div><label>Visit time</label><input type="time" id="lp-vtime" value="${esc(vt)}"></div></div>
+      <div id="lp-park"><label>Parked until</label><input type="date" id="lp-parked" value="${esc(pbYmd(l.parkedUntil))}"></div>
+      <div id="lp-why"><label>Reason (required)</label><select id="lp-reason" onchange="leadPanelSync()"></select>
+        <input type="text" id="lp-other" placeholder="Say why, in a few words" style="margin-top:8px"></div>
+      <div id="lp-next"><label>Next step date (leave empty for the usual date)</label><input type="date" id="lp-due" value=""></div>
+      <div class="err" id="lp-err" style="font-size:12px;color:var(--red);margin-top:8px"></div>
+      <div class="lead-btns"><button class="btn btn-primary btn-sm" onclick="leadPanelSave('${id}')">Save</button><button class="btn btn-ghost btn-sm" onclick="leadClosePanel()">Cancel</button></div>
+    </div>`;
+}
+function leadPanelSync(){
+  const st=document.getElementById('lp-stage'); if(!st) return; const v=st.value;
+  const show=(id,on)=>{ const el=document.getElementById(id); if(el) el.style.display=on?'':'none'; };
+  const closed=PB_LEAD_CLOSED.indexOf(v)>-1, why=(v==='Lost'||v==='Not going ahead');
+  show('lp-visit',v==='Meeting set'); show('lp-park',v==='Parked'); show('lp-why',why);
+  show('lp-next',!closed&&v!=='Meeting set'&&v!=='Parked');
+  const rs=document.getElementById('lp-reason');
+  if(why&&rs.getAttribute('data-for')!==v){
+    const l=(LEADS||[]).find(x=>x.leadId===LEAD_OPEN_ID)||{};
+    const pick=(l.stage==='Chased twice'&&v==='Lost')?'No reply after two chases':'';
+    rs.innerHTML='<option value="">Choose one</option>'+LEAD_REASONS[v].map(x=>'<option'+(x===pick?' selected':'')+'>'+x+'</option>').join('');
+    rs.setAttribute('data-for',v);
+  }
+  show('lp-other',why&&rs.value==='Other');
+}
+function leadPanelSave(id){
+  const v=document.getElementById('lp-stage').value, err=document.getElementById('lp-err');
+  const d={stage:v};
+  if(v==='Meeting set'){
+    const vd=document.getElementById('lp-vdate').value, vt=document.getElementById('lp-vtime').value;
+    if(!vd||!vt){ err.textContent='Please give the visit date and time.'; return; }
+    d.visitAt=vd+' '+vt;
+  } else if(v==='Parked'){
+    const pk=document.getElementById('lp-parked').value;
+    if(!pk){ err.textContent='Please give the date to come back to this lead.'; return; }
+    d.parkedUntil=pk;
+  } else if(v==='Lost'||v==='Not going ahead'){
+    let rs=document.getElementById('lp-reason').value;
+    if(rs==='Other') rs=document.getElementById('lp-other').value.trim();
+    if(!rs){ err.textContent='Please give the reason.'; return; }
+    d.reason=rs;
+  }
+  if(PB_LEAD_CLOSED.indexOf(v)<0&&v!=='Meeting set'&&v!=='Parked'){
+    const due=document.getElementById('lp-due').value; if(due) d.nextStepDate=due;
+  }
+  saveLead(id,d);
+}
+function leadMove(id,stage){ saveLead(id,{stage:stage}); }
+function leadSkipVisit(id){
+  const l=(LEADS||[]).find(x=>x.leadId===id); if(!l) return;
+  const t=pbSastNow(), tag='Visit skipped '+pbDmy(t.today);
+  saveLead(id,{stage:'Site visit done', notes:(l.notes?l.notes+' | ':'')+tag});
+}
+/* Works out on screen what the server will write (same rules as pbLeadApply_), posts it,
+   then reads the register back. */
+function leadApplyLocal_(l,d){
+  const t=pbSastNow(), prev=l.stage||pbStageFromOutcome(l.outcome);
+  const hadDate=!!l.dateOutcome, hadParked=!!l.parkedUntil, hadVisitDone=!!l.visitDone, hadReason=!!l.reason;
+  Object.assign(l,d);
+  if(!d.stage) return;
+  const closed=PB_LEAD_CLOSED.indexOf(d.stage)>-1, changed=d.stage!==prev;
+  if(changed) l.stageAt=t.today+' '+t.hhmm;
+  l.outcome=pbOutcomeFromStage(d.stage);
+  if(closed){ l.nextStepDate=''; if(changed||!hadDate) l.dateOutcome=t.today; return; }
+  if(hadDate) l.dateOutcome='';
+  if(d.reason===undefined&&hadReason&&changed) l.reason='';
+  if(d.nextStepDate===undefined&&(changed||d.visitAt!==undefined||d.parkedUntil!==undefined))
+    l.nextStepDate=pbLeadDefaultDue(d.stage,t.today,t.hhmm,l.visitAt,l.parkedUntil);
+  if(d.stage==='Parked') l.nextStepDate=pbYmd(l.parkedUntil);
+  if(d.stage!=='Parked'&&hadParked&&d.parkedUntil===undefined) l.parkedUntil='';
+  if(d.stage==='Site visit done'&&changed) l.visitDone=t.today+' '+t.hhmm;
+  if(d.stage==='Meeting set'&&hadVisitDone) l.visitDone='';
+}
+async function saveLead(id,d){
+  const l=(LEADS||[]).find(x=>x.leadId===id); if(!l) return;
+  LEAD_SEQ++; leadApplyLocal_(l,d);
+  LEAD_OPEN_ID=null; LEAD_PRESET=null; updateLeadBadge();
+  if(leadsOnScreen()) renderLeads();
+  try{ await postApi('updateLead', Object.assign({leadId:id},d)); leadReconcile_(); }
+  catch(e){ alert('Could not save. Please retry.'); }
+}
+
+/* Quick lead form: an enquiry that did not come through an urgent action. */
+function showLeadForm(){
+  setNav('nav-leads');
+  const open=PB_LEAD_STAGES.filter(x=>PB_LEAD_CLOSED.indexOf(x)<0);
+  main.innerHTML=`<a class="back" onclick="showLeads()">Back to leads</a>
+    <div class="page-title">Log a lead</div>
+    <div class="page-sub">For an enquiry that is already under way. No names, phone numbers or email addresses here: those stay on the urgent action or in the email.</div>
+    <div class="form">
+      <div class="row">
+        <div><label>Type</label><select id="lf-type">${LEAD_TYPES.map(t=>'<option>'+t+'</option>').join('')}</select></div>
+        <div><label>How did they find us?</label><select id="lf-source"><option value="">Choose one (required)</option>${LEAD_SOURCES.map(t=>'<option>'+t+'</option>').join('')}</select></div>
+      </div>
+      <label>Property (street or complex, and suburb. No names)</label><input type="text" id="lf-label" maxlength="80" placeholder="For example: Main Road, Plumstead">
+      <label>What they want</label><textarea id="lf-summary" maxlength="200" placeholder="A line or two"></textarea>
+      <div class="row">
+        <div><label>File code, if there is one</label><input type="text" id="lf-code" placeholder="For example L002"></div>
+        <div><label>Where it stands now</label><select id="lf-stage" onchange="leadFormSync()">${open.map(x=>'<option>'+x+'</option>').join('')}</select></div>
+      </div>
+      <div class="row" id="lf-visit" style="display:none">
+        <div><label>Visit date</label><input type="date" id="lf-vdate"></div>
+        <div><label>Visit time</label><input type="time" id="lf-vtime"></div>
+      </div>
+      <div id="lf-park" style="display:none"><label>Parked until</label><input type="date" id="lf-parked"></div>
+      <div id="lf-next"><label>Next step date (leave empty for the usual date)</label><input type="date" id="lf-due"></div>
+      <div class="err" id="lf-err"></div>
+      <div class="actions"><button class="btn btn-primary" id="lf-save" onclick="submitLead()">Save lead</button><button class="btn btn-ghost" onclick="showLeads()">Cancel</button></div>
+    </div>`;
+}
+function leadFormSync(){
+  const v=document.getElementById('lf-stage').value;
+  document.getElementById('lf-visit').style.display=v==='Meeting set'?'':'none';
+  document.getElementById('lf-park').style.display=v==='Parked'?'':'none';
+  document.getElementById('lf-next').style.display=(v==='Meeting set'||v==='Parked')?'none':'';
+}
+async function submitLead(){
+  const val=id=>document.getElementById(id).value.trim(), err=document.getElementById('lf-err');
+  const stage=val('lf-stage'), t=pbSastNow();
+  const lead={ leadId:'LD-'+Date.now(), dateLogged:new Date().toISOString(), leadType:val('lf-type'), source:val('lf-source'),
+    clientCode:val('lf-code').toUpperCase(), uaId:'', label:val('lf-label'), summary:val('lf-summary').slice(0,200),
+    loggedBy:session?(session.displayName||session.email):'', outcome:'Open', stage:stage };
+  if(!lead.source){ err.textContent='Please choose how they found us. If you did not ask, choose "Not asked".'; return; }
+  if(!lead.label&&!lead.summary){ err.textContent='Please give the property or what they want.'; return; }
+  if(stage==='Meeting set'){
+    if(!val('lf-vdate')||!val('lf-vtime')){ err.textContent='Please give the visit date and time.'; return; }
+    lead.visitAt=val('lf-vdate')+' '+val('lf-vtime');
+  } else if(stage==='Parked'){
+    if(!val('lf-parked')){ err.textContent='Please give the date to come back to this lead.'; return; }
+    lead.parkedUntil=val('lf-parked');
+  } else if(val('lf-due')) lead.nextStepDate=val('lf-due');
+  if(!lead.nextStepDate) lead.nextStepDate=pbLeadDefaultDue(stage,t.today,t.hhmm,lead.visitAt||'',lead.parkedUntil||'');
+  lead.stageAt=t.today+' '+t.hhmm;
+  const btn=document.getElementById('lf-save'); btn.textContent='Saving…'; btn.disabled=true;
+  try{ LEAD_SEQ++; await postApi('addLead', lead); if(!Array.isArray(LEADS)) LEADS=[]; LEADS.push(lead); showLeads(); leadReconcile_(); }
+  catch(e){ btn.textContent='Save lead'; btn.disabled=false; err.textContent='Could not save. Please retry.'; }
+}
+/* When an urgent action is marked done and it is tied to an open lead, ask where the lead stands. */
+function pbLeadAfterDone_(actionId){
+  if(!Array.isArray(LEADS)||isCandidate()) return;
+  const l=LEADS.find(x=>x.uaId&&x.uaId===actionId); if(!l) return;
+  const t=pbSastNow(); if(pbLeadState(l,t.today,t.hhmm).closed) return;
+  LEAD_OPEN_ID=l.leadId; LEAD_PRESET=null;
+  LEAD_NOTE='That urgent action is done. It is tied to the lead below: where does the lead stand now?';
   showLeads();
 }
+/* Overdue count on the Leads tab: read once the first load is in. Not for a candidate. */
+function pbLeadsBoot_(){ if(!isCandidate()) pbLoadLeads_().catch(()=>{}); }
 function showRenewals(){
   setNav('nav-ren');
   const openR = REN.filter(r=>(r.status||'').toLowerCase()!=='done').sort((a,b)=>String(a.leaseEnd).localeCompare(String(b.leaseEnd)));
