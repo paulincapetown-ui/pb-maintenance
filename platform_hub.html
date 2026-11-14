@@ -131,6 +131,9 @@
   .lead-pill.lead-green{color:var(--green);background:var(--green-bg)}.lead-pill.lead-yellow{color:var(--amber);background:var(--amber-bg)}.lead-pill.lead-red{color:var(--red);background:var(--red-bg)}
   .lead-pill.lead-over{color:#fff;background:var(--red)}
   .lead-line{font-size:13.5px;font-weight:600;margin-top:2px}
+  .lead-hist{margin-top:8px;padding:7px 10px;border-left:3px solid #2D297D;background:#f5f6fa;border-radius:0 6px 6px 0;font-size:13px;color:#182048}
+  .lead-hist-h{font-size:10.5px;font-weight:700;letter-spacing:.06em;color:#2D297D}
+  .lead-hist-l{margin-top:3px;line-height:1.45}
   .lead-side{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
   .lead-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
   .lead-strip{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
@@ -172,6 +175,7 @@
     .reply-head{font-size:12.5px}
     .reply-box textarea{font-size:15px}
     .lead-line{font-size:15.5px}
+    .lead-hist{font-size:15px}.lead-hist-h{font-size:12px}
     .lead-side{justify-content:flex-start}
     .lead-btns .btn{flex:1;padding:11px 14px;font-size:14px}
     .lead-panel .row2{grid-template-columns:1fr}
@@ -1056,8 +1060,18 @@ function leadButtons(l,s){
   if(!s.closed) b+=leadBtn_(id,'Change',pn(''));
   return b;
 }
+/* History of a lead (version 33): one line per step from emailSummary, label in bold. */
+function leadHistLines(l){ return String((l&&l.emailSummary)||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean); }
+function leadHist(l){
+  const lines=leadHistLines(l); if(!lines.length) return '';
+  return '<div class="lead-hist"><div class="lead-hist-h">HISTORY</div>'+lines.map(x=>{
+    const m=/^([^:]{1,40}):\s*(.*)$/.exec(x);
+    return '<div class="lead-hist-l">'+(m?'<b>'+esc(m[1])+':</b> '+esc(m[2]):esc(x))+'</div>';
+  }).join('')+'</div>';
+}
 function leadCard(r){
   const l=r.l, s=r.s, id=esc(l.leadId);
+  const hl=leadHistLines(l), notes=(l.notes&&String(l.notes)!==hl.join(' | '))?String(l.notes):'';
   const ua=UA.find(a=>a.actionId===l.uaId)||{};
   const who=[ua.contactName,ua.contactPhone].filter(Boolean).map(esc).join(' · ');
   const title=esc(l.label||String(l.summary||'').slice(0,70)||l.leadId);
@@ -1070,7 +1084,8 @@ function leadCard(r){
         <div class="ua-meta">${meta}</div>
         <div class="lead-line">${esc(s.line)}${late}</div>
         ${l.label&&l.summary?`<div class="ua-issue" style="margin-top:6px">${esc(l.summary)}</div>`:''}
-        <div class="ua-foot">Logged ${fmtD(l.dateLogged)}${l.loggedBy?' by '+esc(l.loggedBy):''}${l.notes?' · '+esc(l.notes):''}</div>
+        ${leadHist(l)}
+        <div class="ua-foot">Logged ${fmtD(l.dateLogged)}${l.loggedBy?' by '+esc(l.loggedBy):''}${notes?' · '+esc(notes):''}</div>
       </div>
       <div class="lead-side">${s.overdue?'<span class="lead-pill lead-over">OVERDUE</span>':''}<span class="lead-pill lead-${s.colour}">${esc(s.stage)}</span></div>
     </div><div class="lead-btns">${leadButtons(l,s)}</div>${panel}</div>`;
