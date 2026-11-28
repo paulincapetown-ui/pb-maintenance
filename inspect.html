@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>PB Inspections</title>
@@ -163,6 +163,147 @@
     .rep-room{page-break-inside:avoid}
   }
   #toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:11px 18px;border-radius:9px;font-size:13.5px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.3);display:none;z-index:99;max-width:88vw;text-align:center}
+
+  /* ===== v2.0 (28.11.2026). Roomier screens, one room per screen, brand colour. Every rule here is
+     scoped to the home and inspection screens, the top bar, the bottom bar and the sheets, so the
+     report and its PDF are untouched. Green, amber and red mean a status and nothing else. ===== */
+  html{touch-action:manipulation}
+  body[data-scr="home"],body[data-scr="inspect"]{background:#eceef7}
+  body[data-scr="inspect"]{padding-bottom:112px}
+  .top{border-bottom:3px solid var(--gold)}
+  .top .t{font-size:18px}
+  .top .mark{border-color:var(--gold);color:var(--gold)}
+  #topTitle{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .top .s{font-size:14px;color:#c9d0e3;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .top .t,.top .s{padding-right:120px}
+  .top .home{font-size:14.5px;padding:7px 11px}
+  #s-home,#s-inspect{font-size:17px}
+  #s-home h2,#s-inspect h2,.sheet-card h2{font-size:21px;color:var(--navy);margin:0 0 14px;padding-bottom:9px;position:relative}
+  #s-home h2::after,#s-inspect h2::after,.sheet-card h2::after{content:"";position:absolute;left:0;bottom:0;width:44px;height:3px;border-radius:2px;background:var(--gold)}
+  #s-home .card,#s-inspect .card{padding:20px 18px;margin-bottom:18px;border-radius:14px;border:1px solid #dfe2ee;border-top:4px solid var(--indigo);box-shadow:0 2px 8px rgba(24,32,72,.06)}
+  #s-home label,#s-inspect label,.sheet-card label,#rnSheet label{font-size:14px;color:var(--navy);margin:18px 0 7px}
+  #s-home .lastbox{font-size:15px;margin-top:20px;padding:14px}
+  #s-home .lastbox label{margin:0;font-size:15px}
+  #s-home input[type=text],#s-home input[type=date],#s-home select,#s-home textarea,
+  #s-inspect input[type=text],#s-inspect input[type=date],#s-inspect select,#s-inspect textarea,
+  .sheet-card input[type=text],#rnSheet input[type=text],#rnSheet select{font-size:17px;padding:14px;border:1.5px solid #cfd4e6;border-radius:10px}
+  #s-inspect textarea{min-height:110px}
+  #s-home .small,#s-inspect .small{font-size:14.5px;line-height:1.5}
+  #s-home .btn,#s-inspect .btn,.sheet-card .btn,#rnSheet .btn,#bar .btn{font-size:17px}
+  #s-home .btn-sm,#s-inspect .btn-sm{font-size:15px;padding:12px 16px}
+  #s-home .btn-primary,#finBtn{padding:17px 18px}
+  #s-home .more,#s-inspect .more{font-size:15px;color:var(--indigo)}
+  /* home */
+  #newBtn{background:var(--indigo);font-size:19px;padding:20px;margin-bottom:18px;border-radius:14px;box-shadow:0 6px 18px rgba(45,41,125,.28)}
+  #newClose{display:none;width:100%;text-align:center;margin-top:16px;padding:8px 0}
+  #s-home .grp{padding-bottom:22px;margin-bottom:20px;border-bottom:1px solid #e3e6f2}
+  #s-home .grp.last{border-bottom:none;margin-bottom:0;padding-bottom:0}
+  #s-home .grp-h{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:800;color:var(--navy)}
+  #s-home .grp-h + label{margin-top:12px}
+  #s-home .num{width:28px;height:28px;border-radius:50%;background:var(--gold);color:var(--navy);display:inline-flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;flex-shrink:0}
+  #s-home .tpl{padding:14px 4px;border-width:2px}
+  #s-home .tpl .n{font-size:24px}
+  #s-home .tpl .l{font-size:14px}
+  #s-home .tpl.sel{border-color:var(--indigo);background:var(--indigo)}
+  #s-home .saved{padding:16px 0}
+  #s-home .saved .nm{font-size:17px;color:var(--navy)}
+  #s-home .saved .mt{font-size:14.5px;line-height:1.6}
+  #s-home .saved .btns{gap:8px}
+  #s-home .pill{font-size:13.5px;padding:4px 11px}
+  #spCard summary,#typeCard summary{font-size:15px;font-weight:700;color:var(--indigo);cursor:pointer;padding:6px 0}
+  /* inspection: step strip */
+  #stepHead{position:sticky;top:var(--topH,78px);z-index:19;background:#fff;margin:-14px -14px 18px;border-bottom:1px solid #dfe2ee;box-shadow:0 3px 10px rgba(24,32,72,.07)}
+  #stepHead .prog{position:static;border-bottom:none;padding:12px 14px 10px}
+  #stepHead .prog .bar{height:10px;background:#e3e6f2}
+  #stepHead .prog .fill{background:var(--gold)}
+  #stepHead .prog .txt{font-size:14.5px;color:var(--navy)}
+  #stepChips{display:flex;gap:8px;overflow-x:auto;padding:2px 14px 12px;position:relative;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  #stepChips::-webkit-scrollbar{display:none}
+  .chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;border:1.5px solid #cfd4e6;background:#fff;color:var(--navy);border-radius:22px;padding:9px 14px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap}
+  .chip.sec{background:#eef0f8}
+  .chip.cur{background:var(--navy);border-color:var(--navy);color:#fff}
+  .chip.add{border-style:dashed;border-color:var(--indigo);color:var(--indigo)}
+  .chip .dot{width:11px;height:11px;border-radius:50%;background:#c3c8d6;flex-shrink:0}
+  .chip .dot.a{background:var(--amber)}
+  .chip .dot.g{background:var(--green)}
+  .chip .fl{width:6px;height:15px;border-radius:3px;background:var(--red);flex-shrink:0}
+  .chip.cur .dot,.chip.cur .fl{box-shadow:0 0 0 2px #fff}
+  #s-inspect .stepwrap{display:none}
+  #s-inspect .stepwrap.on{display:block}
+  /* inspection: one room per screen */
+  #s-inspect .room{display:none;background:transparent;border:none;border-radius:0;overflow:visible;margin-bottom:0}
+  #s-inspect .room.open{display:block}
+  #s-inspect .room-h{background:var(--indigo);color:#fff;border:none;border-radius:14px;padding:16px;cursor:default;margin-bottom:16px;gap:10px;box-shadow:0 4px 14px rgba(45,41,125,.22)}
+  #s-inspect .room-h .rh-l{flex:1;min-width:0}
+  #s-inspect .room-h .rstep{display:block;font-size:13px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--gold)}
+  #s-inspect .room-h .rn{display:block;font-size:21px;line-height:1.25;color:#fff}
+  #s-inspect .room-h .rh-r{flex-direction:column-reverse;align-items:flex-end;gap:8px;margin-left:0}
+  #s-inspect .room-h .rc{font-size:14.5px;color:#fff;background:rgba(255,255,255,.16);border-radius:20px;padding:4px 12px;white-space:nowrap}
+  #s-inspect .room-h .rc.done{background:var(--green);color:#fff}
+  #s-inspect .room-h .rnb{background:transparent;border:1.5px solid rgba(255,255,255,.6);color:#fff;font-size:14px;padding:7px 12px}
+  #s-inspect .allgood{background:transparent;border:none;padding:0;margin-bottom:18px;gap:10px;flex-wrap:nowrap}
+  #s-inspect .allgood button{flex:1;min-height:52px;font-size:15px;border-width:2px;border-radius:12px;padding:8px 10px}
+  #s-inspect .item{background:#fff;border:1px solid #dfe2ee;border-radius:14px;padding:18px 16px;margin-bottom:20px;box-shadow:0 2px 8px rgba(24,32,72,.06)}
+  #s-inspect .item.flagged{border-color:var(--red);box-shadow:inset 5px 0 0 var(--red),0 2px 8px rgba(24,32,72,.06)}
+  #s-inspect .item-top{display:block}
+  #s-inspect .item-label{font-size:18px;font-weight:700;color:var(--navy);margin-bottom:12px;min-width:0}
+  #s-inspect .st-btns{gap:8px}
+  #s-inspect .st{flex:1;min-width:0;height:52px;font-size:16px;border-width:2px;border-radius:10px;padding:0 4px}
+  #s-inspect .st.good{color:var(--green);border-color:#bfe3cb}
+  #s-inspect .st.fair{color:var(--amber);border-color:#efd9a8}
+  #s-inspect .st.poor{color:var(--red);border-color:#f1c0c0}
+  #s-inspect .st.na{color:#4b5563;border-color:#d5d8e0}
+  #s-inspect .st.good.sel{background:var(--green);border-color:var(--green);color:#fff}
+  #s-inspect .st.fair.sel{background:var(--amber);border-color:var(--amber);color:#fff}
+  #s-inspect .st.poor.sel{background:var(--red);border-color:var(--red);color:#fff}
+  #s-inspect .st.na.sel{background:#6b7280;border-color:#6b7280;color:#fff}
+  #s-inspect .cl-row{justify-content:flex-start;gap:8px;margin-top:14px}
+  #s-inspect .cl-row .cl-lab{flex:0 0 100%;font-size:14px;margin:0 0 2px;color:var(--navy)}
+  #s-inspect .clb{flex:1;height:48px;font-size:15px;border-width:2px;border-radius:10px}
+  #s-inspect .seg{gap:8px}
+  #s-inspect .item-foot{margin-top:16px;gap:12px;flex-wrap:wrap}
+  #s-inspect .item-foot .more{padding:8px 0}
+  #s-inspect .actb{font-size:14.5px;padding:11px 14px;border-width:2px;border-radius:10px}
+  #s-inspect .item-extra{margin-top:14px}
+  #s-inspect .item-extra textarea{min-height:84px}
+  #s-inspect .ph,#s-inspect .addph{width:84px;height:84px;border-radius:10px}
+  #s-inspect .addph{font-size:14px;color:var(--indigo);border-color:#c5cae0}
+  #s-inspect .addph .ic{font-size:24px}
+  #s-inspect .ph .del{width:30px;height:30px;font-size:16px}
+  #s-inspect .additem{padding:0 0 6px}
+  #s-inspect .additem .more{display:block;text-align:center;border:2px dashed #c5cae0;border-radius:12px;padding:15px;margin:0;background:rgba(255,255,255,.6)}
+  #s-inspect .mrow{gap:12px}
+  #s-inspect .hk{grid-template-columns:1fr 76px 76px;gap:8px;margin-top:10px}
+  #s-inspect .hk.one{grid-template-columns:1fr 76px}
+  #s-inspect .hk .kl{font-size:17px}
+  #s-inspect .hk .h{font-size:13px}
+  #s-inspect .hk input{padding:12px 6px;text-align:center}
+  #nextRemind{margin:0 0 18px !important;font-size:16px !important;padding:16px !important;border-radius:14px !important}
+  #renRemind{font-size:15px !important}
+  /* finish step */
+  .fin-row{display:flex;gap:12px;align-items:flex-start;padding:14px 0;border-bottom:1px solid #eceef5}
+  .fin-row:last-child{border-bottom:none}
+  .fdot{width:16px;height:16px;border-radius:50%;background:#c3c8d6;flex-shrink:0;margin-top:5px}
+  .fdot.g{background:var(--green)}
+  .fdot.a{background:var(--amber)}
+  .fdot.r{background:var(--red)}
+  .fin-m{flex:1;min-width:0}
+  .fin-t{font-size:17px;font-weight:700;color:var(--navy)}
+  .fin-s{font-size:14.5px;color:var(--muted);margin-top:2px}
+  .finj-w{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .finj{border:1.5px solid var(--indigo);background:#fff;color:var(--indigo);border-radius:20px;padding:8px 13px;font-size:14.5px;font-weight:700;font-family:inherit;cursor:pointer}
+  /* sheets (replace the browser prompt boxes) */
+  .sheet{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(10,12,24,.55);z-index:62;display:none;align-items:flex-start;justify-content:center;padding:9vh 14px 14px;overflow:auto}
+  .sheet.on{display:flex}
+  .sheet-card{background:#fff;border-radius:16px;border-top:5px solid var(--gold);padding:20px 18px;width:100%;max-width:460px;font-size:17px;box-shadow:0 18px 50px rgba(0,0,0,.35)}
+  .sheet-list{display:grid;gap:10px}
+  .sheet-list .btn{width:100%;text-align:left;padding:16px;border-width:2px}
+  #rnSheet .rn-chip{font-size:15px;padding:10px 14px}
+  /* bottom bar */
+  #bar{box-shadow:0 -6px 18px rgba(24,32,72,.10);gap:8px}
+  #bar #barHome,#bar #barBack{flex:0 0 auto;padding:15px 16px}
+  #bar #barNext{flex:1;min-width:0;padding:15px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--indigo)}
+  #toast{font-size:16px;bottom:108px}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.4/lib/msal-browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
@@ -172,7 +313,7 @@
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 </head>
-<body>
+<body data-scr="home">
 
 <div class="top">
   <a class="home noprint" href="./platform_hub.html">&larr; Platform</a>
@@ -185,68 +326,70 @@
   <!-- ============ HOME ============ -->
   <section class="screen on" id="s-home">
     <div id="spBanner" style="display:none;background:var(--amber-bg);color:var(--amber);border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:13.5px;font-weight:600"></div>
-    <div class="card">
+    <button type="button" class="btn btn-primary" id="newBtn" style="display:none" onclick="homeOpen_=true;homeForm_();window.scrollTo(0,0)">New inspection</button>
+    <div class="card" id="newCard">
       <h2>New inspection</h2>
-      <label>Inspection type</label>
-      <select id="fType" onchange="updLastHint()">
-        <option>Routine</option><option>Renewal</option><option>Ingoing</option><option>Outgoing</option>
-      </select>
-      <label>Property template</label>
-      <div class="tpl-grid">
-        <div class="tpl" data-t="1" onclick="pickTpl(this)"><div class="n">1</div><div class="l">BED</div></div>
-        <div class="tpl sel" data-t="2" onclick="pickTpl(this)"><div class="n">2</div><div class="l">BED</div></div>
-        <div class="tpl" data-t="3" onclick="pickTpl(this)"><div class="n">3</div><div class="l">BED</div></div>
-        <div class="tpl" data-t="4" onclick="pickTpl(this)"><div class="n">4+</div><div class="l">BED</div></div>
+      <div class="grp">
+        <div class="grp-h"><span class="num">1</span>The property</div>
+        <label>File code</label><input type="text" id="fCode" placeholder="L058" autocapitalize="characters" list="dlCode" oninput="lkCode()">
+        <label>Property address</label><input type="text" id="fAddr" placeholder="14 Milner Rd, Woodstock" list="dlAddr" oninput="lkAddr()">
+        <label>Tenant</label><input type="text" id="fTen" placeholder="K. Botha" list="dlTen" oninput="lkTen()">
+        <div class="small" id="lkHint" style="color:var(--green);margin-top:6px"></div>
+        <datalist id="dlCode"></datalist><datalist id="dlAddr"></datalist><datalist id="dlTen"></datalist>
       </div>
-      <div class="row">
-        <div><label>File code</label><input type="text" id="fCode" placeholder="L058" autocapitalize="characters" list="dlCode" oninput="lkCode()"></div>
-        <div><label>Date</label><input type="date" id="fDate"></div>
+      <div class="grp">
+        <div class="grp-h"><span class="num">2</span>The inspection</div>
+        <label>Inspection type</label>
+        <select id="fType" onchange="updLastHint()">
+          <option>Routine</option><option>Renewal</option><option>Ingoing</option><option>Outgoing</option>
+        </select>
+        <label>Bedrooms</label>
+        <div class="tpl-grid">
+          <div class="tpl" data-t="1" onclick="pickTpl(this)"><div class="n">1</div><div class="l">BED</div></div>
+          <div class="tpl sel" data-t="2" onclick="pickTpl(this)"><div class="n">2</div><div class="l">BED</div></div>
+          <div class="tpl" data-t="3" onclick="pickTpl(this)"><div class="n">3</div><div class="l">BED</div></div>
+          <div class="tpl" data-t="4" onclick="pickTpl(this)"><div class="n">4+</div><div class="l">BED</div></div>
+        </div>
+        <label>Garden or outside area</label>
+        <select id="fGarden"><option value="">No garden noted</option><option value="yes">Yes, there is a garden</option></select>
+        <div class="small muted" style="margin-top:6px">With a garden, the outside section comes first. Without, it goes to the end.</div>
       </div>
-      <label>Property address</label><input type="text" id="fAddr" placeholder="14 Milner Rd, Woodstock" list="dlAddr" oninput="lkAddr()">
-      <label>Tenant</label><input type="text" id="fTen" placeholder="K. Botha" list="dlTen" oninput="lkTen()">
-      <div class="small" id="lkHint" style="color:var(--green);margin-top:6px"></div>
-      <datalist id="dlCode"></datalist><datalist id="dlAddr"></datalist><datalist id="dlTen"></datalist>
-      <label>Garden or outside area</label>
-      <select id="fGarden"><option value="">No garden noted</option><option value="yes">Yes, there is a garden</option></select>
-      <div class="small muted" style="margin-top:4px">With a garden, the outside section comes first. Without, it goes to the end.</div>
-      <label>Inspected by</label><input type="text" id="fBy" value="Paul Grobler">
+      <div class="grp last">
+        <div class="grp-h"><span class="num">3</span>Who and when</div>
+        <label>Inspected by</label><input type="text" id="fBy" placeholder="Your name" autocomplete="name">
+        <label>Date</label><input type="date" id="fDate">
+      </div>
       <div class="lastbox" id="lastBox" style="display:none"></div>
-      <div style="margin-top:16px"><button class="btn btn-primary" onclick="startInspection()">Start inspection</button></div>
+      <div style="margin-top:20px"><button class="btn btn-primary" onclick="startInspection()">Start inspection</button></div>
+      <span class="more" id="newClose" onclick="homeOpen_=false;homeForm_()">Close</span>
     </div>
     <div class="card" id="savedCard" style="display:none">
       <h2>Saved inspections</h2>
-      <div class="small muted" style="margin-bottom:4px">Latest first, stored on this phone. Tap Open to see what you put in, or re-print. Renewal terms also go to the Hub Renewals page, which you can open on any device.</div>
+      <div class="small muted" style="margin-bottom:4px">Latest first, stored on this phone. Tap Open to carry on or print again. Renewal terms also show on the Hub Renewals page.</div>
       <div id="savedList"></div>
     </div>
-    <div class="card">
+    <div class="card" id="spCard">
       <h2>SharePoint photo archive</h2>
-      <div class="small muted" style="margin-bottom:8px">Photos file automatically into MASTER docs → Inspection Photos, and the finished report PDF into MASTER docs → Inspection reports — one folder per property. Only what you attach to an inspection — never your photo library. Short videos attached to an item file with the photos, after the photos and the report have gone.</div>
-      <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking…</div>
-      <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft (paul@propertybureau.co.za)</button>
+      <div class="small" id="spState" style="margin-bottom:8px;font-weight:600">Checking&hellip;</div>
+      <button class="btn btn-ghost btn-sm" id="spBtn" onclick="spConnect()" style="display:none">Connect Microsoft</button>
+      <details style="margin-top:8px"><summary>Where photos and reports go</summary>
+        <div class="small muted" style="margin-top:8px">Photos file automatically into MASTER docs &rarr; Inspection Photos, and the finished report PDF into MASTER docs &rarr; Inspection reports, with one folder per property. Only what you attach to an inspection is filed, never your photo library. Short videos attached to an item file with the photos, after the photos and the report have gone.</div>
+      </details>
     </div>
-    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves automatically on this device as you tap.<br>Nothing is sent anywhere until you share the report or it archives photos.<br><b>v1.9.15</b> · 12.11.2026</div>
+    <div class="small muted" style="text-align:center;margin-top:4px">Everything saves on this phone as you tap.<br>With Microsoft connected, photos and the finished report go to SharePoint and the office is told.<br><b>Version 2.0</b> &middot; 28.11.2026</div>
   </section>
 
   <!-- ============ INSPECT ============ -->
   <section class="screen" id="s-inspect">
-    <div class="prog noprint"><div class="bar"><div class="fill" id="progFill"></div></div><div class="txt" id="progTxt">0 / 0</div></div>
-    <div class="card noprint" id="typeCard" style="margin-top:12px">
-      <label style="margin-top:0">Inspection type</label>
-      <select id="typeSel" onchange="typeSwitch(this.value)"><option>Routine</option><option>Ingoing</option><option>Outgoing</option></select>
-      <div class="small muted" style="margin-top:4px">Picked the wrong type? Change it here. Ratings, comments, readings and photos stay. Then press Finish → Report again.</div>
+    <div id="stepHead" class="noprint">
+      <div class="prog"><div class="bar"><div class="fill" id="progFill"></div></div><div class="txt" id="progTxt">0 / 0</div></div>
+      <div id="stepChips"></div>
     </div>
+    <div class="stepwrap" data-step="first">
     <div id="nextRemind" class="noprint" style="display:none;margin-top:12px;padding:12px 14px;border-radius:10px;background:#fff7d6;border:1px solid #e8c45a;font-size:13.5px;line-height:1.55"></div>
-    <div id="roomsHost" style="margin-top:12px"></div>
-    <div class="card">
-      <h2>Add a room</h2>
-      <div class="small muted" style="margin-bottom:8px">Standard layout not quite right? Add what this property has.</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-ghost btn-sm" onclick="addRoom('ensuite')">+ En-suite bathroom</button>
-        <button class="btn btn-ghost btn-sm" onclick="addRoom('bath')">+ Bathroom</button>
-        <button class="btn btn-ghost btn-sm" onclick="addRoom('toilet')">+ Separate toilet</button>
-        <button class="btn btn-ghost btn-sm" onclick="addRoom('custom')">+ Other room</button>
-      </div>
     </div>
+    <div id="roomsHost"></div>
+    <div class="stepwrap" data-step="ren">
     <div class="card" id="renCard" style="display:none">
       <h2>Renewal terms</h2>
       <div class="small muted" style="margin-bottom:8px">Printed at the top of the report. Enter the current rent and EITHER the increase % OR the new rent. The other one fills in by itself.</div>
@@ -261,6 +404,8 @@
       <textarea id="rNext" placeholder="e.g. Held at 6% instead of 7% this year. Go higher next year." oninput="renSet('next',this.value)"></textarea>
       <div id="renRemind" style="display:none;margin-top:10px;padding:10px;border-radius:9px;background:#fff7d6;border:1px solid #e8c45a;font-size:13px"></div>
     </div>
+    </div>
+    <div class="stepwrap" data-step="hand">
     <div class="card" id="handCard">
       <h2>Handover and readings</h2>
       <div id="keysBox">
@@ -286,22 +431,28 @@
         <div><label>Bin collection day</label><select id="hBin" onchange="hSet('bin',this.value)"><option value="">Not recorded</option><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option></select></div>
       </div>
     </div>
-    <div class="card">
-      <h2>Overall notes</h2>
-      <select id="stdSum" onchange="insertSummary()" style="margin-bottom:8px"><option value="">Insert standard wording…</option><option>The property is in a good, well-maintained condition. No items require attention at this time.</option><option>The property is in reasonable condition and consistent with the condition at handover. There are no deductions other than utilities, which can be actioned.</option><option>The property is generally in fair condition. The items flagged for action require attention as detailed in this report.</option></select>
+    </div>
+    <div class="stepwrap" data-step="notes">
+    <div class="card" id="notesCard">
+      <h2>Summary and notes</h2>
       <label>Summary (three sentences)</label>
       <textarea id="sumNote" placeholder="Three sentences on the condition of the property. They print at the top of the report." oninput="cur.summary=this.value;save();sumCount()"></textarea>
       <div class="small muted" id="sumCount" style="margin-top:4px"></div>
       <label>Notes</label>
+      <select id="stdSum" onchange="insertSummary()" style="margin-bottom:8px"><option value="">Add standard wording to Notes&hellip;</option><option>The property is in a good, well-maintained condition. No items require attention at this time.</option><option>The property is in reasonable condition and consistent with the condition at handover. There are no deductions other than utilities, which can be actioned.</option><option>The property is generally in fair condition. The items flagged for action require attention as detailed in this report.</option></select>
       <textarea id="overallNotes" placeholder="General condition, tenant feedback, anything for the record…" oninput="cur.notes=this.value;save()"></textarea>
     </div>
+    </div>
+    <div class="stepwrap" data-step="next">
     <div class="card noprint" id="nextCard">
       <h2>Note for the next inspection</h2>
       <div class="small muted" style="margin-bottom:8px">For your eyes only. It is never printed in the report. It shows at the top of the next inspection of this property.</div>
       <textarea id="nextNote" placeholder="e.g. 5% increase agreed, R11 950 to R12 548 from 1 Feb 2027. Below the market, go higher next year." oninput="cur.nextNote=this.value;save()"></textarea>
     </div>
-    <div class="card">
-      <h2>Sign-off</h2>
+    </div>
+    <div class="stepwrap" data-step="sign">
+    <div class="card" id="signCard">
+      <h2>Sign off</h2>
       <div class="small muted" style="margin-bottom:8px">Both signatures appear on the report. Sign with a finger.</div>
       <label>Agent name</label><input type="text" id="agName" oninput="cur.by=this.value;save()">
       <label>Agent contact (cell and email)</label><input type="text" id="agTel" oninput="cur.agentTel=this.value;save()">
@@ -320,6 +471,23 @@
         <span class="small muted" style="align-self:center" id="sigState"></span>
       </div>
     </div>
+    </div>
+    <div class="stepwrap" data-step="finish">
+    <div class="card noprint" id="finCard">
+      <h2>Finish</h2>
+      <div class="small muted" style="margin-bottom:6px">Check the list, then make the report. You can still go back and change anything.</div>
+      <div id="finBody"></div>
+      <div style="margin-top:18px"><button type="button" class="btn btn-primary" id="finBtn" onclick="makeReport()">Make the report</button></div>
+      <div class="small muted" style="margin-top:14px">Green: done. Amber: still to do. Red: flagged for the office.</div>
+    </div>
+    <div class="card noprint" id="typeCard">
+      <details><summary>Wrong inspection type? Change it here</summary>
+        <label>Inspection type</label>
+        <select id="typeSel" onchange="typeSwitch(this.value)"><option>Routine</option><option>Ingoing</option><option>Outgoing</option></select>
+        <div class="small muted" style="margin-top:6px">Ratings, comments, readings and photos stay. Then make the report again.</div>
+      </details>
+    </div>
+    </div>
   </section>
 
   <!-- ============ REPORT ============ -->
@@ -331,7 +499,7 @@
     <div class="noprint small" id="repArch" style="margin:0 0 10px;font-weight:600"></div>
     <div class="noprint small" id="repOffice" style="margin:0 0 10px;font-weight:600"></div>
     <button class="noprint btn btn-primary btn-sm" id="repRetryBtn" onclick="spFileReport(pbNoticeBody())" style="display:none;margin:0 0 12px">Try the report PDF again</button>
-    <button class="noprint btn btn-primary btn-sm" id="repConnBtn" onclick="spConnect()" style="display:none;margin:0 0 12px">Connect Microsoft (paul@propertybureau.co.za)</button>
+    <button class="noprint btn btn-primary btn-sm" id="repConnBtn" onclick="spConnect()" style="display:none;margin:0 0 12px">Connect Microsoft</button>
     <div class="noprint small" id="repRenSync" style="margin:0 0 10px;font-weight:600"></div>
     <div class="noprint card" id="dupBox" style="display:none"></div>
     <div class="rep-wrap" id="reportHost"></div>
@@ -343,8 +511,9 @@
 </div>
 
 <div class="actionbar" id="bar">
-  <button class="btn btn-ghost" onclick="goHome()">Home</button>
-  <button class="btn btn-primary" onclick="makeReport()">Finish → Report</button>
+  <button type="button" class="btn btn-ghost" id="barHome" onclick="goHome()">Home</button>
+  <button type="button" class="btn btn-ghost" id="barBack" onclick="goStep(stepIx-1)">Back</button>
+  <button type="button" class="btn btn-primary" id="barNext" onclick="barNext()">Next</button>
 </div>
 
 <input type="file" id="phInput" accept="image/*" style="display:none" multiple>
@@ -360,6 +529,26 @@
     <div class="rn-chips" id="rnChips"></div>
     <div class="rn-prev">Title will read: <b id="rnOut"></b></div>
     <div style="display:flex;gap:8px;margin-top:14px"><button class="btn btn-ghost" onclick="rnClose()">Cancel</button><button class="btn btn-primary" style="flex:1" onclick="rnSave()">Save title</button></div>
+  </div>
+</div>
+<div id="addRoomSheet" class="sheet noprint" onclick="if(event.target===this) arClose()">
+  <div class="sheet-card">
+    <h2>Add a room</h2>
+    <div class="small muted" style="margin-bottom:12px">Add what this property has. The new room goes after the last room.</div>
+    <div class="sheet-list">
+      <button type="button" class="btn btn-ghost" onclick="addRoom('ensuite')">En-suite bathroom</button>
+      <button type="button" class="btn btn-ghost" onclick="addRoom('bath')">Bathroom</button>
+      <button type="button" class="btn btn-ghost" onclick="addRoom('toilet')">Separate toilet</button>
+      <button type="button" class="btn btn-ghost" onclick="addRoom('custom')">Other room</button>
+    </div>
+    <div style="margin-top:14px"><button type="button" class="btn btn-ghost" style="width:100%" onclick="arClose()">Cancel</button></div>
+  </div>
+</div>
+<div id="txSheet" class="sheet noprint" onclick="if(event.target===this) txClose()">
+  <div class="sheet-card">
+    <h2 id="txTitle">Add</h2>
+    <input type="text" id="txIn" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();txOk();}">
+    <div style="display:flex;gap:8px;margin-top:14px"><button type="button" class="btn btn-ghost" onclick="txClose()">Cancel</button><button type="button" class="btn btn-primary" style="flex:1" onclick="txOk()">Add</button></div>
   </div>
 </div>
 <div id="toast"></div>
@@ -483,19 +672,18 @@ var ROOM_ADDONS = {
   toilet:{base:'Separate toilet', items:['Toilet & cistern','Basin & taps','Tiles & seals','Ventilation','Light & switch']}
 };
 function addRoom(kind){
-  var name;
+  arClose(); if(!cur) return;
   if(kind==='custom'){
-    name=prompt('Room name (e.g. Study, Flatlet, Patio)'); if(!name) return;
-    cur.rooms.push({name:name, items:STD_ROOM.map(function(l){return {label:l,status:null,comment:'',photos:[]};})});
-  } else {
-    var t=ROOM_ADDONS[kind];
-    var n=cur.rooms.filter(function(r){return r.name.indexOf(t.base)===0;}).length;
-    name=t.base+(n?' '+(n+1):'');
-    cur.rooms.push({name:name, items:t.items.map(function(l){return {label:l,status:null,comment:'',photos:[]};})});
+    txAsk('Room name', 'e.g. Study, Flatlet, Patio', function(name){ addRoomDone_(name, STD_ROOM); });
+    return;
   }
-  save(); renderRooms(); updProg();
-  var ri=cur.rooms.length-1, el=document.getElementById('room'+ri);
-  if(el){ el.classList.add('open'); el.scrollIntoView({behavior:'smooth'}); }
+  var t=ROOM_ADDONS[kind];
+  var n=cur.rooms.filter(function(r){return r.name.indexOf(t.base)===0;}).length;
+  addRoomDone_(t.base+(n?' '+(n+1):''), t.items);
+}
+function addRoomDone_(name, labels){
+  cur.rooms.push({name:name, items:labels.map(function(l){return {label:l,status:null,comment:'',photos:[]};})});
+  save(); stepIx=cur.rooms.length-1; renderRooms(); updProg(); window.scrollTo(0,0);
   toast(name+' added');
 }
 
@@ -732,9 +920,9 @@ function spRepUi(){
   var el=document.getElementById('repArch'); if(!el) return;
   qAll().then(function(items){
     var q=items.length;
-    if(cb && spDrop()) cb.textContent='Connect Microsoft ('+(pbSessEmail_()||'your work account')+')';
     /* v1.8.4: say plainly whether the office has been told */
     var of=document.getElementById('repOffice'), cb=document.getElementById('repConnBtn');
+    if(cb && spDrop()) cb.textContent='Connect Microsoft ('+(pbSessEmail_()||'your work account')+')';
     var mine=cur? items.filter(function(x){ return x.root==='REP' && x.folder===spFolderName(); }).length : 0;
     if(cb) cb.style.display = msAccount ? 'none' : 'inline-block';
     var rp=(cur && pbRepPdf.insp===cur.id && pbRepPdf.state && !mine)? pbRepPdf : null;
@@ -1029,12 +1217,13 @@ function show(s){
   document.querySelectorAll('.screen').forEach(function(el){el.classList.remove('on')});
   document.getElementById('s-'+s).classList.add('on');
   document.getElementById('bar').classList.toggle('on', s==='inspect');
+  document.body.setAttribute('data-scr', s); topH_();
   window.scrollTo(0,0);
 }
-function goHome(){ save(); flushSave(); cur=null; PHC={}; PHR={}; renderSaved(); updLastHint(); show('home');
+function goHome(){ save(); flushSave(); cur=null; PHC={}; PHR={}; homeOpen_=false; renderSaved(); updLastHint(); show('home');
   document.getElementById('topTitle').textContent='Inspections';
   document.getElementById('topSub').textContent='The Property Bureau — on-site inspection tool'; }
-function backToInspect(){ show('inspect'); }
+function backToInspect(){ show('inspect'); stepApply(); }
 
 /* ================= New inspection ================= */
 var pickedTpl = 2;
@@ -1047,6 +1236,10 @@ function startInspection(){
   var code = sp0.code || document.getElementById('fCode').value.trim().toUpperCase();
   var addr = document.getElementById('fAddr').value.trim() || (sp0.code ? sp0.rest : '');
   if(!addr && !code){ toast('Enter at least the address or file code'); return; }
+  /* v2.0: no default name. The agent's own name is asked once and remembered on this phone. */
+  var by0 = document.getElementById('fBy').value.replace(/\s+/g,' ').trim();
+  if(!by0){ toast('Enter your name under Inspected by'); try{ document.getElementById('fBy').focus(); }catch(e){} return; }
+  try{ localStorage.setItem('pbInspBy', by0); localStorage.setItem('pbInspByE', pbSessEmail_()||''); }catch(e){}
   var d = new Date();
   cur = {
     id:'INS-'+d.getTime(),
@@ -1089,11 +1282,12 @@ function openInspect(){
   renFill();
   nextFill();   /* v1.9.12 */
   if(cur.from && !cur.fromShown){ cur.fromShown=true; save(); toast('Started from the '+cur.from.split(' ')[0]+' of '+fmtD(cur.from.split(' ')[1])+'. Check each room.'); }
-  renderRooms(); show('inspect'); updProg(); sigRestore();
+  stepStart_(); renderRooms(); show('inspect'); updProg(); stepApply(); sigRestore();
 }
 
 /* ================= Saved list ================= */
 function renderSaved(){
+  homeForm_();
   var all = allSaved(), ids = Object.keys(all).sort(function(a,b){ var da=String(all[a].date||''), db=String(all[b].date||''); return da<db?1:da>db?-1:(a<b?1:-1); });
   var card = document.getElementById('savedCard'), host = document.getElementById('savedList');
   if(!ids.length){ card.style.display='none'; return; }
@@ -1105,7 +1299,7 @@ function renderSaved(){
     if(R.next) ren += '<div class="mt">Next year: '+esc(R.next)+'</div>';
     var div = document.createElement('div'); div.className='saved';
     div.innerHTML = '<div><div class="nm">'+(x.code? x.code+' — ':'')+esc(x.addr||'(no address)')+'</div>'+
-      '<div class="mt">'+x.type+' · '+fmtD(x.date)+' · '+n.set+'/'+n.total+' items · '+n.att+' flagged '+(x.done?'<span class="pill green">Report done</span>':'<span class="pill amber">In progress</span>')+'</div>'+ren+'</div>'+
+      '<div class="mt">'+x.type+' · '+fmtD(x.date)+' · '+n.set+'/'+n.total+' items · '+n.att+' flagged '+(x.done?'<span class="pill green">Report made</span>'+(x.notifiedAt?' <span class="pill green">Office notice sent</span>':''):'<span class="pill amber">In progress</span>')+'</div>'+ren+'</div>'+
       '<div class="btns"><button class="btn btn-ghost btn-sm" onclick="resume(\''+id+'\')">Open</button>'+
       '<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="delSaved(\''+id+'\')">Delete</button></div>';
     host.appendChild(div);
@@ -1124,12 +1318,13 @@ function inOut(x){ x=x||cur; return !!x && (x.type==='Ingoing'||x.type==='Outgoi
 function renderRooms(){
   var host = document.getElementById('roomsHost'); host.innerHTML='';
   cur.rooms.forEach(function(room, ri){
-    var div = document.createElement('div'); div.className='room'+(ri===0?' open':''); div.id='room'+ri;
-    div.innerHTML = '<div class="room-h" onclick="togRoom('+ri+')"><span class="rn">'+esc(room.name)+'</span><span class="rh-r"><button type="button" class="rnb" onclick="event.stopPropagation();rnOpen('+ri+')">Rename</button><span class="rc" id="rc'+ri+'"></span></span></div>'+
+    var div = document.createElement('div'); div.className='room'; div.id='room'+ri;
+    div.innerHTML = '<div class="room-h"><span class="rh-l"><span class="rstep">Room '+(ri+1)+' of '+cur.rooms.length+'</span><span class="rn">'+esc(room.name)+'</span></span><span class="rh-r"><button type="button" class="rnb" onclick="event.stopPropagation();rnOpen('+ri+')">Rename</button><span class="rc" id="rc'+ri+'"></span></span></div>'+
       '<div class="room-body" id="rb'+ri+'">'+roomBody(ri)+'</div>';
     host.appendChild(div);
   });
   cur.rooms.forEach(function(_,ri){ updRoomCount(ri); });
+  stepApply();
 }
 function roomBody(ri){
   var room=cur.rooms[ri], body='';
@@ -1168,7 +1363,7 @@ function setSt(ri,ii,s){
   if(it.status==='poor' && was!=='poor' && !it.act){ it.act=true; it.actAuto=true; }
   if(it.status!=='poor' && was==='poor' && it.actAuto){ it.act=false; it.actAuto=false; }
   if(it.status==='na') it.clean=null;
-  save(); updProg(); updRoomCount(ri); refreshItem(ri,ii);
+  save(); updProg(); updRoomCount(ri); refreshItem(ri,ii); stepChips();
 }
 function setCl(ri,ii,v){
   var it=cur.rooms[ri].items[ii]; it.clean=(it.clean===v? null : v);
@@ -1176,7 +1371,7 @@ function setCl(ri,ii,v){
 }
 function togAct(ri,ii){
   var it=cur.rooms[ri].items[ii]; it.act=!it.act; it.actAuto=false;
-  save(); refreshItem(ri,ii, it.act);
+  save(); refreshItem(ri,ii, it.act); stepChips();
 }
 function roomAllGood(ri){
   var n=0, io=inOut();
@@ -1187,8 +1382,7 @@ function roomAllGood(ri){
   save(); updProg(); updRoomCount(ri);
   document.getElementById('rb'+ri).innerHTML=roomBody(ri);
   toast(n ? n+' item'+(n>1?'s':'')+' marked Good'+(io?' and clean':'') : 'Every item in this room is already rated');
-  var nx=document.getElementById('room'+(ri+1));
-  if(nx){ document.getElementById('room'+ri).classList.remove('open'); nx.classList.add('open'); nx.scrollIntoView({behavior:'smooth',block:'start'}); }
+  goStep(ri+1);
 }
 function roomAllNA(ri){
   var n=0;
@@ -1196,14 +1390,15 @@ function roomAllNA(ri){
   save(); updProg(); updRoomCount(ri);
   document.getElementById('rb'+ri).innerHTML=roomBody(ri);
   toast(n ? n+' item'+(n>1?'s':'')+' marked N/A' : 'Every item in this room is already rated');
-  var nx=document.getElementById('room'+(ri+1));
-  if(nx){ document.getElementById('room'+ri).classList.remove('open'); nx.classList.add('open'); nx.scrollIntoView({behavior:'smooth',block:'start'}); }
+  goStep(ri+1);
 }
 function addItem(ri){
-  var l = prompt('Item name (e.g. Fireplace, Aircon, Balcony)'); if(!l) return;
-  cur.rooms[ri].items.push({label:l, status:null, comment:'', photos:[]});
-  save(); renderRooms();
-  document.getElementById('room'+ri).classList.add('open');
+  txAsk('Add an item', 'e.g. Fireplace, Aircon, Balcony', function(l){
+    cur.rooms[ri].items.push({label:l, status:null, comment:'', photos:[]});
+    save(); renderRooms(); updProg();
+    var el=document.getElementById('it'+ri+'_'+(cur.rooms[ri].items.length-1));
+    if(el) el.scrollIntoView({behavior:'smooth',block:'center'});
+  });
 }
 function updRoomCount(ri){
   var items = cur.rooms[ri].items, set=0;
@@ -1541,7 +1736,7 @@ function rnSave(){
   var clash=cur.rooms.some(function(r,i){ return i!==ri && String(r.name||'').toLowerCase()===name.toLowerCase(); });
   if(clash){ toast('Another room already has that title. Add a description to tell them apart.'); return; }
   cur.rooms[ri].name=name; save();
-  var el=document.querySelector('#room'+ri+' .rn'); if(el) el.textContent=name;
+  var el=document.querySelector('#room'+ri+' .rn'); if(el) el.textContent=name; stepApply();
   rnClose(); toast('Title saved: '+name);
 }
 
@@ -1639,17 +1834,17 @@ function renderKeys(){
   });
   host.innerHTML=h;
 }
-function addKey(){ var l=prompt('Key, remote or tag (e.g. Garage remote)'); if(!l||!cur) return; handInit(cur); cur.keys.push({label:l,iss:'',ret:''}); save(); renderKeys(); }
+function addKey(){ if(!cur) return; txAsk('Key, remote or tag', 'e.g. Garage remote', function(l){ handInit(cur); cur.keys.push({label:l,iss:'',ret:''}); save(); renderKeys(); }); }
 /* v1.9.8 (29.10.2026): change the type of an inspection already started (Routine, Ingoing, Outgoing).
    Everything recorded stays. Moving to Ingoing or Outgoing adds the standard key rows if there are none,
    and the inspection must be finished again so the report is refiled under the new type. */
 function typeSwitch(t){
   if(!cur || t===cur.type) return;
-  if(!confirm('Change this inspection from '+cur.type+' to '+t+'? Everything recorded stays. Press Finish → Report again afterwards.')){ document.getElementById('typeSel').value=cur.type; return; }
+  if(!confirm('Change this inspection from '+cur.type+' to '+t+'? Everything recorded stays. Make the report again afterwards.')){ document.getElementById('typeSel').value=cur.type; return; }
   cur.type=t; cur.done=false;
   if(inOut() && !(cur.keys||[]).length) cur.keys=KEY_ROWS.map(function(l){ return {label:l, iss:'', ret:''}; });
-  save(); flushSave(); openInspect();
-  toast('Now an '+t+' inspection. Check each room, then Finish → Report.');
+  save(); flushSave(); stepKeep_=true; openInspect();
+  toast('Now an '+t+' inspection. Check each room, then make the report.');
 }
 function handFill(){
   handInit(cur);
@@ -2011,9 +2206,143 @@ function toast(msg,ms){
   clearTimeout(toastT); toastT = setTimeout(function(){ t.style.display='none'; }, ms||3000);
 }
 
+/* ================= v2.0 (28.11.2026): one room per screen, steps, sheets =================
+   The inspection is walked as steps: each room, then Renewal terms (renewals only), Handover or
+   Readings, Notes, Next inspection, Sign off and Finish. Only the current step is on screen. Nothing
+   new is stored on the inspection record and no storage key is renamed, so inspections saved by
+   v1.9.x open as before. The report code is not touched. */
+var stepIx=0, stepKeep_=false, txCb_=null;
+var homeOpen_=!!(PRE && (PRE.code||PRE.type));
+function stepShown_(id){ var el=document.getElementById(id); return !!el && el.style.display!=='none'; }
+function stepList(){
+  var L=[]; if(!cur) return L;
+  cur.rooms.forEach(function(r,i){ L.push({k:'room', ri:i, name:r.name||('Room '+(i+1))}); });
+  if(stepShown_('renCard')) L.push({k:'ren', name:'Renewal terms'});
+  L.push({k:'hand', name:inOut()?'Handover':'Readings'});
+  L.push({k:'notes', name:'Notes'});
+  if(stepShown_('nextCard')) L.push({k:'next', name:'Next inspection'});
+  L.push({k:'sign', name:'Sign off'});
+  L.push({k:'finish', name:'Finish'});
+  return L;
+}
+function stepOf(k){ var L=stepList(); for(var i=0;i<L.length;i++){ if(L[i].k===k) return i; } return 0; }
+function roomState_(r){
+  var set=0, fl=0, items=(r&&r.items)||[];
+  items.forEach(function(it){ if(it.status) set++; if(it.act) fl++; });
+  return {set:set, total:items.length, fl:fl};
+}
+function stepChips(centre){
+  var host=document.getElementById('stepChips'); if(!host||!cur) return;
+  var L=stepList(), h='', keep=host.scrollLeft;
+  L.forEach(function(s,i){
+    var c='chip'+(i===stepIx?' cur':'');
+    if(s.k==='room'){
+      var st=roomState_(cur.rooms[s.ri]), full=st.total>0 && st.set>=st.total;
+      var say=full?'done':(st.set?'part done':'not started');
+      h+='<button type="button" class="'+c+'" id="chip'+i+'" onclick="goStep('+i+')" aria-label="'+esc(s.name)+', '+say+(st.fl?', has a flagged item':'')+'">'+
+        '<span class="dot'+(full?' g':(st.set?' a':''))+'"></span>'+esc(s.name)+(st.fl?'<span class="fl"></span>':'')+'</button>';
+      if(s.ri===cur.rooms.length-1) h+='<button type="button" class="chip add" onclick="arOpen()">+ Room</button>';
+    } else {
+      h+='<button type="button" class="'+c+' sec" id="chip'+i+'" onclick="goStep('+i+')">'+esc(s.name)+'</button>';
+    }
+  });
+  host.innerHTML=h;
+  var el=document.getElementById('chip'+stepIx);
+  if(centre && el) host.scrollLeft=Math.max(0, el.offsetLeft-(host.clientWidth-el.offsetWidth)/2);
+  else host.scrollLeft=keep;
+}
+function stepApply(){
+  if(!cur) return;
+  var L=stepList(); if(!L.length) return;
+  if(stepIx>L.length-1) stepIx=L.length-1;
+  if(stepIx<0) stepIx=0;
+  var s=L[stepIx], i;
+  for(i=0;i<cur.rooms.length;i++){ var el=document.getElementById('room'+i); if(el) el.classList.toggle('open', s.k==='room' && s.ri===i); }
+  var ws=document.querySelectorAll('#s-inspect .stepwrap');
+  for(i=0;i<ws.length;i++){ var d=ws[i].getAttribute('data-step'); ws[i].classList.toggle('on', d==='first' ? (s.k==='room' && s.ri===0) : d===s.k); }
+  stepChips(true);
+  var nb=document.getElementById('barNext'), bb=document.getElementById('barBack');
+  if(nb) nb.textContent = stepIx>=L.length-1 ? 'Make the report' : 'Next: '+L[stepIx+1].name;
+  if(bb) bb.style.display = stepIx>0 ? '' : 'none';
+  if(s.k==='finish') finFill();
+  topH_();
+}
+function goStep(i){ if(!cur) return; stepIx=i; stepApply(); window.scrollTo(0,0); }
+function barNext(){ if(!cur) return; if(stepIx>=stepList().length-1) makeReport(); else goStep(stepIx+1); }
+function stepStart_(){
+  if(stepKeep_){ stepKeep_=false; return; }
+  stepIx=0; if(!cur) return;
+  var L=stepList(), n=counts(cur);
+  if(cur.done){ stepIx=L.length-1; return; }
+  if(!n.set) return;
+  for(var i=0;i<cur.rooms.length;i++){ var s=roomState_(cur.rooms[i]); if(s.set<s.total){ stepIx=i; return; } }
+  stepIx=L.length-1;
+}
+function topH_(){ try{ var t=document.querySelector('.top'); if(t && t.offsetHeight) document.documentElement.style.setProperty('--topH', t.offsetHeight+'px'); }catch(e){} }
+try{ window.addEventListener('resize', topH_); }catch(e){}
+function finFill(){
+  var host=document.getElementById('finBody'); if(!host||!cur) return;
+  var n=counts(cur), left=[], h='';
+  cur.rooms.forEach(function(r,i){ var s=roomState_(r); if(s.set<s.total) left.push(i); });
+  var row=function(c,t,s,extra){ return '<div class="fin-row"><span class="fdot'+(c?' '+c:'')+'"></span><div class="fin-m"><div class="fin-t">'+t+'</div>'+(s?'<div class="fin-s">'+s+'</div>':'')+(extra||'')+'</div></div>'; };
+  var jump=function(i,lab){ return '<button type="button" class="finj" onclick="goStep('+i+')">'+esc(lab)+'</button>'; };
+  h+=row(left.length?'a':'g', n.set+' of '+n.total+' items rated',
+    left.length?'Still to rate in these rooms. Anything left shows on the report as not rated.':'Every item is rated.',
+    left.length?'<div class="finj-w">'+left.map(function(i){ return jump(i, cur.rooms[i].name); }).join('')+'</div>':'');
+  h+=row(n.att?'r':'g', n.att? n.att+' item'+(n.att>1?'s':'')+' flagged for the office' : 'Nothing flagged for the office',
+    n.att?'Flagged items are marked on the report.':'');
+  var ph=n.ph||0, vd=n.vid||0;
+  h+=row('', ph+' photo'+(ph===1?'':'s')+(vd?' and '+vd+' video'+(vd===1?'':'s'):''), ph?'':'Photos are optional.');
+  var hasSum=!!String(cur.summary||'').replace(/\s+/g,'');
+  h+=row(hasSum?'g':'a', hasSum?'Summary written':'No summary yet',
+    hasSum?'':'Three sentences that print at the top of the report.',
+    hasSum?'':'<div class="finj-w">'+jump(stepOf('notes'),'Write the summary')+'</div>');
+  h+=row(cur.sigBy?'g':'a', cur.sigBy?'Agent has signed':'Agent has not signed', '',
+    cur.sigBy?'':'<div class="finj-w">'+jump(stepOf('sign'),'Go to sign off')+'</div>');
+  h+=row(cur.sig?'g':'', cur.sig?'Tenant has signed':'Tenant has not signed', cur.sig?'':'It is optional.');
+  host.innerHTML=h;
+}
+/* a small sheet in place of the browser prompt box */
+function txAsk(title, ph, cb){
+  txCb_=cb;
+  document.getElementById('txTitle').textContent=title;
+  var i=document.getElementById('txIn'); i.value=''; i.placeholder=ph||'';
+  document.getElementById('txSheet').classList.add('on');
+  try{ i.focus(); }catch(e){}
+}
+function txClose(){ document.getElementById('txSheet').classList.remove('on'); txCb_=null; }
+function txOk(){
+  var v=document.getElementById('txIn').value.replace(/\s+/g,' ').trim();
+  if(!v){ toast('Type a name first'); return; }
+  var cb=txCb_; txClose(); if(cb && cur) cb(v);
+}
+function arOpen(){ if(cur) document.getElementById('addRoomSheet').classList.add('on'); }
+function arClose(){ document.getElementById('addRoomSheet').classList.remove('on'); }
+/* home: with inspections saved on this phone the list comes first and the form opens from one button */
+function homeForm_(){
+  var nb=document.getElementById('newBtn'), nc=document.getElementById('newCard'), cl=document.getElementById('newClose');
+  if(!nb||!nc) return;
+  var has=false; try{ has=Object.keys(allSaved()||{}).length>0; }catch(e){}
+  var open=homeOpen_ || !has;
+  nc.style.display=open?'block':'none';
+  nb.style.display=open?'none':'block';
+  if(cl) cl.style.display=has?'block':'none';
+}
+/* Inspected by: the name last used on this phone by this sign in, else the name on the session */
+function byPrefill_(){
+  try{
+    var f=document.getElementById('fBy'); if(!f||f.value) return;
+    var nm=localStorage.getItem('pbInspBy')||'', em=localStorage.getItem('pbInspByE')||'', se=pbSessEmail_()||'', dn='';
+    try{ var s=JSON.parse(localStorage.getItem('pb_session')||'null'); if(s && s.displayName && (!s.expiry || Date.now()<s.expiry)) dn=String(s.displayName); }catch(e){}
+    if(nm && em && se && em.toLowerCase()===se.toLowerCase()) f.value=nm;
+    else if(dn) f.value=dn;
+    else if(nm && (!em || !se)) f.value=nm;
+  }catch(e){}
+}
+
 /* ================= Init ================= */
 document.getElementById('fDate').value = new Date().toISOString().slice(0,10);
-applyPrefill(); inspBoot(); loadRegistry(); sigInit(); spInit();
+applyPrefill(); byPrefill_(); topH_(); inspBoot(); loadRegistry(); sigInit(); spInit();
 /* v1.9.0: offline. sw.js keeps this page and its four libraries on the phone so the app opens with no signal */
 if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register('./sw.js').catch(function(){}); }catch(e){} }
 </script>

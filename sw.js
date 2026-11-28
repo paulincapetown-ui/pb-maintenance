@@ -3,7 +3,7 @@
    site (Hub, Jobs, Apps Script, Microsoft sign-in, Graph uploads) passes straight through untouched.
    The page is network first: with signal you always get the live version, the copy on the phone is
    used only when the network fails or takes longer than 4 seconds. */
-var CACHE = 'pb-insp-v190';
+var CACHE = 'pb-insp-v200';
 var PAGE = './inspect.html';
 var LIBS = [
   'https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.4/lib/msal-browser.min.js',
