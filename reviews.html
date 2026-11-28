@@ -253,10 +253,103 @@ function pbSid_(){ try{ var s=JSON.parse(localStorage.getItem('pb_session')||'nu
 var GAS_TOKEN = pbSid_();
 function pbRole_(){ try{ var s=JSON.parse(localStorage.getItem('pb_session')||'null'); return String((s&&s.role)||'').toLowerCase(); }catch(e){ return ''; } }
 (function(){ var of=window.fetch; window.fetch=function(u,o){ var pr=of.apply(this,arguments);
-  try{ if(String(u).indexOf('script.google.com/macros')>-1 && !(o&&o.mode==='no-cors')){
+  try{ if(String(u).indexOf('script.google.com/macros')>-1 && !(o&&(o.mode==='no-cors'||o.pbQuiet))){
     pr.then(function(r){ try{ r.clone().json().then(function(j){ if(j&&j.authRequired) pbAuthExpired_(); }).catch(function(){}); }catch(e){} }).catch(function(){}); } }catch(e){}
   return pr; }; })();
 function pbAuthExpired_(){ var had=false; try{ had=!!localStorage.getItem('pb_session'); localStorage.removeItem('pb_session'); }catch(e){} if(window.__pbAuthGone) return; window.__pbAuthGone=true; if(had){ location.reload(); } }
+/* PB-SAVE-CHECK-START (28.11.2026, audit A1): a save is confirmed by reading the record back with a GET.
+   The reply to a send is still never read. The same block sits in dashboard.html, form.html, reviews.html
+   and platform_hub.html: change all four together. */
+function pbFreshSid_(){ var s=pbSid_(); if(s) GAS_TOKEN=s; return s; }
+function pbLoose_(v){ return String(v==null?'':v).replace(/^'/,'').trim().toLowerCase(); }
+function pbWait_(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
+async function pbQuietGet_(action, params){
+  var sid=pbFreshSid_(); if(!sid) return {authRequired:true};
+  var u=GAS_URL+'?action='+encodeURIComponent(action)+'&token='+encodeURIComponent(sid);
+  Object.keys(params||{}).forEach(function(k){ u+='&'+encodeURIComponent(k)+'='+encodeURIComponent(params[k]); });
+  var r=await fetch(u,{redirect:'follow',pbQuiet:true});
+  return await r.json();
+}
+/* Sends the save, then reads the list back. Returns {state}: saved, notsaved, auth or unknown. Never throws. */
+async function pbSaveCheck_(payload, chk){
+  try{
+    var sid=pbFreshSid_(); if(!sid) return {state:'auth'};
+    payload.token=sid;
+    var posted=true;
+    try{ await fetch(GAS_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(payload)}); }catch(e){ posted=false; }
+    if(!chk) return posted?{state:'unknown'}:{state:'notsaved',why:'offline'};
+    var tries=posted?3:1, read=false;
+    for(var i=0;i<tries;i++){
+      if(i) await pbWait_(1200);
+      var j=null;
+      try{ j=await pbQuietGet_(chk.get, chk.params); }catch(e){ j=null; }
+      if(!j) continue;
+      if(j.authRequired) return {state:'auth'};
+      if(j.denied) return {state:'unknown',denied:true};
+      var list=j[chk.list];
+      if(!Array.isArray(list)) continue;
+      read=true;
+      var hit=chk.test(list);
+      if(hit) return {state:'saved',row:(hit&&typeof hit==='object')?hit:null};
+    }
+    if(!read) return posted?{state:'unknown'}:{state:'notsaved',why:'offline'};
+    return posted?{state:'notsaved'}:{state:'notsaved',why:'offline'};
+  }catch(e){ return {state:'unknown'}; }
+}
+function pbChkAdd_(key,id,also){ return function(list){
+  for(var i=0;i<list.length;i++){ var r=list[i]; if(!r||pbLoose_(r[key])!==pbLoose_(id)) continue;
+    var ok=true; if(also){ for(var k in also){ if(pbLoose_(r[k])!==pbLoose_(also[k])){ ok=false; break; } } }
+    if(ok) return r; }
+  return false; }; }
+function pbChkGone_(key,id){ return function(list){ for(var i=0;i<list.length;i++){ if(list[i]&&pbLoose_(list[i][key])===pbLoose_(id)) return false; } return true; }; }
+/* base: the updatedAt the page held before the save (null when not known). fields: values that must match.
+   text: {old, sent, keys} for a table with no updatedAt, where a changed text field must show a change. */
+function pbChkUpd_(key,id,base,fields,text){ return function(list){
+  var r=null; for(var i=0;i<list.length;i++){ if(list[i]&&pbLoose_(list[i][key])===pbLoose_(id)){ r=list[i]; break; } }
+  if(!r) return false;
+  if(base!=null && ('updatedAt' in r)){
+    var now=String(r.updatedAt==null?'':r.updatedAt);
+    if(!now) return false;
+    if(/\d\d:\d\d:\d\d/.test(now) && String(base)===now) return false;
+  }
+  if(fields){ for(var k in fields){ if(fields[k]===undefined) continue; if(pbLoose_(r[k])!==pbLoose_(fields[k])) return false; } }
+  if(text && text.keys){ var ch=0, mv=0;
+    for(var n=0;n<text.keys.length;n++){ var t=text.keys[n]; if(text.sent[t]===undefined) continue;
+      if(pbLoose_(text.sent[t])!==pbLoose_(text.old[t])){ ch++; if(pbLoose_(r[t])!==pbLoose_(text.old[t])) mv++; } }
+    if(ch && !mv) return false; }
+  return r; }; }
+function pbSaveMsg_(res, kept, words){
+  words=words||{}; res=res||{};
+  var not=(words.not||'Not saved')+'. ';
+  var tail=kept===true?' What you typed is still here.':(kept===false?' It is back as it was.':'');
+  if(res.state==='unknown') return words.unknown||'Could not check that this saved. Refresh the page and look before you do it again.';
+  if(res.state==='auth') return not+'Your sign in has ended. Press Sign in, sign in on the page that opens, then come back here and try again.'+tail;
+  if(res.why==='offline') return not+'The platform could not be reached. Check the connection and try again.'+tail;
+  return not+'The platform did not take it. Please try again.'+tail;
+}
+/* One message bar at the foot of the page. kind: ok (goes after 3 seconds), busy, warn or auth (stay until closed). */
+function pbSay_(msg, kind, key){
+  var el=document.getElementById('pb-say');
+  if(!msg){ if(el) el.style.display='none'; return; }
+  if(!el){ el=document.createElement('div'); el.id='pb-say'; el.setAttribute('role','status');
+    el.style.cssText='position:fixed;left:12px;right:12px;bottom:12px;z-index:9000;background:#182048;color:#fff;font:14px/1.45 Arial,Helvetica,sans-serif;padding:12px 14px;border-radius:8px;border-left:6px solid #2D297D;box-shadow:0 6px 24px rgba(0,0,0,.3);display:none;max-width:720px;margin:0 auto';
+    document.body.appendChild(el); }
+  kind=kind||'ok';
+  if(el._t){ clearTimeout(el._t); el._t=null; }
+  el.dataset.k=key||kind;
+  el.style.borderLeftColor=(kind==='warn'||kind==='auth')?'#C9A84C':'#2D297D';
+  el.textContent='';
+  var s=document.createElement('span'); s.textContent=msg; el.appendChild(s);
+  if(kind==='auth'){ var a=document.createElement('a'); a.href='./dashboard.html'; a.target='_blank'; a.rel='noopener'; a.textContent='Sign in';
+    a.style.cssText='display:inline-block;margin-left:12px;padding:4px 12px;border-radius:6px;background:#fff;color:#182048;font-weight:bold;text-decoration:none'; el.appendChild(a); }
+  if(kind==='warn'||kind==='auth'){ var b=document.createElement('button'); b.type='button'; b.textContent='Close';
+    b.style.cssText='margin-left:12px;padding:4px 12px;border-radius:6px;border:1px solid #fff;background:transparent;color:#fff;font:inherit;cursor:pointer';
+    b.onclick=function(){ el.style.display='none'; }; el.appendChild(b); }
+  el.style.display='block';
+  if(kind==='ok') el._t=setTimeout(function(){ el.style.display='none'; },3000);
+}
+function pbSayClear_(key){ var el=document.getElementById('pb-say'); if(el && el.dataset.k===key) el.style.display='none'; }
+/* PB-SAVE-CHECK-END */
 var GOOGLE_LINK = 'https://g.page/r/CdgkV20WXitZEBM/review';
 var TP_LINK     = 'https://www.trustpilot.com/evaluate/propertybureau.co.za';
 
@@ -561,7 +654,7 @@ function todayISO() {
   return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
 }
 
-function logAsk(m, i) {
+async function logAsk(m, i) {
   var sess = getSession();
   var prop = document.getElementById('f-prop').value.trim();
   var code = /^[Ll]\s?\d+/.test(prop) ? prop : '';
@@ -580,19 +673,35 @@ function logAsk(m, i) {
     notes: ''
   };
 
-  fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) })
-    .catch(function(){ /* no-cors gives no readable response either way */ });
-
-  var ok = document.getElementById('ok-' + i);
-  if (ok) { ok.style.display = 'inline'; setTimeout(function(){ ok.style.display = 'none'; }, 2600); }
-
-  PENDING_ROWS.unshift({
+  var row = {
     reviewId: payload.reviewId, dateAsked: payload.dateAsked, moment: payload.moment,
     property: payload.property, askedOf: payload.askedOf, platform: payload.platform,
-    askedBy: payload.askedBy, outcome: 'Pending'
-  });
+    askedBy: payload.askedBy, outcome: 'Saving'
+  };
+  PENDING_ROWS.unshift(row);
   renderLog(PENDING_ROWS.concat(SERVER_ROWS));
-  setTimeout(function(){ loadStats(); loadLog(); }, 2500);
+  var res = await pbSaveCheck_(payload, { get: 'getReviews', list: 'reviews', test: pbChkAdd_('reviewId', payload.reviewId) });
+  if (res.state === 'notsaved' || res.state === 'auth') {
+    PENDING_ROWS = PENDING_ROWS.filter(function(r){ return r !== row; });
+    renderLog(PENDING_ROWS.concat(SERVER_ROWS));
+    var why = res.state === 'auth'
+      ? 'Your sign in has ended. Press Sign in, sign in on the page that opens, then come back here and press the button again.'
+      : (res.why === 'offline'
+        ? 'The platform could not be reached. Check the connection and press the button again.'
+        : 'The platform did not take it. Press the button again.');
+    pbSay_('The message is copied, but the ask was not logged. ' + why, res.state === 'auth' ? 'auth' : 'warn');
+    return;
+  }
+  row.outcome = 'Pending';
+  renderLog(PENDING_ROWS.concat(SERVER_ROWS));
+  if (res.state === 'saved') {
+    pbSayClear_('warn'); pbSayClear_('auth');
+    var ok = document.getElementById('ok-' + i);
+    if (ok) { ok.style.display = 'inline'; setTimeout(function(){ ok.style.display = 'none'; }, 2600); }
+  } else {
+    pbSay_('The message is copied, but the page could not check that the ask was logged. Refresh the page and look at the log before you log it again.', 'warn');
+  }
+  loadStats(); loadLog();
 }
 
 // READ BACK
@@ -624,7 +733,7 @@ function loadLog() {
     })
     .catch(function(){
       document.getElementById('log-wrap').innerHTML =
-        '<div class="empty">Could not load the log. The asks you just made are still recorded.</div>';
+        '<div class="empty">Could not load the log. Refresh the page to see it.</div>';
     });
 }
 
@@ -663,7 +772,8 @@ function renderLog(rows) {
 
 // Two-step remove: first click arms the button, second click deletes.
 // No browser confirm dialog, deliberately.
-function removeAsk(reviewId, btn) {
+async function removeAsk(reviewId, btn) {
+  if (PENDING_ROWS.some(function(r){ return r.reviewId === reviewId && r.outcome === 'Saving'; })) return;
   if (btn.dataset.armed !== '1') {
     btn.dataset.armed = '1';
     btn.classList.add('arm');
@@ -677,30 +787,41 @@ function removeAsk(reviewId, btn) {
     }, 4000);
     return;
   }
+  btn.dataset.armed = '0';
+  btn.classList.remove('arm');
   btn.disabled = true;
-  btn.textContent = 'Removing…';
-  fetch(GAS_URL, {
-    method: 'POST', mode: 'no-cors',
-    body: JSON.stringify({ action: 'deleteReview', token: GAS_TOKEN, reviewId: reviewId })
-  }).catch(function(){});
-  PENDING_ROWS = PENDING_ROWS.filter(function(r){ return r.reviewId !== reviewId; });
-  SERVER_ROWS  = SERVER_ROWS.filter(function(r){ return r.reviewId !== reviewId; });
-  renderLog(PENDING_ROWS.concat(SERVER_ROWS));
-  setTimeout(function(){ loadStats(); loadLog(); }, 2500);
+  btn.textContent = 'Removing\u2026';
+  var res = await pbSaveCheck_({ action: 'deleteReview', reviewId: reviewId }, { get: 'getReviews', list: 'reviews', test: pbChkGone_('reviewId', reviewId) });
+  if (res.state === 'saved') {
+    pbSayClear_('warn'); pbSayClear_('auth');
+    PENDING_ROWS = PENDING_ROWS.filter(function(r){ return r.reviewId !== reviewId; });
+    SERVER_ROWS  = SERVER_ROWS.filter(function(r){ return r.reviewId !== reviewId; });
+    renderLog(PENDING_ROWS.concat(SERVER_ROWS));
+    loadStats(); loadLog();
+    return;
+  }
+  if (document.body.contains(btn)) { btn.disabled = false; btn.textContent = 'Remove'; }
+  pbSay_(pbSaveMsg_(res, undefined, { not: 'Not removed', unknown: 'Could not check that it was removed. Refresh the page and look before you do it again.' }), res.state === 'auth' ? 'auth' : 'warn');
 }
 
-function markReceived(reviewId, btn) {
+async function markReceived(reviewId, btn) {
+  if (btn.disabled) return;
   btn.disabled = true;
-  btn.textContent = 'Saving…';
-  fetch(GAS_URL, {
-    method: 'POST', mode: 'no-cors',
-    body: JSON.stringify({ action: 'updateReview', token: GAS_TOKEN, reviewId: reviewId, outcome: 'Received' })
-  }).catch(function(){});
-  setTimeout(function(){ loadStats(); loadLog(); }, 2500);
+  btn.textContent = 'Saving\u2026';
+  var res = await pbSaveCheck_({ action: 'updateReview', reviewId: reviewId, outcome: 'Received' }, { get: 'getReviews', list: 'reviews', test: pbChkUpd_('reviewId', reviewId, null, { outcome: 'Received' }) });
+  if (res.state === 'saved') {
+    pbSayClear_('warn'); pbSayClear_('auth');
+    PENDING_ROWS.concat(SERVER_ROWS).forEach(function(r){ if (r.reviewId === reviewId) r.outcome = 'Received'; });
+    renderLog(PENDING_ROWS.concat(SERVER_ROWS));
+    loadStats(); loadLog();
+    return;
+  }
+  if (document.body.contains(btn)) { btn.disabled = false; btn.textContent = 'Received'; }
+  pbSay_(pbSaveMsg_(res), res.state === 'auth' ? 'auth' : 'warn');
 }
 
 renderMoments();
 </script>
-<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Reviews · build 02.11.2026</div>
+<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Reviews · build 28.11.2026</div>
 </body>
 </html>

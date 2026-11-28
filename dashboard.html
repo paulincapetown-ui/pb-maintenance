@@ -406,10 +406,119 @@ function pbSid_(){ try{ var s=JSON.parse(localStorage.getItem('pb_session')||'nu
 var GAS_TOKEN = pbSid_();
 function pbRole_(){ try{ var s=JSON.parse(localStorage.getItem('pb_session')||'null'); return String((s&&s.role)||'').toLowerCase(); }catch(e){ return ''; } }
 (function(){ var of=window.fetch; window.fetch=function(u,o){ var pr=of.apply(this,arguments);
-  try{ if(String(u).indexOf('script.google.com/macros')>-1 && !(o&&o.mode==='no-cors')){
+  try{ if(String(u).indexOf('script.google.com/macros')>-1 && !(o&&(o.mode==='no-cors'||o.pbQuiet))){
     pr.then(function(r){ try{ r.clone().json().then(function(j){ if(j&&j.authRequired) pbAuthExpired_(); }).catch(function(){}); }catch(e){} }).catch(function(){}); } }catch(e){}
   return pr; }; })();
-function pbAuthExpired_(){ var had=false; try{ had=!!localStorage.getItem('pb_session'); localStorage.removeItem('pb_session'); }catch(e){} if(window.__pbAuthGone) return; window.__pbAuthGone=true; if(had){ location.reload(); } }
+function pbAuthExpired_(){ pbSignInAgain_(); }
+/* PB-SAVE-CHECK-START (28.11.2026, audit A1): a save is confirmed by reading the record back with a GET.
+   The reply to a send is still never read. The same block sits in dashboard.html, form.html, reviews.html
+   and platform_hub.html: change all four together. */
+function pbFreshSid_(){ var s=pbSid_(); if(s) GAS_TOKEN=s; return s; }
+function pbLoose_(v){ return String(v==null?'':v).replace(/^'/,'').trim().toLowerCase(); }
+function pbWait_(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
+async function pbQuietGet_(action, params){
+  var sid=pbFreshSid_(); if(!sid) return {authRequired:true};
+  var u=GAS_URL+'?action='+encodeURIComponent(action)+'&token='+encodeURIComponent(sid);
+  Object.keys(params||{}).forEach(function(k){ u+='&'+encodeURIComponent(k)+'='+encodeURIComponent(params[k]); });
+  var r=await fetch(u,{redirect:'follow',pbQuiet:true});
+  return await r.json();
+}
+/* Sends the save, then reads the list back. Returns {state}: saved, notsaved, auth or unknown. Never throws. */
+async function pbSaveCheck_(payload, chk){
+  try{
+    var sid=pbFreshSid_(); if(!sid) return {state:'auth'};
+    payload.token=sid;
+    var posted=true;
+    try{ await fetch(GAS_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(payload)}); }catch(e){ posted=false; }
+    if(!chk) return posted?{state:'unknown'}:{state:'notsaved',why:'offline'};
+    var tries=posted?3:1, read=false;
+    for(var i=0;i<tries;i++){
+      if(i) await pbWait_(1200);
+      var j=null;
+      try{ j=await pbQuietGet_(chk.get, chk.params); }catch(e){ j=null; }
+      if(!j) continue;
+      if(j.authRequired) return {state:'auth'};
+      if(j.denied) return {state:'unknown',denied:true};
+      var list=j[chk.list];
+      if(!Array.isArray(list)) continue;
+      read=true;
+      var hit=chk.test(list);
+      if(hit) return {state:'saved',row:(hit&&typeof hit==='object')?hit:null};
+    }
+    if(!read) return posted?{state:'unknown'}:{state:'notsaved',why:'offline'};
+    return posted?{state:'notsaved'}:{state:'notsaved',why:'offline'};
+  }catch(e){ return {state:'unknown'}; }
+}
+function pbChkAdd_(key,id,also){ return function(list){
+  for(var i=0;i<list.length;i++){ var r=list[i]; if(!r||pbLoose_(r[key])!==pbLoose_(id)) continue;
+    var ok=true; if(also){ for(var k in also){ if(pbLoose_(r[k])!==pbLoose_(also[k])){ ok=false; break; } } }
+    if(ok) return r; }
+  return false; }; }
+function pbChkGone_(key,id){ return function(list){ for(var i=0;i<list.length;i++){ if(list[i]&&pbLoose_(list[i][key])===pbLoose_(id)) return false; } return true; }; }
+/* base: the updatedAt the page held before the save (null when not known). fields: values that must match.
+   text: {old, sent, keys} for a table with no updatedAt, where a changed text field must show a change. */
+function pbChkUpd_(key,id,base,fields,text){ return function(list){
+  var r=null; for(var i=0;i<list.length;i++){ if(list[i]&&pbLoose_(list[i][key])===pbLoose_(id)){ r=list[i]; break; } }
+  if(!r) return false;
+  if(base!=null && ('updatedAt' in r)){
+    var now=String(r.updatedAt==null?'':r.updatedAt);
+    if(!now) return false;
+    if(/\d\d:\d\d:\d\d/.test(now) && String(base)===now) return false;
+  }
+  if(fields){ for(var k in fields){ if(fields[k]===undefined) continue; if(pbLoose_(r[k])!==pbLoose_(fields[k])) return false; } }
+  if(text && text.keys){ var ch=0, mv=0;
+    for(var n=0;n<text.keys.length;n++){ var t=text.keys[n]; if(text.sent[t]===undefined) continue;
+      if(pbLoose_(text.sent[t])!==pbLoose_(text.old[t])){ ch++; if(pbLoose_(r[t])!==pbLoose_(text.old[t])) mv++; } }
+    if(ch && !mv) return false; }
+  return r; }; }
+function pbSaveMsg_(res, kept, words){
+  words=words||{}; res=res||{};
+  var not=(words.not||'Not saved')+'. ';
+  var tail=kept===true?' What you typed is still here.':(kept===false?' It is back as it was.':'');
+  if(res.state==='unknown') return words.unknown||'Could not check that this saved. Refresh the page and look before you do it again.';
+  if(res.state==='auth') return not+'Your sign in has ended. Press Sign in, sign in on the page that opens, then come back here and try again.'+tail;
+  if(res.why==='offline') return not+'The platform could not be reached. Check the connection and try again.'+tail;
+  return not+'The platform did not take it. Please try again.'+tail;
+}
+/* One message bar at the foot of the page. kind: ok (goes after 3 seconds), busy, warn or auth (stay until closed). */
+function pbSay_(msg, kind, key){
+  var el=document.getElementById('pb-say');
+  if(!msg){ if(el) el.style.display='none'; return; }
+  if(!el){ el=document.createElement('div'); el.id='pb-say'; el.setAttribute('role','status');
+    el.style.cssText='position:fixed;left:12px;right:12px;bottom:12px;z-index:9000;background:#182048;color:#fff;font:14px/1.45 Arial,Helvetica,sans-serif;padding:12px 14px;border-radius:8px;border-left:6px solid #2D297D;box-shadow:0 6px 24px rgba(0,0,0,.3);display:none;max-width:720px;margin:0 auto';
+    document.body.appendChild(el); }
+  kind=kind||'ok';
+  if(el._t){ clearTimeout(el._t); el._t=null; }
+  el.dataset.k=key||kind;
+  el.style.borderLeftColor=(kind==='warn'||kind==='auth')?'#C9A84C':'#2D297D';
+  el.textContent='';
+  var s=document.createElement('span'); s.textContent=msg; el.appendChild(s);
+  if(kind==='auth'){ var a=document.createElement('a'); a.href='./dashboard.html'; a.target='_blank'; a.rel='noopener'; a.textContent='Sign in';
+    a.style.cssText='display:inline-block;margin-left:12px;padding:4px 12px;border-radius:6px;background:#fff;color:#182048;font-weight:bold;text-decoration:none'; el.appendChild(a); }
+  if(kind==='warn'||kind==='auth'){ var b=document.createElement('button'); b.type='button'; b.textContent='Close';
+    b.style.cssText='margin-left:12px;padding:4px 12px;border-radius:6px;border:1px solid #fff;background:transparent;color:#fff;font:inherit;cursor:pointer';
+    b.onclick=function(){ el.style.display='none'; }; el.appendChild(b); }
+  el.style.display='block';
+  if(kind==='ok') el._t=setTimeout(function(){ el.style.display='none'; },3000);
+}
+function pbSayClear_(key){ var el=document.getElementById('pb-say'); if(el && el.dataset.k===key) el.style.display='none'; }
+/* PB-SAVE-CHECK-END */
+/* Dashboard only (28.11.2026, audit A2): an ended sign in shows the sign in screen and the list stays. */
+var jobsLoadedOnce=false, pbSubText_=null;
+function pbSignInAgain_(){
+  var had=false;
+  try{ var s=JSON.parse(localStorage.getItem('pb_session')||'null'); had=!!s; if(s&&s.email) window.__pbPrevUser=String(s.email).toLowerCase(); localStorage.removeItem('pb_session'); }catch(e){}
+  var ov=document.getElementById('login-overlay'); if(!ov) return;
+  if(getComputedStyle(ov).display!=='none') return;
+  resetLogin();
+  var sub=document.querySelector('#ls1 .l-sub');
+  if(sub && had){ if(pbSubText_===null) pbSubText_=sub.textContent; sub.textContent='Your sign in has ended. Sign in again to carry on. Anything you were typing is still there.'; }
+  ov.style.display='flex';
+}
+function pbStale_(){
+  var e=document.getElementById('pb-say');
+  if(!e||e.style.display==='none'||e.dataset.k==='stale') pbSay_('Could not refresh the jobs list. What you see is the last list that loaded.','warn','stale');
+}
 // ────────────────────────────────────────────────────────────────
 
 let allJobs = [], filteredJobs = [], currentJob = null, emailModalJob = null, waModalJob = null;
@@ -467,6 +576,9 @@ function showMainContent(sess) {
   const nx = new URLSearchParams(location.search).get('next');
   if (nx === 'platform_hub.html' || nx === 'inspect.html') { location.href = './' + nx; return; }
 
+  if(window.__pbPrevUser && window.__pbPrevUser!==String((sess&&sess.email)||'').toLowerCase()){ window.__pbPrevUser=''; location.reload(); return; }
+  window.__pbPrevUser='';
+  if(pbSubText_!==null){ var sb=document.querySelector('#ls1 .l-sub'); if(sb) sb.textContent=pbSubText_; }
   document.getElementById('login-overlay').style.display = 'none';
   const badge = document.getElementById('user-badge');
   if (badge) badge.textContent = sess.displayName || sess.email;
@@ -678,7 +790,8 @@ function showToast(msg){ const t=document.getElementById('toast'); t.textContent
 // ── Data ──────────────────────────────────────────────────────
 async function loadJobs(){
   const tbody = document.getElementById('jobs-tbody');
-  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:#888">⏳ Loading jobs…</td></tr>';
+  if(!pbFreshSid_()){ pbSignInAgain_(); return; }
+  if(!jobsLoadedOnce) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:#888">⏳ Loading jobs…</td></tr>';
   // Apps Script GETs fail intermittently (cold start / quota). Retry once
   // after a short pause before surfacing an error to staff.
   let data = null, lastErr = null;
@@ -695,10 +808,17 @@ async function loadJobs(){
     }
   }
   if(lastErr){
+    if(jobsLoadedOnce){ pbStale_(); return; }
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:#e74c3c">⚠ Could not load jobs — '+esc(lastErr.message)+'</td></tr>';
     return;
   }
-  allJobs = (data && data.jobs) ? data.jobs : [];
+  if(data && data.authRequired){ pbSignInAgain_(); return; }
+  if(!data || !Array.isArray(data.jobs)){
+    if(jobsLoadedOnce){ pbStale_(); return; }
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:#e74c3c">Could not load jobs. Refresh the page to try again.</td></tr>';
+    return;
+  }
+  allJobs = data.jobs; jobsLoadedOnce = true; pbSayClear_('stale');
   updateStats(); populatePropertyFilter(); applyFilters();
   showToast('Jobs refreshed');
 }
@@ -925,25 +1045,29 @@ function startEdit(){
 }
 
 async function saveEdit(){
-  const inputs = document.getElementById('detail-inner').querySelectorAll('[name]');
-  const updates = { action:'updateJob', id:currentJob.id };
-  inputs.forEach(inp=>{ updates[inp.name]=inp.value });
+  const job = currentJob; if(!job) return;
   const saveBtn = document.querySelector('#edit-actions .btn-primary');
-  if(saveBtn){ saveBtn.textContent='Saving…'; saveBtn.disabled=true; }
-  try {
-    await gasPost(updates);
-    Object.assign(currentJob, updates);
-    const idx = allJobs.findIndex(j=>j.id===currentJob.id);
-    if(idx!==-1) allJobs[idx] = Object.assign({}, currentJob);
+  if(saveBtn && saveBtn.disabled) return;
+  const inputs = document.getElementById('detail-inner').querySelectorAll('[name]');
+  const updates = { action:'updateJob', id:job.id };
+  inputs.forEach(inp=>{ updates[inp.name]=inp.value });
+  if(saveBtn){ saveBtn.textContent='Saving\u2026'; saveBtn.disabled=true; }
+  const fresh = allJobs.find(j=>j.id===job.id) || job;
+  const res = await pbSaveCheck_(updates, { get:'getJobs', list:'jobs', test:pbChkUpd_('id', job.id, fresh.updatedAt, { status:updates.status }) });
+  if(saveBtn){ saveBtn.textContent='Save Changes'; saveBtn.disabled=false; }
+  if(res.state==='auth'){ pbSignInAgain_(); return; }
+  if(res.state==='notsaved'){ pbSay_(pbSaveMsg_(res,true),'warn'); return; }
+  delete updates.action; delete updates.token;
+  Object.assign(job, updates, res.row||{});
+  const idx = allJobs.findIndex(j=>j.id===job.id);
+  if(idx!==-1) allJobs[idx] = Object.assign({}, job);
+  if(currentJob===job){
     document.getElementById('edit-actions').style.display='none';
     renderDetail(currentJob, false);
     loadEmailHistory(currentJob.id);
-    updateStats(); renderTable();
-    showToast('Job updated');
-  } catch(e) {
-    showToast('Save failed — please check your connection');
-    if(saveBtn){ saveBtn.textContent='Save Changes'; saveBtn.disabled=false; }
   }
+  updateStats(); renderTable();
+  if(res.state==='saved'){ pbSay_(''); showToast('Job updated'); } else pbSay_(pbSaveMsg_(res),'warn');
 }
 
 function cancelEdit(){
@@ -952,11 +1076,19 @@ function cancelEdit(){
   loadEmailHistory(currentJob.id);
 }
 
-function confirmDelete(){
+async function confirmDelete(){
   if(!confirm('Delete job '+currentJob.id+'?\n\nThis cannot be undone. Use "Complete" status instead for finished jobs.')) return;
-  gasPost({ action:'deleteJob', id:currentJob.id });
-  allJobs = allJobs.filter(j=>j.id!==currentJob.id);
-  closeDetail();
+  const job = currentJob; if(!job || job.pbDeleting) return;
+  job.pbDeleting = true;
+  pbSay_('Deleting\u2026','busy');
+  const res = await pbSaveCheck_({ action:'deleteJob', id:job.id }, { get:'getJobs', list:'jobs', test:pbChkGone_('id', job.id) });
+  job.pbDeleting = false;
+  if(res.state==='auth'){ pbSay_(''); pbSignInAgain_(); return; }
+  if(res.state==='notsaved'){ pbSay_(pbSaveMsg_(res, undefined, {not:'Not deleted'}),'warn'); return; }
+  if(res.state==='unknown'){ pbSay_('Could not check that the job was deleted. Refresh the page and look before you delete it again.','warn'); return; }
+  pbSay_('');
+  allJobs = allJobs.filter(j=>j.id!==job.id);
+  if(currentJob===job) closeDetail();
   updateStats(); applyFilters();
   showToast('Job deleted');
 }
@@ -1074,20 +1206,37 @@ function openMailto(){
   document.getElementById('open-mailto-btn').style.display='none';
 }
 
+/* 28.11.2026: an email or WhatsApp log entry is confirmed by counting the job's history before and after. */
+async function pbLogSend_(job, payload, btnId, badgeId, word, closeFn){
+  const btn = document.getElementById(btnId);
+  if(!job || !btn || btn.disabled) return;
+  btn.disabled = true;
+  pbSay_('Logging\u2026','busy');
+  let before = -1;
+  try{
+    const j = await pbQuietGet_('getEmails', { jobId: job.id });
+    if(j && j.authRequired){ btn.disabled=false; pbSay_(''); pbSignInAgain_(); return; }
+    if(j && Array.isArray(j.emails)) before = j.emails.length;
+  }catch(e){}
+  const res = await pbSaveCheck_(payload, before<0 ? null : { get:'getEmails', params:{ jobId: job.id }, list:'emails', test:list=>list.length>before });
+  btn.disabled = false;
+  if(res.state==='auth'){ pbSay_(''); pbSignInAgain_(); return; }
+  if(res.state==='notsaved'){ pbSay_(pbSaveMsg_(res, true, {not:'Not logged'}),'warn'); return; }
+  btn.style.display='none';
+  if(res.state==='saved'){ document.getElementById(badgeId).style.display='block'; pbSay_(''); showToast(word+' logged'); }
+  else pbSay_('Could not check that this was logged. Look at the email history on the job before you log it again.','warn');
+  setTimeout(()=>{ closeFn(); if(currentJob) loadEmailHistory(currentJob.id) }, 1200);
+}
 async function logEmail(){
-  const j = emailModalJob||currentJob;
-  await gasPost({
+  const j = emailModalJob||currentJob; if(!j) return;
+  await pbLogSend_(j, {
     action:'logEmail', jobId:j.id,
     sentToName: document.getElementById('email-to-name').value,
     sentToEmail: document.getElementById('email-to-addr').value,
     subject: document.getElementById('email-subject').value,
     sentBy: document.getElementById('email-staff-name').value,
     templateUsed: document.getElementById('email-modal').dataset.templateUsed||''
-  });
-  document.getElementById('email-sent-badge').style.display='block';
-  document.getElementById('log-email-btn').style.display='none';
-  showToast('Email logged');
-  setTimeout(()=>{ closeEmailModal(); if(currentJob) loadEmailHistory(currentJob.id) }, 1200);
+  }, 'log-email-btn', 'email-sent-badge', 'Email', closeEmailModal);
 }
 
 function closeEmailModal(){
@@ -1159,19 +1308,15 @@ function openWhatsApp(){
 }
 
 async function logWhatsApp(){
-  const j = waModalJob||currentJob;
-  await gasPost({
+  const j = waModalJob||currentJob; if(!j) return;
+  await pbLogSend_(j, {
     action:'logEmail', jobId:j.id,
     sentToName: document.getElementById('wa-to-name').value,
     sentToEmail: document.getElementById('wa-phone').value,
     subject: '(WhatsApp) '+document.getElementById('wa-body').value.slice(0,60),
     sentBy: document.getElementById('wa-staff-name').value,
     templateUsed: 'WhatsApp'
-  });
-  document.getElementById('wa-sent-badge').style.display='block';
-  document.getElementById('log-wa-btn').style.display='none';
-  showToast('WhatsApp logged');
-  setTimeout(()=>{ closeWhatsAppModal(); if(currentJob) loadEmailHistory(currentJob.id) }, 1200);
+  }, 'log-wa-btn', 'wa-sent-badge', 'WhatsApp', closeWhatsAppModal);
 }
 
 function closeWhatsAppModal(){
@@ -1200,6 +1345,6 @@ document.addEventListener('visibilitychange', function() {
   }
 });
 </script>
-<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Jobs · build 02.11.2026</div>
+<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Jobs · build 28.11.2026</div>
 </body>
 </html>

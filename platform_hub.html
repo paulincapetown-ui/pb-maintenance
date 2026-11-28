@@ -220,7 +220,7 @@
   </nav>
   <main class="main" id="main"><div class="loading">Loading…</div></main>
 </div>
-<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Hub · build 14.11.2026 · sign out</div>
+<div class="pb-build" style="text-align:center;color:#8a90a0;font-size:11px;padding:10px 0 14px">PB Platform · Hub · build 28.11.2026 · sign out</div>
 
 <script>
 const GAS_URL   = "https://script.google.com/macros/s/AKfycby5nKnxqm86hEwhH5Im5jTsiMRgkv7QPDcmeqcNEAAhFXHW_OwR0-4o0qEtoCkCGjraSA/exec";
@@ -232,10 +232,103 @@ function pbSid_(){ try{ var s=JSON.parse(localStorage.getItem('pb_session')||'nu
 var GAS_TOKEN = pbSid_();
 function pbRole_(){ try{ var s=JSON.parse(localStorage.getItem('pb_session')||'null'); return String((s&&s.role)||'').toLowerCase(); }catch(e){ return ''; } }
 (function(){ var of=window.fetch; window.fetch=function(u,o){ var pr=of.apply(this,arguments);
-  try{ if(String(u).indexOf('script.google.com/macros')>-1 && !(o&&o.mode==='no-cors')){
+  try{ if(String(u).indexOf('script.google.com/macros')>-1 && !(o&&(o.mode==='no-cors'||o.pbQuiet))){
     pr.then(function(r){ try{ r.clone().json().then(function(j){ if(j&&j.authRequired) pbAuthExpired_(); }).catch(function(){}); }catch(e){} }).catch(function(){}); } }catch(e){}
   return pr; }; })();
 function pbAuthExpired_(){ var had=false; try{ had=!!localStorage.getItem('pb_session'); localStorage.removeItem('pb_session'); }catch(e){} if(window.__pbAuthGone) return; window.__pbAuthGone=true; if(had){ location.href='./dashboard.html?next=platform_hub.html'; } }
+/* PB-SAVE-CHECK-START (28.11.2026, audit A1): a save is confirmed by reading the record back with a GET.
+   The reply to a send is still never read. The same block sits in dashboard.html, form.html, reviews.html
+   and platform_hub.html: change all four together. */
+function pbFreshSid_(){ var s=pbSid_(); if(s) GAS_TOKEN=s; return s; }
+function pbLoose_(v){ return String(v==null?'':v).replace(/^'/,'').trim().toLowerCase(); }
+function pbWait_(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
+async function pbQuietGet_(action, params){
+  var sid=pbFreshSid_(); if(!sid) return {authRequired:true};
+  var u=GAS_URL+'?action='+encodeURIComponent(action)+'&token='+encodeURIComponent(sid);
+  Object.keys(params||{}).forEach(function(k){ u+='&'+encodeURIComponent(k)+'='+encodeURIComponent(params[k]); });
+  var r=await fetch(u,{redirect:'follow',pbQuiet:true});
+  return await r.json();
+}
+/* Sends the save, then reads the list back. Returns {state}: saved, notsaved, auth or unknown. Never throws. */
+async function pbSaveCheck_(payload, chk){
+  try{
+    var sid=pbFreshSid_(); if(!sid) return {state:'auth'};
+    payload.token=sid;
+    var posted=true;
+    try{ await fetch(GAS_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(payload)}); }catch(e){ posted=false; }
+    if(!chk) return posted?{state:'unknown'}:{state:'notsaved',why:'offline'};
+    var tries=posted?3:1, read=false;
+    for(var i=0;i<tries;i++){
+      if(i) await pbWait_(1200);
+      var j=null;
+      try{ j=await pbQuietGet_(chk.get, chk.params); }catch(e){ j=null; }
+      if(!j) continue;
+      if(j.authRequired) return {state:'auth'};
+      if(j.denied) return {state:'unknown',denied:true};
+      var list=j[chk.list];
+      if(!Array.isArray(list)) continue;
+      read=true;
+      var hit=chk.test(list);
+      if(hit) return {state:'saved',row:(hit&&typeof hit==='object')?hit:null};
+    }
+    if(!read) return posted?{state:'unknown'}:{state:'notsaved',why:'offline'};
+    return posted?{state:'notsaved'}:{state:'notsaved',why:'offline'};
+  }catch(e){ return {state:'unknown'}; }
+}
+function pbChkAdd_(key,id,also){ return function(list){
+  for(var i=0;i<list.length;i++){ var r=list[i]; if(!r||pbLoose_(r[key])!==pbLoose_(id)) continue;
+    var ok=true; if(also){ for(var k in also){ if(pbLoose_(r[k])!==pbLoose_(also[k])){ ok=false; break; } } }
+    if(ok) return r; }
+  return false; }; }
+function pbChkGone_(key,id){ return function(list){ for(var i=0;i<list.length;i++){ if(list[i]&&pbLoose_(list[i][key])===pbLoose_(id)) return false; } return true; }; }
+/* base: the updatedAt the page held before the save (null when not known). fields: values that must match.
+   text: {old, sent, keys} for a table with no updatedAt, where a changed text field must show a change. */
+function pbChkUpd_(key,id,base,fields,text){ return function(list){
+  var r=null; for(var i=0;i<list.length;i++){ if(list[i]&&pbLoose_(list[i][key])===pbLoose_(id)){ r=list[i]; break; } }
+  if(!r) return false;
+  if(base!=null && ('updatedAt' in r)){
+    var now=String(r.updatedAt==null?'':r.updatedAt);
+    if(!now) return false;
+    if(/\d\d:\d\d:\d\d/.test(now) && String(base)===now) return false;
+  }
+  if(fields){ for(var k in fields){ if(fields[k]===undefined) continue; if(pbLoose_(r[k])!==pbLoose_(fields[k])) return false; } }
+  if(text && text.keys){ var ch=0, mv=0;
+    for(var n=0;n<text.keys.length;n++){ var t=text.keys[n]; if(text.sent[t]===undefined) continue;
+      if(pbLoose_(text.sent[t])!==pbLoose_(text.old[t])){ ch++; if(pbLoose_(r[t])!==pbLoose_(text.old[t])) mv++; } }
+    if(ch && !mv) return false; }
+  return r; }; }
+function pbSaveMsg_(res, kept, words){
+  words=words||{}; res=res||{};
+  var not=(words.not||'Not saved')+'. ';
+  var tail=kept===true?' What you typed is still here.':(kept===false?' It is back as it was.':'');
+  if(res.state==='unknown') return words.unknown||'Could not check that this saved. Refresh the page and look before you do it again.';
+  if(res.state==='auth') return not+'Your sign in has ended. Press Sign in, sign in on the page that opens, then come back here and try again.'+tail;
+  if(res.why==='offline') return not+'The platform could not be reached. Check the connection and try again.'+tail;
+  return not+'The platform did not take it. Please try again.'+tail;
+}
+/* One message bar at the foot of the page. kind: ok (goes after 3 seconds), busy, warn or auth (stay until closed). */
+function pbSay_(msg, kind, key){
+  var el=document.getElementById('pb-say');
+  if(!msg){ if(el) el.style.display='none'; return; }
+  if(!el){ el=document.createElement('div'); el.id='pb-say'; el.setAttribute('role','status');
+    el.style.cssText='position:fixed;left:12px;right:12px;bottom:12px;z-index:9000;background:#182048;color:#fff;font:14px/1.45 Arial,Helvetica,sans-serif;padding:12px 14px;border-radius:8px;border-left:6px solid #2D297D;box-shadow:0 6px 24px rgba(0,0,0,.3);display:none;max-width:720px;margin:0 auto';
+    document.body.appendChild(el); }
+  kind=kind||'ok';
+  if(el._t){ clearTimeout(el._t); el._t=null; }
+  el.dataset.k=key||kind;
+  el.style.borderLeftColor=(kind==='warn'||kind==='auth')?'#C9A84C':'#2D297D';
+  el.textContent='';
+  var s=document.createElement('span'); s.textContent=msg; el.appendChild(s);
+  if(kind==='auth'){ var a=document.createElement('a'); a.href='./dashboard.html'; a.target='_blank'; a.rel='noopener'; a.textContent='Sign in';
+    a.style.cssText='display:inline-block;margin-left:12px;padding:4px 12px;border-radius:6px;background:#fff;color:#182048;font-weight:bold;text-decoration:none'; el.appendChild(a); }
+  if(kind==='warn'||kind==='auth'){ var b=document.createElement('button'); b.type='button'; b.textContent='Close';
+    b.style.cssText='margin-left:12px;padding:4px 12px;border-radius:6px;border:1px solid #fff;background:transparent;color:#fff;font:inherit;cursor:pointer';
+    b.onclick=function(){ el.style.display='none'; }; el.appendChild(b); }
+  el.style.display='block';
+  if(kind==='ok') el._t=setTimeout(function(){ el.style.display='none'; },3000);
+}
+function pbSayClear_(key){ var el=document.getElementById('pb-say'); if(el && el.dataset.k===key) el.style.display='none'; }
+/* PB-SAVE-CHECK-END */
 
 function checkSession(){
   try{ const s = JSON.parse(localStorage.getItem('pb_session') || 'null');
@@ -261,6 +354,7 @@ const main = document.getElementById('main');
 
 async function api(action, params, tries){
   tries = (tries==null)?2:tries;   // one retry by default — the free backend blips on mobile
+  pbFreshSid_();
   const u = new URL(GAS_URL); u.searchParams.set('token', GAS_TOKEN); u.searchParams.set('action', action);
   Object.keys(params||{}).forEach(k=>u.searchParams.set(k, params[k]));
   let err;
@@ -270,15 +364,86 @@ async function api(action, params, tries){
   }
   throw err;
 }
-async function postApi(action, data){
-  // Fire-and-forget write. Apps Script /exec answers POST with a 302 to
-  // googleusercontent.com that carries no CORS headers, so reading the
-  // response throws "Failed to fetch" and poisons the page session until
-  // reload. no-cors writes succeed server-side; we never read the response.
-  // IDs are generated client-side and sent in the data so nothing is needed back.
-  const body = JSON.stringify(Object.assign({token:GAS_TOKEN, action:action}, data));
-  await fetch(GAS_URL, {method:'POST', mode:'no-cors', body:body});
-  return {};
+/* 28.11.2026 (audit A1): every Hub save goes through postApi, which sends it (the reply is never read) and
+   then reads the list back. It returns {state}: saved, notsaved, auth, unknown (could not check) or
+   unchecked (nothing to read back for this action). It never throws. */
+let pbPropParts_={}, pbEditParts_={}, pbReplyBusy_={}; const pbBusyRecs_=new WeakSet();
+const PB_SAVE_MAP={
+  addProperty:['getProperties','properties','propertyId',['clientCode']], updateProperty:['getProperties','properties','propertyId'],
+  addLandlord:['getLandlords','landlords','landlordId',['name']], updateLandlord:['getLandlords','landlords','landlordId'],
+  addTenant:['getTenants','tenants','tenantId',['name']], updateTenant:['getTenants','tenants','tenantId'],
+  addTenancy:['getTenancies','tenancies','tenancyCode',['propertyId','tenantId']], updateTenancy:['getTenancies','tenancies','tenancyCode'],
+  addUrgentAction:['getUrgentActions','urgentActions','actionId'], updateUrgentAction:['getUrgentActions','urgentActions','actionId'],
+  addActionReply:['getActionReplies','replies','replyId'],
+  addRenewal:['getRenewals','renewals','renewalId'], updateRenewal:['getRenewals','renewals','renewalId'],
+  addInspection:['getInspections','inspections','inspectionId'], updateInspection:['getInspections','inspections','inspectionId'],
+  addActiveListing:['getActiveListings','activeListings','listingId'], updateActiveListing:['getActiveListings','activeListings','listingId'],
+  addLead:['getLeads','leads','leadId'], updateLead:['getLeads','leads','leadId'],
+  addUser:['getStaffList','staff','email',['displayName']], updateUser:['getStaffList','staff','email']
+};
+const PB_SAVE_ENUM=['status','renewalStatus','inspectionStatus','listingStatus','role','active','assignedTo','assignedAgent'];
+const PB_SAVE_TEXT=['issue','whoToCall','contactName','flaggedBy'];
+async function postApi(action, data, base){
+  const payload=Object.assign({action:action}, data), m=PB_SAVE_MAP[action];
+  if(!m){ const r0=await pbSaveCheck_(payload, null); return (r0.state==='unknown')?{state:'unchecked'}:r0; }
+  const idField=m[2], id=payload[idField]; let test;
+  if(action.indexOf('add')===0){
+    const also={}; (m[3]||[]).forEach(k=>{ if(payload[k]!==undefined) also[k]=payload[k]; });
+    test=pbChkAdd_(idField, id, also);
+    if(action==='addLead' && payload.uaId){ const t1=test; test=list=>t1(list)||list.find(x=>x&&x.uaId&&pbLoose_(x.uaId)===pbLoose_(payload.uaId))||false; }
+  } else {
+    const f={}; PB_SAVE_ENUM.forEach(k=>{ if(payload[k]!==undefined) f[k]=payload[k]; });
+    const text=(action==='updateUrgentAction'&&base)?{old:base, sent:payload, keys:PB_SAVE_TEXT}:null;
+    test=pbChkUpd_(idField, id, base?String(base.updatedAt||''):null, f, text);
+  }
+  const res=await pbSaveCheck_(payload, {get:m[0], list:m[1], test:test});
+  if(res.denied) return {state:'unchecked'};
+  return res;
+}
+/* Says the result on the message bar. True when the page may carry on as saved. */
+function pbSaveOk_(res, kept, quiet, words){
+  words=words||{};
+  if(res.state==='saved'){ if(quiet){ pbSayClear_('busy'); pbSayClear_('warn'); pbSayClear_('auth'); } else pbSay_(words.ok||'Saved.','ok'); return true; }
+  if(res.state==='unchecked'){ pbSayClear_('busy'); pbSayClear_('ok'); return true; }
+  if(res.state==='unknown'){ pbSay_(pbSaveMsg_(res, undefined, words),'warn'); return true; }
+  pbSay_(pbSaveMsg_(res, kept, words), res.state==='auth'?'auth':'warn'); return false;
+}
+function pbStamp_(rec, res){ const r=res&&res.row; if(rec&&r){ if(r.updatedAt) rec.updatedAt=r.updatedAt; if(r.createdAt&&!rec.createdAt) rec.createdAt=r.createdAt; } }
+function pbTyping_(){ return Array.from(main.querySelectorAll('input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]),textarea')).some(t=>t.value!==t.defaultValue); }
+function pbSameScreen_(before){
+  if(main.innerHTML!==before) return false;
+  const a=document.activeElement;
+  if(a && main.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
+  return !pbTyping_();
+}
+function pbOnUrgent_(){ const n=document.getElementById('nav-urgent'); return !!(n&&n.classList.contains('active')) && !pbTyping_(); }
+/* One tap changes (done, role, recall): shown at once, then put back if the read back says it did not save. */
+async function pbToggle_(rec, change, action, data, render, words){
+  if(!rec) return false;
+  if(pbBusyRecs_.has(rec)){ pbSay_('Still saving the last change. Try again in a moment.','warn'); if(!pbTyping_()) render(); return false; }
+  pbBusyRecs_.add(rec);
+  const snap=Object.assign({}, rec);
+  Object.assign(rec, change); render();
+  const before=main.innerHTML;
+  pbSay_('Saving\u2026','busy');
+  const res=await postApi(action, data, snap);
+  pbBusyRecs_.delete(rec);
+  if(res.state!=='notsaved' && res.state!=='auth'){ pbStamp_(rec,res); pbSaveOk_(res, undefined, false, words); return true; }
+  Object.keys(rec).forEach(k=>delete rec[k]); Object.assign(rec, snap);
+  const redrawn=pbSameScreen_(before); if(redrawn) render();
+  pbSay_(pbSaveMsg_(res, redrawn?false:undefined, words)+(redrawn?'':' Refresh the page to see where it stands.'), res.state==='auth'?'auth':'warn');
+  return false;
+}
+/* Form saves (renewal, inspection, listing): the list on screen changes only once the save is read back. */
+async function pbFormSave_(o){
+  const arr0=o.arr(), old=o.edit?arr0.find(x=>String(x[o.key])===String(o.data[o.key])):null;
+  const res=await postApi(o.action, o.data, old);
+  if(!pbSaveOk_(res, true, false, o.words)){ if(document.body.contains(o.btn)){ o.btn.textContent=o.label; o.btn.disabled=false; } return false; }
+  const arr=o.arr();
+  if(o.edit){ const i=arr.findIndex(x=>String(x[o.key])===String(o.data[o.key])); if(i>-1){ arr[i]=Object.assign({},arr[i],o.data); pbStamp_(arr[i],res); } }
+  else if(!arr.some(x=>String(x[o.key])===String(o.data[o.key]))){ pbStamp_(o.data,res); arr.push(o.data); }
+  if(document.body.contains(o.btn)) o.after();
+  return true;
 }
 function setNav(id){ document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); var el=document.getElementById(id); if(el) el.classList.add('active'); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -484,22 +649,59 @@ async function submitProperty(){
   const prop={propertyId:propertyId, clientCode:code, portfolio:code.charAt(0), portfolioLabel:pf.label||code.charAt(0), address:addr,
     assignedAgent:g('np-agent'), landlordIds:'', currentTenancyCode:'', currentTenantId:'',
     notes:(g('np-notes')?g('np-notes')+'\n':'')+'Added on the Hub by '+who+' on '+pbTodayZA()+'.'};
-  try{
-    if(g('np-own')){
+  /* 28.11.2026: each part is read back before the next is sent. A second press reuses the parts that
+     already saved, so the owner or tenant is never added twice. */
+  const ownName=g('np-own'), ownEm=g('np-own-em'), tenName=g('np-ten'), tenEm=g('np-ten-em');
+  const memo=(pbPropParts_.code===code)?pbPropParts_:(pbPropParts_={code:code});
+  let unsure=false;
+  const bad=r=>(r.state==='notsaved'||r.state==='auth');
+  const fail=r=>{ if(document.body.contains(b)){ b.textContent='Save property'; b.disabled=false; } pbSay_(pbSaveMsg_(r,true), r.state==='auth'?'auth':'warn'); };
+  const step=async(a,d,base)=>{ const r=await postApi(a,d,base); if(r.state==='unknown') unsure=true; return r; };
+  if(memo.propertyId && !PROPS.some(p=>p.propertyId===memo.propertyId)) prop.propertyId=memo.propertyId;
+  const pid=prop.propertyId; memo.propertyId=pid;
+  if(ownName){
+    const ov=ownName+'|'+ownEm;
+    if(!memo.landlordId){
       const landlordId=pbNextId(Object.values(LL),'landlordId','LL-');
-      const ll={landlordId:landlordId, name:g('np-own'), email:g('np-own-em'), linkedProperties:code};
-      await postApi('addLandlord',ll); LL[landlordId]=ll; prop.landlordIds=landlordId;
+      const ll={landlordId:landlordId, name:ownName, email:ownEm, linkedProperties:code};
+      const r=await step('addLandlord',ll); if(bad(r)){ fail(r); return; }
+      pbStamp_(ll,r); LL[landlordId]=ll; memo.landlordId=landlordId; memo.own=ov;
+    } else if(memo.own!==ov){
+      const r=await step('updateLandlord',{landlordId:memo.landlordId, name:ownName, email:ownEm}, LL[memo.landlordId]); if(bad(r)){ fail(r); return; }
+      if(LL[memo.landlordId]){ LL[memo.landlordId].name=ownName; LL[memo.landlordId].email=ownEm; pbStamp_(LL[memo.landlordId],r); }
+      memo.own=ov;
     }
-    if(g('np-ten')){
-      const tenantId=pbNextId(Object.values(TEN),'tenantId','TN-'), tenancyCode=code+'/01';
-      const tn={tenantId:tenantId, name:g('np-ten'), email:g('np-ten-em')};
-      const ty={tenancyCode:tenancyCode, propertyId:propertyId, tenantId:tenantId, current:'TRUE'};
-      await postApi('addTenant',tn); await postApi('addTenancy',ty);
-      TEN[tenantId]=tn; TENCY[tenancyCode]=ty; prop.currentTenancyCode=tenancyCode; prop.currentTenantId=tenantId;
+    prop.landlordIds=memo.landlordId;
+  }
+  if(tenName){
+    const tv=tenName+'|'+tenEm;
+    if(!memo.tenantId){
+      const tenantId=pbNextId(Object.values(TEN),'tenantId','TN-');
+      const tn={tenantId:tenantId, name:tenName, email:tenEm};
+      const r=await step('addTenant',tn); if(bad(r)){ fail(r); return; }
+      pbStamp_(tn,r); TEN[tenantId]=tn; memo.tenantId=tenantId; memo.ten=tv;
+    } else if(memo.ten!==tv){
+      const r=await step('updateTenant',{tenantId:memo.tenantId, name:tenName, email:tenEm}, TEN[memo.tenantId]); if(bad(r)){ fail(r); return; }
+      if(TEN[memo.tenantId]){ TEN[memo.tenantId].name=tenName; TEN[memo.tenantId].email=tenEm; pbStamp_(TEN[memo.tenantId],r); }
+      memo.ten=tv;
     }
-    await postApi('addProperty',prop);
-    PROPS.push(prop); openProfile(code);
-  }catch(e){ b.textContent='Save property'; b.disabled=false; alert('Could not save. Check the connection and try again.'); }
+    if(!memo.tenancyCode){
+      const tenancyCode=code+'/01';
+      const ty={tenancyCode:tenancyCode, propertyId:pid, tenantId:memo.tenantId, current:'TRUE'};
+      const r=await step('addTenancy',ty); if(bad(r)){ fail(r); return; }
+      pbStamp_(ty,r); TENCY[tenancyCode]=ty; memo.tenancyCode=tenancyCode; memo.typid=pid;
+    } else if(memo.typid!==pid){
+      const r=await step('updateTenancy',{tenancyCode:memo.tenancyCode, propertyId:pid}, TENCY[memo.tenancyCode]); if(bad(r)){ fail(r); return; }
+      if(TENCY[memo.tenancyCode]){ TENCY[memo.tenancyCode].propertyId=pid; pbStamp_(TENCY[memo.tenancyCode],r); }
+      memo.typid=pid;
+    }
+    prop.currentTenancyCode=memo.tenancyCode; prop.currentTenantId=memo.tenantId;
+  }
+  const rp=await step('addProperty',prop); if(bad(rp)){ fail(rp); return; }
+  pbStamp_(prop,rp); if(!PROPS.some(p=>p.propertyId===prop.propertyId)) PROPS.push(prop);
+  pbPropParts_={};
+  if(unsure) pbSay_('Sent, but the page could not check that every part saved. Refresh the page and look at the property before you do it again.','warn'); else pbSay_('Saved.','ok');
+  if(document.body.contains(b)) openProfile(code);
 }
 /* Edit details (21.10.2026, Paul): the office corrects a property it loaded wrongly.
    Address, agent, owner and tenant use the existing update actions. A new file code goes
@@ -554,38 +756,46 @@ async function saveEdit(code){
   const own=String(prop.landlordIds||'').split(';').map(s=>s.trim()).filter(Boolean).map(id=>LL[id]).filter(Boolean)[0]||null;
   const ten=tcy?TEN[tcy.tenantId]:null;
   try{
+    /* 28.11.2026: each part is read back. A second press reuses an owner or tenant already added. */
+    let unsure=false; const memo=(pbEditParts_.id===prop.propertyId)?pbEditParts_:(pbEditParts_={id:prop.propertyId});
+    const post=async(a,d,base)=>{ const r=await postApi(a,d,base); if(r.state==='notsaved'||r.state==='auth'){ const er=new Error('pbsave'); er.pb=r; throw er; } if(r.state==='unknown') unsure=true; return r; };
     const pu={propertyId:prop.propertyId};
     if(addr!==String(prop.address||'')){ pu.address=addr; changed.push('address'); }
     if(g('ed-agent')!==String(prop.assignedAgent||'')){ pu.assignedAgent=g('ed-agent'); changed.push('agent'); }
     if(own){
       if(g('ed-own')!==String(own.name||'')||g('ed-own-em')!==String(own.email||'')){
-        await postApi('updateLandlord',{landlordId:own.landlordId, name:g('ed-own'), email:g('ed-own-em')}); changed.push('owner'); }
+        await post('updateLandlord',{landlordId:own.landlordId, name:g('ed-own'), email:g('ed-own-em')}, own); changed.push('owner'); }
     } else if(g('ed-own')){
-      const landlordId=pbNextId(Object.values(LL),'landlordId','LL-');
-      if(LL[landlordId]) throw new Error('id');
-      await postApi('addLandlord',{landlordId:landlordId, name:g('ed-own'), email:g('ed-own-em'), linkedProperties:oldCode});
+      const landlordId=memo.ll||pbNextId(Object.values(LL),'landlordId','LL-'), ov=g('ed-own')+'|'+g('ed-own-em');
+      if(!memo.ll && LL[landlordId]) throw new Error('id');
+      if(!memo.ll){ await post('addLandlord',{landlordId:landlordId, name:g('ed-own'), email:g('ed-own-em'), linkedProperties:oldCode}); memo.ll=landlordId; memo.llv=ov; }
+      else if(memo.llv!==ov){ await post('updateLandlord',{landlordId:landlordId, name:g('ed-own'), email:g('ed-own-em')}); memo.llv=ov; }
       pu.landlordIds=landlordId; changed.push('owner added');
     }
     if(ten){
       if(g('ed-ten')!==String(ten.name||'')||g('ed-ten-em')!==String(ten.email||'')){
-        await postApi('updateTenant',{tenantId:ten.tenantId, name:g('ed-ten'), email:g('ed-ten-em')}); changed.push('tenant'); }
+        await post('updateTenant',{tenantId:ten.tenantId, name:g('ed-ten'), email:g('ed-ten-em')}, ten); changed.push('tenant'); }
     } else if(g('ed-ten')){
-      const tenantId=pbNextId(Object.values(TEN),'tenantId','TN-'), tenancyCode=oldCode+'/01';
-      if(TEN[tenantId]||TENCY[tenancyCode]) throw new Error('id');
-      await postApi('addTenant',{tenantId:tenantId, name:g('ed-ten'), email:g('ed-ten-em')});
-      await postApi('addTenancy',{tenancyCode:tenancyCode, propertyId:prop.propertyId, tenantId:tenantId, current:'TRUE'});
+      const tenantId=memo.tn||pbNextId(Object.values(TEN),'tenantId','TN-'), tenancyCode=oldCode+'/01', tv=g('ed-ten')+'|'+g('ed-ten-em');
+      if((!memo.tn && TEN[tenantId])||(!memo.ty && TENCY[tenancyCode])) throw new Error('id');
+      if(!memo.tn){ await post('addTenant',{tenantId:tenantId, name:g('ed-ten'), email:g('ed-ten-em')}); memo.tn=tenantId; memo.tnv=tv; }
+      else if(memo.tnv!==tv){ await post('updateTenant',{tenantId:tenantId, name:g('ed-ten'), email:g('ed-ten-em')}); memo.tnv=tv; }
+      if(!memo.ty){ await post('addTenancy',{tenancyCode:tenancyCode, propertyId:prop.propertyId, tenantId:tenantId, current:'TRUE'}); memo.ty=tenancyCode; }
       pu.currentTenancyCode=tenancyCode; pu.currentTenantId=tenantId; changed.push('tenant added');
     }
     if(newCode!==oldCode) changed.push('file code '+oldCode+' to '+newCode);
     if(!changed.length){ document.getElementById('end-panel').innerHTML=''; return; }
     pu.notes=String(prop.notes||'')+(prop.notes?'\n':'')+'Edited on the Hub by '+who+' on '+pbTodayZA()+': '+changed.join(', ')+'.';
-    await postApi('updateProperty',pu);
-    if(newCode!==oldCode) await postApi('renamePropertyCode',{propertyId:prop.propertyId, oldCode:oldCode, newCode:newCode});
+    await post('updateProperty',pu,prop);
+    if(newCode!==oldCode) await post('renamePropertyCode',{propertyId:prop.propertyId, oldCode:oldCode, newCode:newCode});
+    pbEditParts_={};
     await pbReloadRegistry_();
+    if(unsure) pbSay_('Sent, but the page could not check that every part saved. Look at the property below before you do it again.','warn'); else pbSay_('Saved.','ok');
     if(newCode!==oldCode && !PROPS.some(p=>String(p.clientCode||'').toUpperCase()===newCode)){
       alert('The other details were saved, but the file code was not changed. Ask Paul.'); openProfile(oldCode); return; }
     openProfile(newCode);
-  }catch(e){ b.textContent='Save changes'; b.disabled=false; alert('Could not save. Refresh the page and try again.'); }
+  }catch(e){ if(document.body.contains(b)){ b.textContent='Save changes'; b.disabled=false; }
+    if(e&&e.pb) pbSay_(pbSaveMsg_(e.pb,true), e.pb.state==='auth'?'auth':'warn'); else alert('Could not save. Refresh the page and try again.'); }
 }
 function showEndPanel(code){
   const el=document.getElementById('end-panel'); if(!el) return;
@@ -598,15 +808,16 @@ async function confirmEnded(code){
   const who=(session&&(session.displayName||session.email))||'the office', reason=(document.getElementById('end-reason')||{}).value||'';
   const notes='ENDED '+pbTodayZA()+(reason.trim()?': '+reason.trim():'')+' (marked on the Hub by '+who+').'+(p.notes?'\n'+p.notes:'');
   const b=document.getElementById('end-confirm'); if(b){ b.textContent='Saving…'; b.disabled=true; }
-  try{ await postApi('updateProperty',{propertyId:p.propertyId, notes:notes}); p.notes=notes; openProfile(p.clientCode); }
-  catch(e){ if(b){ b.textContent='Confirm ended'; b.disabled=false; } alert('Could not save. Check the connection and try again.'); }
+  const res=await postApi('updateProperty',{propertyId:p.propertyId, notes:notes}, p);
+  if(!pbSaveOk_(res, true)){ if(b && document.body.contains(b)){ b.textContent='Confirm ended'; b.disabled=false; } return; }
+  p.notes=notes; pbStamp_(p,res);
+  if(!b || document.body.contains(b)) openProfile(p.clientCode);
 }
 async function reinstateProperty(code){
   const p=PROPS.find(x=>String(x.clientCode||'').toUpperCase()===String(code).toUpperCase()); if(!p) return;
   const lines=String(p.notes||'').split('\n'); while(lines.length && /^ENDED\b/i.test(lines[0].trim())) lines.shift();
   const notes=lines.join('\n');
-  try{ await postApi('updateProperty',{propertyId:p.propertyId, notes:notes}); p.notes=notes; openProfile(p.clientCode); }
-  catch(e){ alert('Could not save. Check the connection and try again.'); }
+  await pbToggle_(p,{notes:notes},'updateProperty',{propertyId:p.propertyId, notes:notes},()=>openProfile(p.clientCode));
 }
 
 // Who the property is assigned to, and what a candidate agent may see of it. Paul and the office have
@@ -631,10 +842,11 @@ async function saveAccess(pid, code){
   const tenant=(agent&&document.getElementById('pp-tenant').checked)?'TRUE':'', owner=(agent&&document.getElementById('pp-owner').checked)?'TRUE':'';   // Unassigned clears both
   const b=document.getElementById('pp-save'); b.textContent='Saving…'; b.disabled=true;
   const p=PROPS.find(x=>x.propertyId===pid);
-  try{ await postApi('updateProperty',{propertyId:pid, assignedAgent:agent, tenantVisible:tenant, ownerVisible:owner});
-    if(p){ p.assignedAgent=agent; p.tenantVisible=tenant; p.ownerVisible=owner; } }
-  catch(e){ alert('Could not save. Retry.'); }
-  openProfile(code);
+  const res=await postApi('updateProperty',{propertyId:pid, assignedAgent:agent, tenantVisible:tenant, ownerVisible:owner}, p);
+  if(!pbSaveOk_(res, true)){ if(document.body.contains(b)){ b.textContent='Save'; b.disabled=false; } return; }
+  const p2=PROPS.find(x=>x.propertyId===pid);
+  if(p2){ p2.assignedAgent=agent; p2.tenantVisible=tenant; p2.ownerVisible=owner; pbStamp_(p2,res); }
+  if(document.body.contains(b)) openProfile(code);
 }
 
 // Paul only: who can sign in, and at what level. One switch per person (03.10.2026).
@@ -662,21 +874,21 @@ async function pbAddUser(){
   if(!n||e.indexOf('@')<1){ alert('Add a name and a valid email.'); return; }
   if(STAFF.some(x=>x.email===e)){ alert('That email is already on the list.'); return; }
   const b=document.getElementById('u-save'); b.textContent='Adding…'; b.disabled=true;
-  try{ await postApi('addUser',{email:e, displayName:n, role:r}); }catch(x){ alert('Could not add. Retry.'); }
-  await new Promise(res=>setTimeout(res,1500)); await pbReloadStaff(); showStaffAccess();
+  const res=await postApi('addUser',{email:e, displayName:n, role:r});
+  if(!pbSaveOk_(res, true, false, {ok:'Added.', not:'Not added'})){ if(document.body.contains(b)){ b.textContent='Add'; b.disabled=false; } return; }
+  await pbReloadStaff();
+  if(document.body.contains(b)) showStaffAccess();
 }
 async function pbSetRole(email, role){
   const msg=role==='staff'?'Give '+email+' full staff access? They will see every property and owner.':'Limit '+email+' to Candidate access (own properties only)?';
   if(!confirm(msg)){ showStaffAccess(); return; }
-  const u=STAFF.find(x=>x.email===email); if(u) u.role=role;
-  try{ await postApi('updateUser',{email:email, role:role}); }catch(x){ alert('Could not save. Retry.'); }
-  showStaffAccess();
+  const u=STAFF.find(x=>x.email===email); if(!u){ showStaffAccess(); return; }
+  await pbToggle_(u,{role:role},'updateUser',{email:email, role:role}, showStaffAccess);
 }
 async function pbSetActive(email, on){
   if(!on && !confirm('Switch off sign-in for '+email+'? They lose access within a minute.')){ showStaffAccess(); return; }
-  const u=STAFF.find(x=>x.email===email); if(u) u.active=on;
-  try{ await postApi('updateUser',{email:email, active:on}); }catch(x){ alert('Could not save. Retry.'); }
-  showStaffAccess();
+  const u=STAFF.find(x=>x.email===email); if(!u){ showStaffAccess(); return; }
+  await pbToggle_(u,{active:on},'updateUser',{email:email, active:on}, showStaffAccess);
 }
 
 // ── Urgent Actions ──
@@ -830,13 +1042,27 @@ function uaLeadFields(e){
         <div id="f-source-wrap" style="display:none"><label>How did they find us?</label><select id="f-source"><option value="">Choose one (required)</option>${LEAD_SOURCES.map(t=>'<option>'+t+'</option>').join('')}</select></div>
       </div>`;
 }
-async function postLeadFor(ua){
-  const sel=document.getElementById('f-lead'); if(!sel || sel.value==='No') return;
+/* 28.11.2026: the lead is built from the form before the save, and its save is read back like any other. */
+function pbLeadFromForm_(ua){
+  const sel=document.getElementById('f-lead'); if(!sel || sel.value==='No') return null;
   const lead={ leadId:'LD-'+Date.now(), dateLogged:new Date().toISOString(), leadType:sel.value,
     source:document.getElementById('f-source').value, clientCode:ua.clientCode||'', uaId:ua.actionId,
     summary:String(ua.issue||'').slice(0,200), loggedBy:ua.flaggedBy||'', outcome:'Open', stage:'New enquiry' };
   { const t=pbSastNow(); lead.nextStepDate=pbLeadDefaultDue('New enquiry',t.today,t.hhmm,'',''); lead.stageAt=t.today+' '+t.hhmm; }
-  try{ LEAD_SEQ++; await postApi('addLead', lead); if(Array.isArray(LEADS)){ LEADS.push(lead); updateLeadBadge(); } }catch(err){ /* the urgent action is saved; the weekly check catches a missed lead */ }
+  return lead;
+}
+async function postLeadFor(lead){
+  if(!lead) return true;
+  LEAD_SEQ++;
+  const res=await postApi('addLead', lead);
+  if(res.state==='notsaved'||res.state==='auth'){ pbSay_('The urgent action is saved, but the lead did not reach the lead register. Add it on the Leads page.', res.state==='auth'?'auth':'warn'); return false; }
+  if(res.state==='unknown') pbSay_('The urgent action is saved, but the page could not check that the lead reached the lead register. Look on the Leads page before you add it again.','warn');
+  if(Array.isArray(LEADS)){
+    const dup=res.row && res.row.leadId && pbLoose_(res.row.leadId)!==pbLoose_(lead.leadId);
+    if(!dup && !LEADS.some(x=>x.leadId===lead.leadId)){ pbStamp_(lead,res); LEADS.push(lead); }
+    updateLeadBadge();
+  }
+  return true;
 }
 async function submitUA(editId){
   const cc=pbCleanCode(document.getElementById('f-code').value);
@@ -850,15 +1076,24 @@ async function submitUA(editId){
   const btn=document.getElementById('f-save'); btn.textContent='Saving…'; btn.disabled=true;
   if(editId){
     data.actionId=editId;
-    const idx=UA.findIndex(x=>String(x.actionId)===String(editId)); if(idx>-1) UA[idx]=Object.assign({},UA[idx],data);
+    const idx=UA.findIndex(x=>String(x.actionId)===String(editId));
+    const lead=pbLeadFromForm_(Object.assign({},UA[idx]||{},data));
+    const res=await postApi('updateUrgentAction', data, idx>-1?UA[idx]:null);
+    if(!pbSaveOk_(res, true)){ if(document.body.contains(btn)){ btn.textContent='Save changes'; btn.disabled=false; } return; }
+    const i2=UA.findIndex(x=>String(x.actionId)===String(editId)); if(i2>-1) UA[i2]=Object.assign({},UA[i2],data);
     updateBadge();
-    try{ await postApi('updateUrgentAction', data); await postLeadFor(Object.assign({},UA[idx]||{},data)); showUrgent();
-    }catch(e){ btn.textContent='Save changes'; btn.disabled=false; alert('Could not save. Please retry.'); }
+    await postLeadFor(lead);
+    if(document.body.contains(btn)) showUrgent();
   } else {
-    // Generate the ID up front and send it so the server stores the same one.
+    // The ID is made here and sent, so the platform stores the same one.
     data.actionId='UA-'+Date.now(); data.status='Open'; data.dateFlagged=new Date().toISOString();
-    try{ await postApi('addUrgentAction', data); UA.push(data); await postLeadFor(data); updateBadge(); showUrgent();
-    }catch(e){ btn.textContent='Post urgent action'; btn.disabled=false; alert('Could not post. Please retry.'); }
+    const lead=pbLeadFromForm_(data);
+    const res=await postApi('addUrgentAction', data);
+    if(!pbSaveOk_(res, true, false, {ok:'Posted.', not:'Not posted'})){ if(document.body.contains(btn)){ btn.textContent='Post urgent action'; btn.disabled=false; } return; }
+    if(!UA.some(x=>x.actionId===data.actionId)) UA.push(data);
+    updateBadge();
+    await postLeadFor(lead);
+    if(document.body.contains(btn)) showUrgent();
   }
 }
 async function addReply(id, alsoDone){
@@ -867,20 +1102,41 @@ async function addReply(id, alsoDone){
   if(!msg){ alert('Write a reply first.'); if(ta) ta.focus(); return; }
   const author = session?(session.displayName||session.email):'';
   const role = isAdmin()?'admin':'staff';
-  // optimistic update on screen
-  REPLIES.push({ replyId:'R-'+Date.now(), actionId:id, author:author, authorRole:role, message:msg, createdAt:new Date().toISOString() });
-  if(alsoDone){ const a=UA.find(x=>x.actionId===id); if(a) a.status='Done'; }
-  updateBadge(); showUrgent();
-  try{
-    await postApi('addActionReply', {actionId:id, author:author, authorRole:role, message:msg});
-    if(alsoDone) await postApi('updateUrgentAction', {actionId:id, status:'Done', completedAt:new Date().toISOString()});
-  }catch(e){ alert('Saved on screen but could not reach the server — please refresh to confirm.'); }
-  if(alsoDone) pbLeadAfterDone_(id);
+  // 28.11.2026: the reply shows on screen only once it has been read back.
+  if(pbReplyBusy_[id]) return;
+  pbReplyBusy_[id]=true;
+  if(ta) ta.disabled=true;
+  pbSay_('Saving\u2026','busy');
+  const reply={ replyId:'R-'+Date.now(), actionId:id, author:author, authorRole:role, message:msg, createdAt:new Date().toISOString() };
+  const r1=await postApi('addActionReply', {replyId:reply.replyId, actionId:id, author:author, authorRole:role, message:msg});
+  delete pbReplyBusy_[id];
+  if(!pbSaveOk_(r1, true, true)){ const tx=document.getElementById('reply-input-'+id); if(tx) tx.disabled=false; return; }
+  REPLIES.push(reply);
+  let doneOk=false, sure=(r1.state==='saved');
+  if(alsoDone){
+    const a=UA.find(x=>x.actionId===id);
+    const r2=await postApi('updateUrgentAction', {actionId:id, status:'Done', completedAt:new Date().toISOString()}, a);
+    if(r2.state==='notsaved'||r2.state==='auth'){
+      pbSay_('Your reply is saved, but the action was not marked done. Press Mark done to try again.', r2.state==='auth'?'auth':'warn'); sure=false;
+    } else {
+      if(a){ a.status='Done'; pbStamp_(a,r2); }
+      doneOk=true;
+      if(r2.state==='unknown'){ sure=false; pbSay_(pbSaveMsg_(r2),'warn'); }
+      else if(r2.state!=='saved') sure=false;
+    }
+  }
+  if(sure) pbSay_('Saved.','ok');
+  updateBadge();
+  const ta3=document.getElementById('reply-input-'+id);
+  const others=Array.from(document.querySelectorAll('.reply-box textarea')).some(t=>t!==ta3 && t.value.trim());
+  if(ta3 && !others) showUrgent();
+  else if(ta3){ ta3.value=''; ta3.disabled=false; }
+  if(alsoDone && doneOk && pbOnUrgent_()) pbLeadAfterDone_(id);
 }
 async function markDone(id){
-  const a=UA.find(x=>x.actionId===id); if(a) a.status='Done'; updateBadge(); showUrgent();
-  try{ await postApi('updateUrgentAction', {actionId:id, status:'Done', completedAt:new Date().toISOString()}); }catch(e){ alert('Could not update — please refresh.'); }
-  pbLeadAfterDone_(id);
+  const ok=await pbToggle_(UA.find(x=>x.actionId===id), {status:'Done'}, 'updateUrgentAction', {actionId:id, status:'Done', completedAt:new Date().toISOString()}, ()=>{ updateBadge(); showUrgent(); });
+  updateBadge();
+  if(ok && pbOnUrgent_()) pbLeadAfterDone_(id);
 }
 
 // ── Renewals ──
@@ -1174,11 +1430,23 @@ function leadApplyLocal_(l,d){
 }
 async function saveLead(id,d){
   const l=(LEADS||[]).find(x=>x.leadId===id); if(!l) return;
+  const snap=Object.assign({}, l);
   LEAD_SEQ++; leadApplyLocal_(l,d);
   LEAD_OPEN_ID=null; LEAD_PRESET=null; updateLeadBadge();
   if(leadsOnScreen()) renderLeads();
-  try{ await postApi('updateLead', Object.assign({leadId:id},d)); leadReconcile_(); }
-  catch(e){ alert('Could not save. Please retry.'); }
+  const before=main.innerHTML;
+  pbSay_('Saving\u2026','busy');
+  const res=await postApi('updateLead', Object.assign({leadId:id},d), snap);
+  if(res.state==='notsaved'||res.state==='auth'){
+    LEAD_SEQ++;
+    Object.keys(l).forEach(k=>delete l[k]); Object.assign(l, snap);
+    updateLeadBadge();
+    const redrawn=leadsOnScreen() && !LEAD_OPEN_ID && pbSameScreen_(before);
+    if(redrawn) renderLeads();
+    pbSay_(pbSaveMsg_(res, redrawn?false:undefined)+' The change to the lead has to be made again.', res.state==='auth'?'auth':'warn');
+    return;
+  }
+  pbStamp_(l,res); pbSaveOk_(res); leadReconcile_();
 }
 
 /* Quick lead form: an enquiry that did not come through an urgent action. */
@@ -1233,8 +1501,13 @@ async function submitLead(){
   if(!lead.nextStepDate) lead.nextStepDate=pbLeadDefaultDue(stage,t.today,t.hhmm,lead.visitAt||'',lead.parkedUntil||'');
   lead.stageAt=t.today+' '+t.hhmm;
   const btn=document.getElementById('lf-save'); btn.textContent='Saving…'; btn.disabled=true;
-  try{ LEAD_SEQ++; await postApi('addLead', lead); if(!Array.isArray(LEADS)) LEADS=[]; LEADS.push(lead); showLeads(); leadReconcile_(); }
-  catch(e){ btn.textContent='Save lead'; btn.disabled=false; err.textContent='Could not save. Please retry.'; }
+  LEAD_SEQ++;
+  const res=await postApi('addLead', lead);
+  if(!pbSaveOk_(res, true)){ if(document.body.contains(btn)){ btn.textContent='Save lead'; btn.disabled=false; err.textContent='Not saved.'; } return; }
+  if(!Array.isArray(LEADS)) LEADS=[];
+  if(!LEADS.some(x=>x.leadId===lead.leadId)){ pbStamp_(lead,res); LEADS.push(lead); }
+  if(document.body.contains(btn)) showLeads();
+  leadReconcile_();
 }
 /* When an urgent action is marked done and it is tied to an open lead, ask where the lead stands. */
 function pbLeadAfterDone_(actionId){
@@ -1275,16 +1548,11 @@ async function submitRenewal(editId){
   if(!data.clientCode&&!data.tenant){alert('Add at least a property code or tenant.');return;}
   if(cc.extra && data.notes.indexOf(cc.extra)===-1) data.notes=(data.notes?data.notes+'\n':'')+'Entered with the code: '+cc.extra;
   const b=document.getElementById('r-save'); b.textContent='Saving…'; b.disabled=true;
-  if(editId){
-    data.renewalId=editId;
-    const idx=REN.findIndex(x=>x.renewalId===editId); if(idx>-1) REN[idx]=Object.assign({},REN[idx],data);
-    try{ await postApi('updateRenewal',data); showRenewals(); }catch(e){ b.textContent='Save renewal'; b.disabled=false; alert('Could not save. Retry.'); }
-  } else {
-    data.renewalId='RN-'+Date.now(); data.status='Open';
-    try{ await postApi('addRenewal',data); REN.push(data); showRenewals(); }catch(e){ b.textContent='Save renewal'; b.disabled=false; alert('Could not save. Retry.'); }
-  }
+  if(editId){ data.renewalId=editId; }
+  else { data.renewalId='RN-'+Date.now(); data.status='Open'; }
+  await pbFormSave_({btn:b, label:'Save renewal', edit:!!editId, action:editId?'updateRenewal':'addRenewal', data:data, arr:()=>REN, key:'renewalId', after:showRenewals});
 }
-async function markRenewalDone(id){ const r=REN.find(x=>x.renewalId===id); if(r) r.status='Done'; showRenewals(); try{ await postApi('updateRenewal',{renewalId:id,status:'Done'}); }catch(e){ alert('Could not update — please refresh.'); } }
+async function markRenewalDone(id){ await pbToggle_(REN.find(x=>x.renewalId===id), {status:'Done'}, 'updateRenewal', {renewalId:id,status:'Done'}, showRenewals); }
 
 // ── Inspections ──
 function showInspections(){
@@ -1334,15 +1602,16 @@ async function sendInspection(id){
   const to=document.getElementById('s-to').value, tn=document.getElementById('s-tn').value.trim(), tp=document.getElementById('s-tp').value.trim();
   if(!tp && !confirm('No tenant phone entered. Send anyway?')) return;
   const b=document.getElementById('s-save'); b.textContent='Sending…'; b.disabled=true;
-  const i=INS.find(x=>x.inspectionId===id); if(i){ i.assignedTo=to; i.tenant=tn; i.tenantPhone=tp; i.accessClosedAt=''; }
-  try{ await postApi('updateInspection',{inspectionId:id, assignedTo:to, tenant:tn, tenantPhone:tp, accessClosedAt:''}); }catch(e){ alert('Could not send. Retry.'); }
-  showInspections();
+  const i=INS.find(x=>x.inspectionId===id);
+  const res=await postApi('updateInspection',{inspectionId:id, assignedTo:to, tenant:tn, tenantPhone:tp, accessClosedAt:''}, i);
+  if(!pbSaveOk_(res, true, false, {ok:'Sent.', not:'Not sent'})){ if(document.body.contains(b)){ b.textContent='Send'; b.disabled=false; } return; }
+  const i2=INS.find(x=>x.inspectionId===id);
+  if(i2){ i2.assignedTo=to; i2.tenant=tn; i2.tenantPhone=tp; i2.accessClosedAt=''; pbStamp_(i2,res); }
+  if(document.body.contains(b)) showInspections();
 }
 async function recallInspection(id){
   if(!confirm('Take this inspection back? He will no longer see the property.')) return;
-  const i=INS.find(x=>x.inspectionId===id); if(i){ i.assignedTo=''; }
-  try{ await postApi('updateInspection',{inspectionId:id, assignedTo:''}); }catch(e){ alert('Could not update. Retry.'); }
-  showInspections();
+  await pbToggle_(INS.find(x=>x.inspectionId===id),{assignedTo:''},'updateInspection',{inspectionId:id, assignedTo:''}, showInspections);
 }
 function editInspection(id){ const rec=INS.find(x=>x.inspectionId===id); if(rec) showInspectionForm(rec.clientCode, rec); }
 function showInspectionForm(prefill, edit){
@@ -1363,16 +1632,11 @@ async function submitInspection(editId){
   if(!data.clientCode&&!data.tenant){alert('Add at least a property code or tenant.');return;}
   if(cc.extra && data.notes.indexOf(cc.extra)===-1) data.notes=(data.notes?data.notes+'\n':'')+'Entered with the code: '+cc.extra;
   const b=document.getElementById('i-save'); b.textContent='Saving…'; b.disabled=true;
-  if(editId){
-    data.inspectionId=editId;
-    const idx=INS.findIndex(x=>x.inspectionId===editId); if(idx>-1) INS[idx]=Object.assign({},INS[idx],data);
-    try{ await postApi('updateInspection',data); showInspections(); }catch(e){ b.textContent='Save inspection'; b.disabled=false; alert('Could not save. Retry.'); }
-  } else {
-    data.inspectionId='IN-'+Date.now(); data.status='Open';
-    try{ await postApi('addInspection',data); INS.push(data); showInspections(); }catch(e){ b.textContent='Save inspection'; b.disabled=false; alert('Could not save. Retry.'); }
-  }
+  if(editId){ data.inspectionId=editId; }
+  else { data.inspectionId='IN-'+Date.now(); data.status='Open'; }
+  await pbFormSave_({btn:b, label:'Save inspection', edit:!!editId, action:editId?'updateInspection':'addInspection', data:data, arr:()=>INS, key:'inspectionId', after:showInspections});
 }
-async function markInspectionDone(id){ const i=INS.find(x=>x.inspectionId===id); if(i) i.status='Done'; showInspections(); try{ await postApi('updateInspection',{inspectionId:id,status:'Done'}); }catch(e){ alert('Could not update — please refresh.'); } }
+async function markInspectionDone(id){ await pbToggle_(INS.find(x=>x.inspectionId===id), {status:'Done'}, 'updateInspection', {inspectionId:id,status:'Done'}, showInspections); }
 
 // ── Active Listings ──
 function showListings(){
@@ -1402,16 +1666,11 @@ async function submitListing(editId){
   const data={clientCode:document.getElementById('al-code').value.trim().toUpperCase(),property:document.getElementById('al-prop').value.trim(),type:document.getElementById('al-type').value,askingPrice:document.getElementById('al-ask').value.trim(),availableFrom:document.getElementById('al-avail').value,listingStatus:document.getElementById('al-status').value,agent:document.getElementById('al-agent').value.trim(),notes:document.getElementById('al-notes').value.trim()};
   if(!data.property&&!data.clientCode){alert('Add at least a property/address or code.');return;}
   const b=document.getElementById('al-save'); b.textContent='Saving…'; b.disabled=true;
-  if(editId){
-    data.listingId=editId;
-    const idx=AL.findIndex(z=>z.listingId===editId); if(idx>-1) AL[idx]=Object.assign({},AL[idx],data);
-    try{ await postApi('updateActiveListing',data); showListings(); }catch(e){ b.textContent='Save listing'; b.disabled=false; alert('Could not save. Retry.'); }
-  } else {
-    data.listingId='AL-'+Date.now(); data.status='Open';
-    try{ await postApi('addActiveListing',data); AL.push(data); showListings(); }catch(e){ b.textContent='Save listing'; b.disabled=false; alert('Could not save. Retry.'); }
-  }
+  if(editId){ data.listingId=editId; }
+  else { data.listingId='AL-'+Date.now(); data.status='Open'; }
+  await pbFormSave_({btn:b, label:'Save listing', edit:!!editId, action:editId?'updateActiveListing':'addActiveListing', data:data, arr:()=>AL, key:'listingId', after:showListings});
 }
-async function markListingDone(id){ const x=AL.find(z=>z.listingId===id); if(x) x.status='Done'; showListings(); try{ await postApi('updateActiveListing',{listingId:id,status:'Done'}); }catch(e){ alert('Could not update — please refresh.'); } }
+async function markListingDone(id){ await pbToggle_(AL.find(z=>z.listingId===id), {status:'Done'}, 'updateActiveListing', {listingId:id,status:'Done'}, showListings); }
 
 // ── Search bar ──
 const search=document.getElementById('search'), results=document.getElementById('results');
